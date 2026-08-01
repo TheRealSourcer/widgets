@@ -1,0 +1,12 @@
+{
+  "description": "Desktop widgets: clock, calendar, weather, photos, and battery.",
+  "name": "Widgets",
+  "settings-schema": "org.gnome.shell.extensions.widgets-distro-com",
+  "shell-version": [
+    "50"
+  ],
+  "url": "https://github.com/TheRealSourcer/widgets",
+  "uuid": "widgets@distro.com",
+  "version": 1,
+  "version-name": "0.1.0"
+}

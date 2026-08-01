@@ -1,0 +1,25 @@
+.widget-calendar-month {
+	font-size: 22px;
+	font-weight: 800;
+}
+
+.widget-calendar-grid {
+	spacing: 3px;
+}
+
+.widget-calendar-grid-compact {
+	spacing: 0;
+}
+
+.widget-calendar-row {
+	spacing: 3px;
+}
+
+.widget-calendar-cell {
+	padding: 0;
+}
+
+.widget-calendar-day {
+	font-size: 12px;
+	text-align: center;
+}

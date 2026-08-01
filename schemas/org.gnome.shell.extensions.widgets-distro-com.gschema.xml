@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.widgets-distro-com" path="/org/gnome/shell/extensions/widgets-distro-com/">
+    <key name="layout-json" type="s">
+      <default>''</default>
+      <summary>Serialized widget layout</summary>
+      <description>Stores widget types, sizes, and desktop positions as JSON.</description>
+    </key>
+  </schema>
+</schemalist>

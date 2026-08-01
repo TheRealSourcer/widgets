@@ -1,0 +1,38 @@
+.widget-weather-location-row {
+  spacing: 5px;
+}
+
+.widget-weather-location-icon {
+    icon-size: 12px;
+}
+
+.widget-weather-location-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.widget-weather-bottom {
+  spacing: 2px;
+}
+
+.widget-weather-details {
+  spacing: 2px;
+}
+
+.widget-weather-icon {
+  icon-size: 24px;
+}
+
+.widget-weather-temp {
+  font-size: 72px;
+  font-weight: 800;
+}
+
+.widget-weather-summary {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.widget-weather-feels-like {
+  font-size: 14px;
+}
