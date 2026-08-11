@@ -115,11 +115,6 @@ function desktopAppExists(appId) {
   return false;
 };
 
-function createSettings(schemaId) {
-  const schema = Gio.SettingsSchemaSource.get_default()?.lookup(schemaId, true);
-
-  return schema ? new Gio.Settings({schema_id: schemaId}) : null;
-};
 
 function accentColor(settings) {
   const accent = settings?.get_string('accent-color') ?? 'blue';
@@ -180,21 +175,17 @@ class WidgetController {
     this._widgets = [];
     this._views = new Map();
     this._timeouts = [];
-    this._signals = [];
     this._dbusSignalIds = [];
     this._editMode = false;
-    this._dragSignalId = 0;
-    this._appClickSignalId = 0;
-    this._layerDestroySignalId = 0;
+    this._dragActor = null;
     this._lastAppLaunchAt = 0;
     this._workspaceIntegration = new WorkspaceIntegration();
     this._layoutSettings = extension.getSettings();
-    this._interfaceSettings = createSettings(INTERFACE_SCHEMA);
-    this._weatherSettings = createSettings(WeatherWidget.settingsSchema);
+    this._interfaceSettings = new Gio.Settings({schema_id: INTERFACE_SCHEMA});
+    this._weatherSettings = new Gio.Settings({schema_id: WeatherWidget.settingsSchema});
     this._weather = null;
     this._weatherLocation = null;
     this._weatherInfo = null;
-    this._weatherInfoSignalId = 0;
     this._weatherUpdating = false;
     this._weatherUpdateTime = 0;
   };
@@ -207,39 +198,30 @@ class WidgetController {
     this._rebuildWidgets();
     this._refreshWeather(true);
     this._workspaceIntegration.enable(this._layer);
-    this._appClickSignalId = global.stage.connect('captured-event', (_stage, event) => this._handleAppClickEvent(event));
+    global.stage.connectObject(
+      'captured-event', (_stage, event) => this._handleAppClickEvent(event),
+      this
+    );
 
-    if (this._interfaceSettings) {
-      this._signals.push([
-        this._interfaceSettings,
-        this._interfaceSettings.connect('changed::color-scheme', () => this._rebuildWidgets()),
-      ]);
-      this._signals.push([
-        this._interfaceSettings,
-        this._interfaceSettings.connect('changed::accent-color', () => this._rebuildWidgets()),
-      ]);
-    };
+    this._interfaceSettings.connectObject(
+      'changed::color-scheme', () => this._rebuildWidgets(),
+      'changed::accent-color', () => this._rebuildWidgets(),
+      this
+    );
 
-    if (this._weatherSettings) {
-      this._signals.push([
-        this._weatherSettings,
-        this._weatherSettings.connect('changed::locations', () => {
-          this._weather = null;
-          this._weatherUpdateTime = 0;
-          this._refreshWeather(true);
-          this._refreshWeatherViews();
-        }),
-      ]);
-    };
+    this._weatherSettings.connectObject('changed::locations', () => {
+      this._weather = null;
+      this._weatherUpdateTime = 0;
+      this._refreshWeather(true);
+      this._refreshWeatherViews();
+    }, this);
 
     this._watchBatteryChanges();
 
-    this._signals.push([
-      Main.layoutManager,
-      Main.layoutManager.connect('monitors-changed', () => {
-        this._syncLayerGeometry();
-      }),
-    ]);
+    Main.layoutManager.connectObject(
+      'monitors-changed', () => this._syncLayerGeometry(),
+      this
+    );
 
     this._timeouts.push(GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => {
       this._refreshWidgets();
@@ -256,11 +238,10 @@ class WidgetController {
 
     this._timeouts = [];
 
-    for (const [actor, id] of this._signals) {
-      actor.disconnect(id);
-    };
-
-    this._signals = [];
+    global.stage.disconnectObject(this);
+    Main.layoutManager.disconnectObject(this);
+    this._interfaceSettings.disconnectObject(this);
+    this._weatherSettings.disconnectObject(this);
 
     for (const id of this._dbusSignalIds) {
       Gio.DBus.system.signal_unsubscribe(id);
@@ -269,11 +250,6 @@ class WidgetController {
     this._dbusSignalIds = [];
 
     this._cancelActiveDrag();
-
-    if (this._appClickSignalId) {
-      global.stage.disconnect(this._appClickSignalId);
-      this._appClickSignalId = 0;
-    };
 
     this._indicator?.destroy();
     this._indicator = null;
@@ -325,40 +301,19 @@ class WidgetController {
     this._layoutSettings.set_string(LAYOUT_KEY, JSON.stringify({widgets: this._widgets}));
   };
 
-  _disconnectViewSignals(view) {
-    if (!view?.buttonPressSignalId) {
-      return;
-    };
-
-    view.actor.disconnect(view.buttonPressSignalId);
-    view.buttonPressSignalId = 0;
-  };
-
   _clearViews() {
     for (const view of this._views.values()) {
-      this._disconnectViewSignals(view);
+      view.actor.disconnectObject(this);
     };
 
     this._views.clear();
   };
 
   _destroyLayer() {
-    const layerDestroySignalId = this._layerDestroySignalId;
-
     this._workspaceIntegration.setSource(null);
     this._cancelActiveDrag();
     this._clearViews();
-
-    if (this._layer && layerDestroySignalId) {
-      this._layer.disconnect(layerDestroySignalId);
-    };
-
-    this._layerDestroySignalId = 0;
-
-    if (this._layer) {
-      this._layer.destroy();
-    };
-
+    this._layer?.destroy();
     this._layer = null;
   };
 
@@ -377,17 +332,6 @@ class WidgetController {
       reactive: true,
       x_expand: true,
       y_expand: true,
-    });
-
-    this._layerDestroySignalId = this._layer.connect('destroy', actor => {
-      this._layerDestroySignalId = 0;
-
-      if (this._layer === actor) {
-        this._workspaceIntegration.setSource(null);
-        this._cancelActiveDrag();
-        this._layer = null;
-        this._clearViews();
-      };
     });
 
     backgroundGroup.add_child(this._layer);
@@ -436,17 +380,14 @@ class WidgetController {
 
   _clearWeatherInfo() {
     const info = this._weatherInfo;
-    const signalId = this._weatherInfoSignalId;
 
     this._weatherInfo = null;
-    this._weatherInfoSignalId = 0;
     this._weatherUpdating = false;
 
-    if (info && signalId) {
-      info.disconnect(signalId);
+    if (info) {
+      info.disconnectObject(this);
+      info.abort();
     };
-
-    info?.abort();
   };
 
   _refreshWeather(force = false) {
@@ -476,7 +417,7 @@ class WidgetController {
     this._weatherInfo = info;
     this._weatherUpdating = true;
 
-    this._weatherInfoSignalId = info.connect('updated', () => {
+    info.connectObject('updated', () => {
       if (info !== this._weatherInfo) {
         return;
       };
@@ -491,7 +432,7 @@ class WidgetController {
       };
 
       this._refreshWeatherViews();
-    });
+    }, this);
 
     info.update();
   };
@@ -544,25 +485,25 @@ class WidgetController {
     }));
 
     const editItem = new PopupMenu.PopupSwitchMenuItem('Edit Widgets', this._editMode);
-    editItem.connect('toggled', (_item, state) => this.setEditMode(state));
+    editItem.connectObject('toggled', (_item, state) => this.setEditMode(state), this);
 
     this._indicator.menu.addMenuItem(editItem);
     this._indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
     for (const [type, label] of WIDGET_TYPES) {
       const item = new PopupMenu.PopupMenuItem(`Add ${label}`);
-      item.connect('activate', () => this.addWidget(type));
+      item.connectObject('activate', () => this.addWidget(type), this);
       this._indicator.menu.addMenuItem(item);
     };
 
     this._indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
     const resetItem = new PopupMenu.PopupMenuItem('Reset Default Widgets');
-    resetItem.connect('activate', () => {
+    resetItem.connectObject('activate', () => {
       this._widgets = cloneDefaultWidgets();
       this._saveWidgets();
       this._rebuildWidgets();
-    });
+    }, this);
 
     this._indicator.menu.addMenuItem(resetItem);
     Main.panel.addToStatusArea(this._extension.uuid, this._indicator);
@@ -642,7 +583,7 @@ class WidgetController {
 
       try {
         if (view.actor.get_parent() !== this._layer || view.body.get_parent() !== view.actor) {
-          this._disconnectViewSignals(view);
+          view.actor.disconnectObject(this);
           this._views.delete(id);
           continue;
         };
@@ -650,7 +591,7 @@ class WidgetController {
         this._fillWidgetBody(view.widget, view.body);
       } catch (error) {
         warn('stale-widget-view', `Dropping stale widget view: ${error.message}`);
-        this._disconnectViewSignals(view);
+        view.actor.disconnectObject(this);
         this._views.delete(id);
       };
     };
@@ -691,17 +632,8 @@ class WidgetController {
       body,
       editBorder: null,
       removeButton: null,
-      buttonPressSignalId: 0,
     };
     this._views.set(widget.id, view);
-
-    actor.connect('destroy', () => {
-      view.buttonPressSignalId = 0;
-
-      if (this._views.get(widget.id)?.actor === actor) {
-        this._views.delete(widget.id);
-      };
-    });
 
     if (this._editMode) {
       this._makeDraggable(view);
@@ -781,7 +713,7 @@ class WidgetController {
 
     this._layer.add_child(editBorder);
 
-    removeButton.connect('clicked', () => this.removeWidget(view.widget.id));
+    removeButton.connectObject('clicked', () => this.removeWidget(view.widget.id), this);
     this._layer.add_child(removeButton);
 
     view.editBorder = editBorder;
@@ -913,7 +845,7 @@ class WidgetController {
       this._resolveLayout(widget, false, false);
     };
 
-    view.buttonPressSignalId = actor.connect('button-press-event', (_source, event) => {
+    actor.connectObject('button-press-event', (_source, event) => {
       if (event.get_button() !== 1) {
         return Clutter.EVENT_PROPAGATE;
       };
@@ -935,7 +867,8 @@ class WidgetController {
       raiseActor(actor);
       this._syncEditControls(widget);
 
-      this._dragSignalId = global.stage.connect('captured-event', (_stage, capturedEvent) => {
+      this._dragActor = actor;
+      global.stage.connectObject('captured-event', (_stage, capturedEvent) => {
         if (!drag) {
           return Clutter.EVENT_PROPAGATE;
         };
@@ -955,19 +888,19 @@ class WidgetController {
         };
 
         return Clutter.EVENT_PROPAGATE;
-      });
+      }, actor);
 
       return Clutter.EVENT_STOP;
-    });
+    }, this);
   };
 
   _cancelActiveDrag() {
-    if (!this._dragSignalId) {
+    if (!this._dragActor) {
       return;
     };
 
-    global.stage.disconnect(this._dragSignalId);
-    this._dragSignalId = 0;
+    global.stage.disconnectObject(this._dragActor);
+    this._dragActor = null;
   };
 
   _fillWidgetBody(widget, body) {
