@@ -1120,9 +1120,7 @@ export default class DesktopWidgetsExtension extends Extension {
   disable() {
     this._controller?.destroy();
     this._controller = null;
-    for (const widgetModule of WIDGET_MODULES) {
-      widgetModule.cleanup();
-    };
+    PhotosWidget.cleanup();
     this._unloadWidgetStylesheets();
     resetLogger();
   };

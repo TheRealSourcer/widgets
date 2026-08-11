@@ -1,7 +1,7 @@
 **This GitHub repo (<https://github.com/TheRealSourcer/widgets>) is the official
 source for the project. Do not download releases from unverified sources.**
 
-# Widgets (V0.2.1)
+# Widgets (V0.2.2)
 
 <img src="./icon.svg" width="128" height="128" alt="widgets-icon" align="right" onerror="this.style.display='none'"/>
 
