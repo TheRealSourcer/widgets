@@ -18,12 +18,6 @@ export function style(theme) {
 	return `background-color: ${theme.background}; border-color: ${theme.border}; color: ${theme.text};`;
 };
 
-function stationFromSettings(settings) {
-	const strings = locationStringsFromSettings(settings);
-
-	return strings[1] || null;
-};
-
 export function locationNameFromSettings(settings) {
 	const strings = locationStringsFromSettings(settings);
 
@@ -35,28 +29,32 @@ function locationStringsFromSettings(settings) {
 		return [];
 	};
 
-	try {
-		const locations = settings.get_value('locations');
+	const locations = settings.get_value('locations');
 
-		if (locations.n_children() === 0) {
-			return [];
-		};
-
-		const serialized = locations.get_child_value(0).print(true);
-
-		return [...serialized.matchAll(/'([^']*)'/g)].map(match => match[1]);
-	} catch (error) {
-		warn('weather-location-read', `Could not read Weather app location: ${error.message}`);
+	if (locations.n_children() === 0) {
 		return [];
 	};
+
+	const serialized = locations.get_child_value(0).print(true);
+
+	return [...serialized.matchAll(/'([^']*)'/g)].map(match => match[1]);
 };
 
 export function locationFromSettings(settings) {
-	const stationCode = stationFromSettings(settings);
+	if (!settings) {
+		return null;
+	};
 
-	return stationCode
-		? GWeather.Location.get_world()?.find_by_station_code(stationCode)
-		: null;
+	try {
+		const locations = settings.get_value('locations');
+
+		return locations.n_children() > 0
+			? GWeather.Location.get_world()?.deserialize(locations.get_child_value(0).deep_unpack()) ?? null
+			: null;
+	} catch (error) {
+		warn('weather-location-deserialize', `Could not deserialize Weather app location: ${error.message}`);
+		return null;
+	};
 };
 
 export function infoForLocation(location) {
@@ -64,14 +62,17 @@ export function infoForLocation(location) {
 
 	info.set_application_id('com.github.TheRealSourcer.Widgets');
 	info.set_contact_info('https://github.com/TheRealSourcer/widgets');
-	info.set_enabled_providers(GWeather.Provider.ALL);
+	info.set_enabled_providers(
+		GWeather.Provider.METAR |
+		GWeather.Provider.MET_NO |
+		GWeather.Provider.OWM);
 	return info;
 };
 
 export function weatherFromInfo(info, location, displayName = null) {
 	const currentInfo = currentConditionsInfo(info);
 	const locationName = currentInfo.get_location_name();
-	const apparent = formatTemperature(currentInfo.get_apparent?.());
+	const apparent = formatTemperature(currentInfo.get_apparent());
 
 	return {
 		temp: formatTemperature(currentInfo.get_temp()),
@@ -87,17 +88,13 @@ function currentConditionsInfo(info) {
 };
 
 function forecastUpdateTime(info) {
-	try {
-		const [ok, updateTime] = info.get_value_update();
+	const [ok, updateTime] = info.get_value_update();
 
-		return ok ? updateTime : null;
-	} catch {
-		return null;
-	};
+	return ok ? updateTime : null;
 };
 
 function currentForecastInfo(info) {
-	const forecasts = info.get_forecast_list?.() ?? [];
+	const forecasts = info.get_forecast_list() ?? [];
 	const now = Math.floor(Date.now() / 1000);
 	let bestPast = null;
 	let bestFuture = null;

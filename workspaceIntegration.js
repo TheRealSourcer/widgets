@@ -11,11 +11,7 @@ function destroyActor(actor) {
     return;
   };
 
-  try {
-    actor.destroy();
-  } catch (error) {
-    warn('workspace-actor-destroy', `Could not destroy stale workspace actor: ${error.message}`);
-  };
+  actor.destroy();
 };
 
 export class WorkspaceIntegration {
@@ -160,7 +156,7 @@ export class WorkspaceIntegration {
       return;
     };
 
-    const backgroundGroup = workspaceBackground.get_first_child?.();
+    const backgroundGroup = workspaceBackground.get_first_child();
 
     if (!backgroundGroup) {
       return;
@@ -177,7 +173,7 @@ export class WorkspaceIntegration {
 
     backgroundGroup.add_child(clone);
     backgroundGroup.connectObject('child-added', (_actor, child) => {
-      if (child !== clone && clone.get_parent?.() === backgroundGroup) {
+      if (child !== clone && clone.get_parent() === backgroundGroup) {
         backgroundGroup.set_child_above_sibling(clone, null);
       };
     }, clone);
@@ -240,7 +236,7 @@ export class WorkspaceIntegration {
   };
 
   _restackOverviewClone(container, clone, aboveSiblings) {
-    if (clone.get_parent?.() !== container) {
+    if (clone.get_parent() !== container) {
       return;
     };
 

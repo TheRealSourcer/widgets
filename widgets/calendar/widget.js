@@ -77,8 +77,10 @@ export function render({body, createLabel, theme}) {
 
 	monthLabel.x_expand = false;
 	content.add_child(monthLabel);
-	for (const weekday of weekdays) {
-		weekdayRow.add_child(calendarCell(weekday, `color: ${theme.muted}; font-weight: 700;`, null, createLabel, cellHeight));
+	for (const [column, weekday] of weekdays.entries()) {
+		const color = column === 0 || column === 6 ? theme.muted : theme.text;
+
+		weekdayRow.add_child(calendarCell(weekday, `color: ${color}; font-weight: 700;`, null, createLabel, cellHeight));
 	};
 	grid.add_child(weekdayRow);
 
@@ -92,9 +94,10 @@ export function render({body, createLabel, theme}) {
 			};
 
 			const isToday = day === today;
+			const isWeekend = column === 0 || column === 6;
 			const labelStyle = isToday
 				? 'color: #ffffff; font-weight: 800;'
-				: `color: ${theme.text};`;
+				: `color: ${isWeekend ? theme.muted : theme.text};`;
 			const cellStyle = isToday
 				? `background-color: ${theme.accent}; border-radius: 999px;`
 				: null;

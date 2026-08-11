@@ -14,7 +14,7 @@ import * as CalendarWidget from './widgets/calendar/widget.js';
 import * as ClockWidget from './widgets/clock/widget.js';
 import * as PhotosWidget from './widgets/photos/widget.js';
 import * as WeatherWidget from './widgets/weather/widget.js';
-import { resetWarnings, warn } from './logger.js';
+import { configureLogger, resetLogger, warn } from './logger.js';
 import { WorkspaceIntegration } from './workspaceIntegration.js';
 
 const EXTENSION_PATH = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
@@ -167,7 +167,7 @@ function rectsOverlap(a, b) {
 };
 
 function raiseActor(actor) {
-  const parent = actor.get_parent?.();
+  const parent = actor.get_parent();
 
   if (parent?.set_child_above_sibling) {
     parent.set_child_above_sibling(actor, null);
@@ -316,22 +316,13 @@ class WidgetController {
   };
 
   _loadWidgets() {
-    try {
-      const serialized = this._layoutSettings.get_string(LAYOUT_KEY);
+    const serialized = this._layoutSettings.get_string(LAYOUT_KEY);
 
-      return serialized ? this._parseWidgets(serialized) : cloneDefaultWidgets();
-    } catch (error) {
-      warn('layout-load', `Could not load layout: ${error.message}`);
-      return cloneDefaultWidgets();
-    };
+    return serialized ? this._parseWidgets(serialized) : cloneDefaultWidgets();
   };
 
   _saveWidgets() {
-    try {
-      this._layoutSettings.set_string(LAYOUT_KEY, JSON.stringify({widgets: this._widgets}));
-    } catch (error) {
-      warn('layout-save', `Could not save layout: ${error.message}`);
-    };
+    this._layoutSettings.set_string(LAYOUT_KEY, JSON.stringify({widgets: this._widgets}));
   };
 
   _disconnectViewSignals(view) {
@@ -339,12 +330,7 @@ class WidgetController {
       return;
     };
 
-    try {
-      view.actor.disconnect(view.buttonPressSignalId);
-    } catch (error) {
-      warn('view-signal-disconnect', `Could not disconnect widget input signal: ${error.message}`);
-    };
-
+    view.actor.disconnect(view.buttonPressSignalId);
     view.buttonPressSignalId = 0;
   };
 
@@ -364,21 +350,13 @@ class WidgetController {
     this._clearViews();
 
     if (this._layer && layerDestroySignalId) {
-      try {
-        this._layer.disconnect(layerDestroySignalId);
-      } catch (error) {
-        warn('layer-signal-disconnect', `Could not disconnect layer destroy signal: ${error.message}`);
-      };
+      this._layer.disconnect(layerDestroySignalId);
     };
 
     this._layerDestroySignalId = 0;
 
     if (this._layer) {
-      try {
-        this._layer.destroy();
-      } catch (error) {
-        warn('layer-destroy', `Could not destroy stale layer: ${error.message}`);
-      };
+      this._layer.destroy();
     };
 
     this._layer = null;
@@ -465,14 +443,10 @@ class WidgetController {
     this._weatherUpdating = false;
 
     if (info && signalId) {
-      try {
-        info.disconnect(signalId);
-      } catch (error) {
-        warn('weather-signal-disconnect', `Could not disconnect weather update signal: ${error.message}`);
-      };
+      info.disconnect(signalId);
     };
 
-    info?.abort?.();
+    info?.abort();
   };
 
   _refreshWeather(force = false) {
@@ -552,17 +526,14 @@ class WidgetController {
       };
     };
 
-    try {
-      this._dbusSignalIds.push(
-        Gio.DBus.system.signal_subscribe('org.freedesktop.UPower', 'org.freedesktop.UPower', 'DeviceAdded', '/org/freedesktop/UPower', null, Gio.DBusSignalFlags.NONE, refresh),
-        Gio.DBus.system.signal_subscribe('org.freedesktop.UPower', 'org.freedesktop.UPower', 'DeviceRemoved', '/org/freedesktop/UPower', null, Gio.DBusSignalFlags.NONE, refresh),
-        Gio.DBus.system.signal_subscribe('org.freedesktop.UPower', 'org.freedesktop.DBus.Properties', 'PropertiesChanged', null, 'org.freedesktop.UPower.Device', Gio.DBusSignalFlags.NONE, refresh),
-        Gio.DBus.system.signal_subscribe('org.bluez', 'org.freedesktop.DBus.ObjectManager', 'InterfacesAdded', '/', null, Gio.DBusSignalFlags.NONE, refresh),
-        Gio.DBus.system.signal_subscribe('org.bluez', 'org.freedesktop.DBus.ObjectManager', 'InterfacesRemoved', '/', null, Gio.DBusSignalFlags.NONE, refresh),
-        Gio.DBus.system.signal_subscribe('org.bluez', 'org.freedesktop.DBus.Properties', 'PropertiesChanged', null, null, Gio.DBusSignalFlags.NONE, refreshBlueZ));
-    } catch (error) {
-      warn('battery-watch', `Could not watch battery devices: ${error.message}`);
-    };
+    this._dbusSignalIds.push(
+      Gio.DBus.system.signal_subscribe('org.freedesktop.UPower', 'org.freedesktop.UPower', 'DeviceAdded', '/org/freedesktop/UPower', null, Gio.DBusSignalFlags.NONE, refresh),
+      Gio.DBus.system.signal_subscribe('org.freedesktop.UPower', 'org.freedesktop.UPower', 'DeviceRemoved', '/org/freedesktop/UPower', null, Gio.DBusSignalFlags.NONE, refresh),
+      Gio.DBus.system.signal_subscribe('org.freedesktop.UPower', 'org.freedesktop.DBus.Properties', 'PropertiesChanged', null, 'org.freedesktop.UPower.Device', Gio.DBusSignalFlags.NONE, refresh),
+      Gio.DBus.system.signal_subscribe('org.bluez', 'org.freedesktop.DBus.ObjectManager', 'InterfacesAdded', '/', null, Gio.DBusSignalFlags.NONE, refresh),
+      Gio.DBus.system.signal_subscribe('org.bluez', 'org.freedesktop.DBus.ObjectManager', 'InterfacesRemoved', '/', null, Gio.DBusSignalFlags.NONE, refresh),
+      Gio.DBus.system.signal_subscribe('org.bluez', 'org.freedesktop.DBus.Properties', 'PropertiesChanged', null, null, Gio.DBusSignalFlags.NONE, refreshBlueZ)
+    );
   };
 
   _createIndicator() {
@@ -824,17 +795,13 @@ class WidgetController {
         continue;
       };
 
-      try {
-        GLib.spawn_command_line_async(`gtk-launch ${appId}`);
-        return;
-      } catch (error) {
-        warn('app-launch', `Could not launch ${appId} with gtk-launch: ${error.message}`);
-      };
+      GLib.spawn_command_line_async(`gtk-launch ${appId}`);
+      return;
     };
   };
 
   _actorIsDescendantOf(actor, ancestor) {
-    for (let current = actor; current; current = current.get_parent?.()) {
+    for (let current = actor; current; current = current.get_parent()) {
       if (current === ancestor) {
         return true;
       };
@@ -889,7 +856,7 @@ class WidgetController {
       return Clutter.EVENT_PROPAGATE;
     };
 
-    if ((event.get_button?.() ?? 1) !== 1) {
+    if ((event.get_button() ?? 1) !== 1) {
       return Clutter.EVENT_PROPAGATE;
     };
 
@@ -1195,12 +1162,8 @@ export default class DesktopWidgetsExtension extends Extension {
         continue;
       };
 
-      try {
-        theme.load_stylesheet(file);
-        this._widgetStylesheets.push(file);
-      } catch (error) {
-        warn('stylesheet-load', `Could not load ${widgetModule.stylesheet}: ${error.message}`);
-      };
+      theme.load_stylesheet(file);
+      this._widgetStylesheets.push(file);
     };
   };
 
@@ -1208,17 +1171,14 @@ export default class DesktopWidgetsExtension extends Extension {
     const theme = St.ThemeContext.get_for_stage(global.stage).get_theme();
 
     for (const file of this._widgetStylesheets ?? []) {
-      try {
-        theme.unload_stylesheet(file);
-      } catch (error) {
-        warn('stylesheet-unload', `Could not unload ${file.get_path()}: ${error.message}`);
-      };
+      theme.unload_stylesheet(file);
     };
 
     this._widgetStylesheets = [];
   };
 
   enable() {
+    configureLogger(this.getLogger());
     this._loadWidgetStylesheets();
     this._controller = new WidgetController(this);
     this._controller.enable();
@@ -1228,9 +1188,9 @@ export default class DesktopWidgetsExtension extends Extension {
     this._controller?.destroy();
     this._controller = null;
     for (const widgetModule of WIDGET_MODULES) {
-      widgetModule.cleanup?.();
+      widgetModule.cleanup();
     };
     this._unloadWidgetStylesheets();
-    resetWarnings();
+    resetLogger();
   };
 };

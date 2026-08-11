@@ -1,5 +1,10 @@
 const WARNING_INTERVAL_MS = 5 * 60 * 1000;
 const warningTimes = new Map();
+let logger = null;
+
+export function configureLogger(value) {
+  logger = value;
+};
 
 export function warn(key, message) {
   const now = Date.now();
@@ -10,9 +15,15 @@ export function warn(key, message) {
   };
 
   warningTimes.set(key, now);
-  console.warn(`[widgets] ${message}`);
+
+  if (logger) {
+    logger.warn(message);
+  } else {
+    console.warn(message);
+  };
 };
 
-export function resetWarnings() {
+export function resetLogger() {
+  logger = null;
   warningTimes.clear();
 };

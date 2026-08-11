@@ -4,6 +4,8 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 
+import { warn } from '../../logger.js';
+
 export const type = 'photos';
 export const label = 'Photos';
 export const stylesheet = 'widgets/photos/stylesheet.css';
@@ -58,17 +60,15 @@ function collectPictures(directory, images, seenDirectories, depth = 0) {
 				images.push(child);
 			};
 		};
-	} catch {
+	} catch (error) {
+		warn('photos-directory-read', `Could not read photos from ${path}: ${error.message}`);
 	} finally {
-		try {
-			enumerator?.close(null);
-		} catch {
-		};
+		enumerator?.close(null);
 	};
 };
 
 function filePath(file) {
-	return file?.get_path?.() ?? null;
+	return file?.get_path() ?? null;
 };
 
 function invalidatePicturePool() {
@@ -229,16 +229,14 @@ const PhotoFrame = GObject.registerClass(
 	}
 );
 
-export function style() {
-	return 'background-color: #000000; border-width: 0px; border-radius: 26px; padding: 0px;';
+export function style(theme) {
+  return `background-color: #000000; border-color: ${theme.border}; border-radius: 26px; padding: 0px;`;
 };
 
-export function render({body, widget, sizeForWidget}) {
-	const [widgetWidth, widgetHeight] = sizeForWidget(widget);
+export function render({body, widget}) {
 	const assignment = {seed: widget.id};
 	const frame = new PhotoFrame(assignment, assignPictureFile(assignment));
 
-	frame.set_size(widgetWidth, widgetHeight);
 	frame.set_x_expand(true);
 	frame.set_y_expand(true);
 	body.add_child(frame);

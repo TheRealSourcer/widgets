@@ -146,15 +146,12 @@ const AnalogClockFace = GObject.registerClass(
 );
 
 export function style(theme) {
-	return `background-color: ${theme.background}; border-width: 0px; border-radius: ${CLOCK_RADIUS}px; padding: 0px;`;
+  return `background-color: ${theme.background}; border-color: ${theme.border}; border-radius: ${CLOCK_RADIUS}px; padding: 0px;`;
 };
 
-export function render({body, widget, sizeForWidget, theme}) {
+export function render({body, theme}) {
 	const clock = new AnalogClockFace(theme);
-	const [width, height] = sizeForWidget(widget);
-	const faceSize = Math.max(1, Math.min(width, height));
 
-	clock.set_size(faceSize, faceSize);
 	clock.set_x_expand(true);
 	clock.set_y_expand(true);
 	body.add_child(clock);
