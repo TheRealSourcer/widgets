@@ -154,14 +154,15 @@ export default class WidgetsPreferences extends ExtensionPreferences {
     // Custom path entry
     const customPathRow = new Adw.EntryRow({
       title: _('Custom Path'),
-      placeholder_text: _('/home/user/Photos'),
     });
-    
+
     const currentCustomPath = settings.get_string('photos-custom-path');
     if (currentCustomPath) {
       customPathRow.set_text(currentCustomPath);
+    } else {
+      customPathRow.set_text(_('~/Pictures'));
     };
-    
+
     customPathRow.connect('changed', () => {
       settings.set_string('photos-custom-path', customPathRow.get_text());
     });
