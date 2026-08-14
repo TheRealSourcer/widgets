@@ -6,5 +6,41 @@
       <summary>Serialized widget layout</summary>
       <description>Stores widget types, sizes, and desktop positions as JSON.</description>
     </key>
+    <key name="enable-clock" type="b">
+      <default>true</default>
+      <summary>Enable Clock Widget</summary>
+      <description>Show or hide the clock widget on the desktop.</description>
+    </key>
+    <key name="enable-calendar" type="b">
+      <default>true</default>
+      <summary>Enable Calendar Widget</summary>
+      <description>Show or hide the calendar widget on the desktop.</description>
+    </key>
+    <key name="enable-weather" type="b">
+      <default>true</default>
+      <summary>Enable Weather Widget</summary>
+      <description>Show or hide the weather widget on the desktop.</description>
+    </key>
+    <key name="enable-photos" type="b">
+      <default>true</default>
+      <summary>Enable Photos Widget</summary>
+      <description>Show or hide the photos widget on the desktop.</description>
+    </key>
+    <key name="enable-battery" type="b">
+      <default>true</default>
+      <summary>Enable Battery Widget</summary>
+      <description>Show or hide the battery widget on the desktop.</description>
+    </key>
+    <key name="auto-hide" type="b">
+      <default>false</default>
+      <summary>Auto Hide Widgets</summary>
+      <description>Automatically hide widgets when not in use.</description>
+    </key>
+    <key name="widget-opacity" type="i">
+      <range min="0" max="100"/>
+      <default>100</default>
+      <summary>Widget Opacity</summary>
+      <description>Set the transparency of widgets (0-100).</description>
+    </key>
   </schema>
 </schemalist>
