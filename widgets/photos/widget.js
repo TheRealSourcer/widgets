@@ -16,7 +16,7 @@ const PHOTO_CACHE_TTL_MS = 60 * 1000;
 const PHOTO_REFRESH_SECONDS = 15;
 const PHOTO_RADIUS = 26;
 
-let picturePoolCache = {time: 0, pools: []};
+let picturePoolCache = {time: 0, pools: [], source: null, customPath: null};
 const pictureAssignments = new Map();
 
 function collectPictures(directory, images, seenDirectories, depth = 0) {
@@ -72,13 +72,14 @@ function filePath(file) {
 };
 
 function invalidatePicturePool() {
-	picturePoolCache = {time: 0, pools: []};
+	picturePoolCache = {time: 0, pools: [], source: null, customPath: null};
 };
 
-function picturePools(force = false, source = 'camera') {
+function picturePools(force = false, source = 'camera', customPath = '') {
 	const now = Date.now();
 
-	if (!force && now - picturePoolCache.time < PHOTO_CACHE_TTL_MS) {
+	// Check cache validity - invalidate if source changed or TTL expired
+	if (!force && now - picturePoolCache.time < PHOTO_CACHE_TTL_MS && picturePoolCache.source === source && picturePoolCache.customPath === customPath) {
 		return picturePoolCache.pools;
 	};
 
@@ -96,6 +97,14 @@ function picturePools(force = false, source = 'camera') {
 		case 'downloads':
 			searchRoots = [downloadsDir];
 			break;
+		case 'custom':
+			if (customPath && customPath.trim()) {
+				searchRoots = [customPath.trim()];
+			} else {
+				// Fallback to Pictures if custom path is empty
+				searchRoots = [picturesDir];
+			}
+			break;
 		case 'camera':
 		default:
 			searchRoots = [GLib.build_filenamev([picturesDir, 'Camera'])];
@@ -104,6 +113,8 @@ function picturePools(force = false, source = 'camera') {
 
 	picturePoolCache = {
 		time: now,
+		source: source,
+		customPath: customPath,
 		pools: searchRoots.map(root => {
 			const images = [];
 
@@ -126,8 +137,8 @@ function stablePictureIndex(widgetId, length) {
 	return hash % length;
 };
 
-function assignPictureFile(assignment, force = false, excludedPath = null, source = 'camera') {
-	const pools = picturePools(force, source);
+function assignPictureFile(assignment, force = false, excludedPath = null, source = 'camera', customPath = '') {
+	const pools = picturePools(force, source, customPath);
 	const currentPath = pictureAssignments.get(assignment) ?? null;
 	const poolPaths = new Set(pools.flatMap(pool => pool.map(filePath)));
 	const usedPaths = new Set([...pictureAssignments.entries()].filter(([key, path]) => key !== assignment && poolPaths.has(path)).map(([, path]) => path));
@@ -245,9 +256,9 @@ export function style(theme) {
   return `background-color: #000000; border-color: ${theme.border}; border-radius: 26px; padding: 0px;`;
 };
 
-export function render({body, widget, photosSource = 'camera'}) {
+export function render({body, widget, photosSource = 'camera', photosCustomPath = ''}) {
 	const assignment = {seed: widget.id};
-	const frame = new PhotoFrame(assignment, assignPictureFile(assignment, false, null, photosSource), photosSource);
+	const frame = new PhotoFrame(assignment, assignPictureFile(assignment, false, null, photosSource, photosCustomPath), photosSource, photosCustomPath);
 
 	frame.set_x_expand(true);
 	frame.set_y_expand(true);

@@ -116,6 +116,7 @@ export default class WidgetsPreferences extends ExtensionPreferences {
     sourceStore.append(_('Camera Roll'));
     sourceStore.append(_('Screenshots'));
     sourceStore.append(_('Downloads'));
+    sourceStore.append(_('Custom Path'));
 
     const photosSourceRow = new Adw.ComboRow({
       title: _('Photo Source'),
@@ -128,12 +129,14 @@ export default class WidgetsPreferences extends ExtensionPreferences {
       0: 'camera',
       1: 'screenshots',
       2: 'downloads',
+      3: 'custom',
     };
 
     const reverseSourceMap = {
       'camera': 0,
       'screenshots': 1,
       'downloads': 2,
+      'custom': 3,
     };
 
     // Set initial value
@@ -148,9 +151,26 @@ export default class WidgetsPreferences extends ExtensionPreferences {
 
     photosGroup.add(photosSourceRow);
 
+    // Custom path entry
+    const customPathRow = new Adw.EntryRow({
+      title: _('Custom Path'),
+      placeholder_text: _('/home/user/Photos'),
+    });
+    
+    const currentCustomPath = settings.get_string('photos-custom-path');
+    if (currentCustomPath) {
+      customPathRow.set_text(currentCustomPath);
+    };
+    
+    customPathRow.connect('changed', () => {
+      settings.set_string('photos-custom-path', customPathRow.get_text());
+    });
+    
+    photosGroup.add(customPathRow);
+
     const photosInfoRow = new Adw.ActionRow({
       title: _('Photo Directories'),
-      subtitle: _('Camera Roll: ~/Pictures/Camera\nScreenshots: ~/Pictures/Screenshots\nDownloads: ~/Downloads'),
+      subtitle: _('Camera Roll: ~/Pictures/Camera\nScreenshots: ~/Pictures/Screenshots\nDownloads: ~/Downloads\nCustom: Enter any directory path'),
     });
     photosGroup.add(photosInfoRow);
 

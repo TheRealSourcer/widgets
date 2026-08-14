@@ -969,6 +969,7 @@ class WidgetController {
       createLabel: this._label.bind(this),
       sizeForWidget,
       photosSource: this._layoutSettings.get_string('photos-source'),
+      photosCustomPath: this._layoutSettings.get_string('photos-custom-path'),
     });
   };
 
