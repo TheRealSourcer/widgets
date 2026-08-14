@@ -42,5 +42,15 @@
       <summary>Widget Opacity</summary>
       <description>Set the transparency of widgets (0-100).</description>
     </key>
+    <key name="photos-source" type="s">
+      <default>'camera'</default>
+      <summary>Photos Source</summary>
+      <description>Where to fetch photos for the photos widget (camera, screenshots, downloads).</description>
+    </key>
+    <key name="widget-positions-json" type="s">
+      <default>''</default>
+      <summary>Widget Preset Positions</summary>
+      <description>Stores preset widget positions as JSON.</description>
+    </key>
   </schema>
 </schemalist>

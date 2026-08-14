@@ -209,6 +209,21 @@ class WidgetController {
       this
     );
 
+    const settingHandlers = [];
+
+    for (const [type] of WIDGET_TYPES) {
+      settingHandlers.push(`changed::enable-${type}`, () => this._rebuildWidgets());
+    };
+
+    settingHandlers.push(
+      'changed::widget-opacity', () => this._rebuildWidgets(),
+      'changed::auto-hide', () => this._rebuildWidgets(),
+      'changed::photos-source', () => this._refreshWidgets(),
+      this
+    );
+
+    this._layoutSettings.connectObject(...settingHandlers);
+
     this._weatherSettings.connectObject('changed::locations', () => {
       this._weather = null;
       this._weatherUpdateTime = 0;
@@ -240,6 +255,7 @@ class WidgetController {
 
     global.stage.disconnectObject(this);
     Main.layoutManager.disconnectObject(this);
+    this._layoutSettings?.disconnectObject(this);
     this._interfaceSettings.disconnectObject(this);
     this._weatherSettings.disconnectObject(this);
 
@@ -553,6 +569,15 @@ class WidgetController {
     this._rebuildWidgets();
   };
 
+  _widgetEnabled(type) {
+    return this._layoutSettings?.get_boolean(`enable-${type}`) ?? true;
+  };
+
+  _widgetOpacity() {
+    const value = this._layoutSettings?.get_int('widget-opacity') ?? 100;
+    return clamp(Math.round((value / 100) * 255), 0, 255);
+  };
+
   _rebuildWidgets() {
     if (!this._layer) {
       return;
@@ -565,6 +590,10 @@ class WidgetController {
     this._resolveLayout(null, false, true);
 
     for (const widget of this._widgets) {
+      if (!this._widgetEnabled(widget.type)) {
+        continue;
+      };
+
       this._createWidget(widget);
     };
   };
@@ -598,6 +627,10 @@ class WidgetController {
   };
 
   _createWidget(widget) {
+    if (!this._widgetEnabled(widget.type)) {
+      return;
+    };
+
     const [width, height] = sizeForWidget(widget);
     const actorParams = {
       vertical: true,
@@ -616,6 +649,21 @@ class WidgetController {
 
     actor.set_size(width, height);
     actor.set_position(widget.x, widget.y);
+    actor.set_opacity(this._widgetOpacity());
+
+    if (this._layoutSettings.get_boolean('auto-hide')) {
+      actor.connectObject(
+        'enter-event', () => {
+          actor.set_opacity(255);
+          return Clutter.EVENT_PROPAGATE;
+        },
+        'leave-event', () => {
+          actor.set_opacity(this._widgetOpacity());
+          return Clutter.EVENT_PROPAGATE;
+        },
+        this
+      );
+    };
 
     const body = new St.BoxLayout({
       vertical: true,
@@ -920,6 +968,7 @@ class WidgetController {
       weatherLocation: this._weatherLocation,
       createLabel: this._label.bind(this),
       sizeForWidget,
+      photosSource: this._layoutSettings.get_string('photos-source'),
     });
   };
 

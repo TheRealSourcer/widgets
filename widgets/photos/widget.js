@@ -75,7 +75,7 @@ function invalidatePicturePool() {
 	picturePoolCache = {time: 0, pools: []};
 };
 
-function picturePools(force = false) {
+function picturePools(force = false, source = 'camera') {
 	const now = Date.now();
 
 	if (!force && now - picturePoolCache.time < PHOTO_CACHE_TTL_MS) {
@@ -85,11 +85,22 @@ function picturePools(force = false) {
 	const homeDir = GLib.get_home_dir();
 	const picturesDir = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_PICTURES) ?? GLib.build_filenamev([homeDir, 'Pictures']);
 	const downloadsDir = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOWNLOAD) ?? GLib.build_filenamev([homeDir, 'Downloads']);
-	const searchRoots = [
-		GLib.build_filenamev([picturesDir, 'Camera']),
-		GLib.build_filenamev([picturesDir, 'Screenshots']),
-		downloadsDir,
-	];
+	
+	let searchRoots = [];
+	
+	// Map source setting to directories
+	switch (source) {
+		case 'screenshots':
+			searchRoots = [GLib.build_filenamev([picturesDir, 'Screenshots'])];
+			break;
+		case 'downloads':
+			searchRoots = [downloadsDir];
+			break;
+		case 'camera':
+		default:
+			searchRoots = [GLib.build_filenamev([picturesDir, 'Camera'])];
+			break;
+	};
 
 	picturePoolCache = {
 		time: now,
@@ -115,8 +126,8 @@ function stablePictureIndex(widgetId, length) {
 	return hash % length;
 };
 
-function assignPictureFile(assignment, force = false, excludedPath = null) {
-	const pools = picturePools(force);
+function assignPictureFile(assignment, force = false, excludedPath = null, source = 'camera') {
+	const pools = picturePools(force, source);
 	const currentPath = pictureAssignments.get(assignment) ?? null;
 	const poolPaths = new Set(pools.flatMap(pool => pool.map(filePath)));
 	const usedPaths = new Set([...pictureAssignments.entries()].filter(([key, path]) => key !== assignment && poolPaths.has(path)).map(([, path]) => path));
@@ -165,7 +176,7 @@ function releasePictureFile(assignment, file) {
 
 const PhotoFrame = GObject.registerClass(
 	class PhotoFrame extends St.Widget {
-		_init(assignment, file) {
+		_init(assignment, file, source = 'camera') {
 			super._init({
 				style_class: 'widget-photo',
 				x_expand: true,
@@ -175,6 +186,7 @@ const PhotoFrame = GObject.registerClass(
 			});
 
 			this._assignment = assignment;
+			this._source = source;
 			this._file = null;
 			this._setFile(file);
 
@@ -224,7 +236,7 @@ const PhotoFrame = GObject.registerClass(
 				invalidatePicturePool();
 			};
 
-			return this._setFile(assignPictureFile(this._assignment, force, excludedPath));
+			return this._setFile(assignPictureFile(this._assignment, force, excludedPath, this._source));
 		};
 	}
 );
@@ -233,9 +245,9 @@ export function style(theme) {
   return `background-color: #000000; border-color: ${theme.border}; border-radius: 26px; padding: 0px;`;
 };
 
-export function render({body, widget}) {
+export function render({body, widget, photosSource = 'camera'}) {
 	const assignment = {seed: widget.id};
-	const frame = new PhotoFrame(assignment, assignPictureFile(assignment));
+	const frame = new PhotoFrame(assignment, assignPictureFile(assignment, false, null, photosSource), photosSource);
 
 	frame.set_x_expand(true);
 	frame.set_y_expand(true);
