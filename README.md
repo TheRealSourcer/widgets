@@ -25,7 +25,7 @@ Its features include:
 
 ## Prerequisites
 
-1. **GNOME Shell:** Version 48, 49, 50 or 51.
+1. **GNOME Shell:** Version 46, 47, 48, 49, 50 or 51.
 
 ## Get the extension
 
@@ -37,6 +37,7 @@ Its features include:
    cp -r widgets@distro.com ~/.local/share/gnome-shell/extensions/
    ```
    *Note: Remember to restart GNOME Shell and enable the extension via the "Extensions" app.*
+
 
 ## Resources
 

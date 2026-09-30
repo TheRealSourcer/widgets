@@ -15,6 +15,7 @@ import * as ClockWidget from './widgets/clock/widget.js';
 import * as PhotosWidget from './widgets/photos/widget.js';
 import * as WeatherWidget from './widgets/weather/widget.js';
 import { configureLogger, resetLogger, warn } from './logger.js';
+import { VERTICAL } from './compat.js';
 import { WorkspaceIntegration } from './workspaceIntegration.js';
 
 const EXTENSION_PATH = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
@@ -117,7 +118,7 @@ function desktopAppExists(appId) {
 
 
 function accentColor(settings) {
-  const accent = settings?.get_string('accent-color') ?? 'blue';
+  const accent = settings?.settings_schema.has_key('accent-color') ? settings.get_string('accent-color') : 'blue';
 
   return ACCENT_COLORS[accent] ?? ACCENT_COLORS.blue;
 };
@@ -182,7 +183,9 @@ class WidgetController {
     this._workspaceIntegration = new WorkspaceIntegration();
     this._layoutSettings = extension.getSettings();
     this._interfaceSettings = new Gio.Settings({schema_id: INTERFACE_SCHEMA});
-    this._weatherSettings = new Gio.Settings({schema_id: WeatherWidget.settingsSchema});
+    this._weatherSettings = Gio.SettingsSchemaSource.get_default().lookup(WeatherWidget.settingsSchema, true)
+      ? new Gio.Settings({schema_id: WeatherWidget.settingsSchema})
+      : null;
     this._weather = null;
     this._weatherLocation = null;
     this._weatherInfo = null;
@@ -209,7 +212,7 @@ class WidgetController {
       this
     );
 
-    this._weatherSettings.connectObject('changed::locations', () => {
+    this._weatherSettings?.connectObject('changed::locations', () => {
       this._weather = null;
       this._weatherUpdateTime = 0;
       this._refreshWeather(true);
@@ -222,6 +225,7 @@ class WidgetController {
       'monitors-changed', () => this._syncLayerGeometry(),
       this
     );
+
 
     this._timeouts.push(GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => {
       this._refreshWidgets();
@@ -241,7 +245,7 @@ class WidgetController {
     global.stage.disconnectObject(this);
     Main.layoutManager.disconnectObject(this);
     this._interfaceSettings.disconnectObject(this);
-    this._weatherSettings.disconnectObject(this);
+    this._weatherSettings?.disconnectObject(this);
 
     for (const id of this._dbusSignalIds) {
       Gio.DBus.system.signal_unsubscribe(id);
@@ -600,7 +604,7 @@ class WidgetController {
   _createWidget(widget) {
     const [width, height] = sizeForWidget(widget);
     const actorParams = {
-      orientation: Clutter.Orientation.VERTICAL,
+      ...VERTICAL,
       style_class: `widget widget-${widget.type}`,
       reactive: true,
       can_focus: true,
@@ -618,7 +622,7 @@ class WidgetController {
     actor.set_position(widget.x, widget.y);
 
     const body = new St.BoxLayout({
-      orientation: Clutter.Orientation.VERTICAL,
+      ...VERTICAL,
       style_class: 'widget-body',
       x_expand: true,
       y_expand: true,
@@ -1111,7 +1115,7 @@ export default class DesktopWidgetsExtension extends Extension {
   };
 
   enable() {
-    configureLogger(this.getLogger());
+    configureLogger(this.getLogger?.() ?? null);
     this._loadWidgetStylesheets();
     this._controller = new WidgetController(this);
     this._controller.enable();

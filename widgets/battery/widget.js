@@ -3,6 +3,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
+import { VERTICAL } from '../../compat.js';
 
 import { warn } from '../../logger.js';
 
@@ -322,7 +323,7 @@ export function style(theme) {
 
 function createSlot(device, theme, createLabel) {
 	const slot = new St.BoxLayout({
-		orientation: Clutter.Orientation.VERTICAL,
+		...VERTICAL,
 		style_class: 'widget-battery-slot',
 		x_expand: true,
 		x_align: Clutter.ActorAlign.CENTER,

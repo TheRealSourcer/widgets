@@ -3,6 +3,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GWeather from 'gi://GWeather';
 import St from 'gi://St';
+import { VERTICAL } from '../../compat.js';
 
 import { warn } from '../../logger.js';
 
@@ -213,7 +214,7 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 		'widget-weather-location-name',
 		`color: ${theme.muted};`);
 	const bottomRow = new St.BoxLayout({
-		orientation: Clutter.Orientation.VERTICAL,
+		...VERTICAL,
 		style_class: 'widget-weather-bottom',
 		x_expand: true,
 		x_align: Clutter.ActorAlign.START,
@@ -234,7 +235,7 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 
 	const icon = new St.Icon(iconParams);
 	const details = new St.BoxLayout({
-		orientation: Clutter.Orientation.VERTICAL,
+		...VERTICAL,
 		style_class: 'widget-weather-details',
 		x_align: Clutter.ActorAlign.START,
 	});

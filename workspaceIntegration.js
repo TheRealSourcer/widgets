@@ -1,5 +1,6 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { MonitorGroup as WorkspaceAnimationMonitorGroup } from 'resource:///org/gnome/shell/ui/workspaceAnimation.js';
@@ -149,14 +150,17 @@ export class WorkspaceIntegration {
     this._workspaceAnimationClones.clear();
   };
 
-  _addWorkspaceAnimationClone(workspaceBackground) {
-    const monitor = workspaceBackground?._monitor;
+  _addWorkspaceAnimationClone(workspaceGroup) {
+    const workspaceBackground = workspaceGroup._background;
+    // GNOME 46/47: _background is the Meta.BackgroundGroup itself; 48+ wraps it.
+    const legacy = workspaceBackground instanceof Meta.BackgroundGroup;
+    const monitor = legacy ? workspaceGroup._monitor : workspaceBackground?._monitor;
 
-    if (!this._source || monitor?.index !== Main.layoutManager.primaryIndex) {
+    if (!this._source || !workspaceBackground || monitor?.index !== Main.layoutManager.primaryIndex) {
       return;
     };
 
-    const backgroundGroup = workspaceBackground.get_first_child();
+    const backgroundGroup = legacy ? workspaceBackground : workspaceBackground.get_first_child();
 
     if (!backgroundGroup) {
       return;
@@ -170,6 +174,15 @@ export class WorkspaceIntegration {
       width: monitor.width,
       height: monitor.height
     });
+
+    // Clones don't inherit the source's opacity or effects; copy the dim state.
+    const dim = this._source.get_effect('dim');
+
+    clone.opacity = this._source.opacity;
+
+    if (dim?.factor) {
+      clone.add_effect(new Clutter.DesaturateEffect({factor: dim.factor}));
+    };
 
     backgroundGroup.add_child(clone);
     backgroundGroup.connectObject('child-added', (_actor, child) => {
@@ -190,7 +203,7 @@ export class WorkspaceIntegration {
     };
 
     for (const workspaceGroup of monitorGroup._workspaceGroups ?? []) {
-      this._addWorkspaceAnimationClone(workspaceGroup._background);
+      this._addWorkspaceAnimationClone(workspaceGroup);
     };
   };
 

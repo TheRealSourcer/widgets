@@ -1,5 +1,6 @@
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
+import { VERTICAL } from '../../compat.js';
 
 export const type = 'calendar';
 export const label = 'Calendar';
@@ -62,12 +63,12 @@ export function render({body, createLabel, theme}) {
 		'widget-calendar-month',
 		`color: ${theme.text};`);
 	const grid = new St.BoxLayout({
-		orientation: Clutter.Orientation.VERTICAL,
+		...VERTICAL,
 		style_class: compact ? 'widget-calendar-grid widget-calendar-grid-compact' : 'widget-calendar-grid',
 		x_align: Clutter.ActorAlign.CENTER,
 	});
 	const content = new St.BoxLayout({
-		orientation: Clutter.Orientation.VERTICAL,
+		...VERTICAL,
 		style_class: 'widget-calendar-content',
 		x_align: Clutter.ActorAlign.CENTER,
 	});
