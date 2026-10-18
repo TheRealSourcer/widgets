@@ -1,0 +1,8 @@
+.widget.widget-binaryclock,
+.widget-binaryclock .widget.widget-body {
+	padding: 8px;
+}
+
+.widget-binaryclock .widget-body {
+	spacing: 0;
+}

@@ -1,0 +1,557 @@
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: widgets@distro.com 0.3.0\n"
+"Report-Msgid-Bugs-To: https://github.com/TheRealSourcer/widgets/issues\n"
+"POT-Creation-Date: 2026-10-05 19:59-0400\n"
+"PO-Revision-Date: 2026-09-20 00:00+0000\n"
+"Last-Translator: Widgets German translation team\n"
+"Language-Team: German\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Analog Clock"
+msgstr "Analoguhr"
+
+msgid "Clocks"
+msgstr "Uhren"
+
+msgid "An analog clock"
+msgstr "Eine analoge Uhr"
+
+msgid "Digital Clock"
+msgstr "Digitaluhr"
+
+msgid "A scalable digital time display"
+msgstr "Eine skalierbare digitale Zeitanzeige"
+
+msgid "Binary Clock"
+msgstr "Binäruhr"
+
+msgid "Time displayed as binary-coded dots"
+msgstr "Zeit als binär codierte Punkte"
+
+msgid "Calendar"
+msgstr "Kalender"
+
+msgid "A compact monthly calendar"
+msgstr "Ein kompakter Monatskalender"
+
+msgid "Events"
+msgstr "Termine"
+
+msgid "Upcoming events from GNOME Calendar"
+msgstr "Anstehende Termine aus GNOME Kalender"
+
+msgid "Weather"
+msgstr "Wetter"
+
+msgid "Information"
+msgstr "Information"
+
+msgid "Current conditions from GNOME Weather"
+msgstr "Aktuelles Wetter von GNOME Wetter"
+
+msgid "Photos"
+msgstr "Fotos"
+
+msgid "Media"
+msgstr "Medien"
+
+msgid "Rotating pictures from your photo folders"
+msgstr "Wechselnde Bilder aus Ihren Fotoordnern"
+
+msgid "Battery"
+msgstr "Akku"
+
+msgid "Computer and Bluetooth battery levels"
+msgstr "Akkustände von Computer und Bluetooth-Geräten"
+
+msgid "Media Player"
+msgstr "Medienplayer"
+
+msgid "MPRIS playback information and controls"
+msgstr "MPRIS-Wiedergabeinformationen und -steuerung"
+
+msgid "Tasks"
+msgstr "Aufgaben"
+
+msgid "Productivity"
+msgstr "Produktivität"
+
+msgid "A persistent interactive task list"
+msgstr "Eine dauerhafte interaktive Aufgabenliste"
+
+msgid "GitHub Activity"
+msgstr "GitHub-Aktivität"
+
+msgid "Contribution activity for a public profile"
+msgstr "Beitragsaktivität eines öffentlichen Profils"
+
+msgid "App Launcher"
+msgstr "App-Starter"
+
+msgid "Applications"
+msgstr "Anwendungen"
+
+msgid "Quick access to installed applications"
+msgstr "Schnellzugriff auf installierte Anwendungen"
+
+msgid "Screen Time"
+msgstr "Bildschirmzeit"
+
+msgid "Local focused-application usage history"
+msgstr "Lokaler Nutzungsverlauf der aktiven Anwendungen"
+
+msgid "Stocks"
+msgstr "Aktien"
+
+msgid "Finance"
+msgstr "Finanzen"
+
+msgid "Market quotes and recent trends"
+msgstr "Börsenkurse und aktuelle Trends"
+
+msgid "Preferences"
+msgstr "Einstellungen"
+
+msgid "Widgets Preferences"
+msgstr "Widget-Einstellungen"
+
+msgid "General"
+msgstr "Allgemein"
+
+msgid "Control how the widget gallery and desktop launcher behave."
+msgstr "Steuern Sie das Verhalten der Widget-Galerie und des Desktop-Starters."
+
+msgid "Show top-panel launcher"
+msgstr "Starter im oberen Panel anzeigen"
+
+msgid "Show the widget gallery button in the GNOME top panel"
+msgstr "Schaltfläche der Widget-Galerie im oberen GNOME-Panel anzeigen"
+
+msgid "Widget gallery shortcut"
+msgstr "Tastenkürzel für die Widget-Galerie"
+
+msgid "Enter a GTK accelerator such as <Super>w, or leave empty to disable it"
+msgstr "Enter a GTK accelerator such as <Super>w, or leave empty to disable it"
+
+msgid "Reset widget layout"
+msgstr "Widget-Layout zurücksetzen"
+
+msgid "Restore the default widgets and their positions"
+msgstr "Restore the default widgets and their positions"
+
+msgid "Widgets"
+msgstr "Widgets"
+
+msgid "Configure widget appearance, content, and history."
+msgstr "Aussehen, Inhalt und Verlauf der Widgets konfigurieren."
+
+msgid "Digital clock format"
+msgstr "Format der Digitaluhr"
+
+msgid "Choose a 12-hour or 24-hour clock"
+msgstr "12- oder 24-Stunden-Uhr wählen"
+
+msgid "12-hour"
+msgstr "12 Stunden"
+
+msgid "24-hour"
+msgstr "24 Stunden"
+
+msgid "Show seconds"
+msgstr "Sekunden anzeigen"
+
+msgid "Display seconds when supported by the selected clock size"
+msgstr "Display seconds when supported by the selected clock size"
+
+msgid "Show AM/PM"
+msgstr "AM/PM anzeigen"
+
+msgid "Display the period indicator in 12-hour mode"
+msgstr "Display the period indicator in 12-hour mode"
+
+msgid "GitHub username"
+msgstr "GitHub-Benutzername"
+
+msgid "Public profile used by all GitHub Activity widgets"
+msgstr "Public profile used by all GitHub Activity widgets"
+
+msgid "Use GitHub green colors"
+msgstr "Use GitHub green colors"
+
+msgid "Use GitHub’s contribution colors instead of the system accent color"
+msgstr "Use GitHub’s contribution colors instead of the system accent color"
+
+msgid "Ignore web browsers"
+msgstr "Webbrowser ignorieren"
+
+msgid "Prevent browser media sessions from taking over the Music widget"
+msgstr "Prevent browser media sessions from taking over the Music widget"
+
+msgid "Tint Music with album artwork"
+msgstr "Tint Music with album artwork"
+
+msgid "Use enlarged, dimmed artwork behind high-contrast playback controls"
+msgstr "Use enlarged, dimmed artwork behind high-contrast playback controls"
+
+msgid "Hide GNOME media controls"
+msgstr "GNOME-Mediensteuerung ausblenden"
+
+msgid "Hide the built-in media cards when using the Music widget"
+msgstr "Integrierte Medienkarten bei Verwendung des Musik-Widgets ausblenden"
+
+msgid "Stock symbols"
+msgstr "Aktiensymbole"
+
+msgid "Comma-separated market symbols, for example ^GSPC, AAPL, MSFT"
+msgstr "Comma-separated market symbols, for example ^GSPC, AAPL, MSFT"
+
+msgid "Screen Time retention"
+msgstr "Aufbewahrung der Bildschirmzeit"
+
+msgid "Number of days of local per-application history to keep"
+msgstr "Number of days of local per-application history to keep"
+
+msgid "Translucent blurred widgets"
+msgstr "Transparente, weichgezeichnete Widgets"
+
+msgid ""
+"Make widget surfaces semi-transparent and blur the wallpaper behind them"
+msgstr ""
+"Widget-Oberflächen halbtransparent darstellen und den Hintergrund dahinter "
+"weichzeichnen"
+
+msgid "Widget corner radius"
+msgstr "Eckenradius der Widgets"
+
+msgid "Roundness of widget corners in pixels"
+msgstr "Roundness of widget corners in pixels"
+
+msgid "About"
+msgstr "Info"
+
+msgid "Widgets for GNOME Shell"
+msgstr "Widgets for GNOME Shell"
+
+msgid "Project page"
+msgstr "Projektseite"
+
+msgid "View the extension on extensions.gnome.org"
+msgstr "View the extension on extensions.gnome.org"
+
+msgid "Source code"
+msgstr "Quellcode"
+
+msgid "View and contribute on GitHub"
+msgstr "View and contribute on GitHub"
+
+msgid "Report a problem"
+msgstr "Problem melden"
+
+msgid "Open the GitHub issue tracker"
+msgstr "Open the GitHub issue tracker"
+
+msgid "GitHub network access"
+msgstr "GitHub-Netzwerkzugriff"
+
+msgid ""
+"GitHub Activity contacts github.com to retrieve the configured public "
+"profile’s contribution data and avatar."
+msgstr ""
+"GitHub Activity contacts github.com to retrieve the configured public "
+"profile’s contribution data and avatar."
+
+msgid "Local Screen Time storage"
+msgstr "Lokaler Bildschirmzeit-Speicher"
+
+msgid ""
+"Screen Time records focused-application usage in local data files and "
+"removes old history according to the retention setting."
+msgstr ""
+"Screen Time records focused-application usage in local data files and "
+"removes old history according to the retention setting."
+
+msgid "Time/Clocks"
+msgstr "Time/Clocks"
+
+msgid "Small"
+msgstr "Klein"
+
+msgid "Wide"
+msgstr "Breit"
+
+msgid "Large"
+msgstr "Groß"
+
+msgid "Widget gallery"
+msgstr "Widget-Galerie"
+
+msgid "Choose a widget"
+msgstr "Widget auswählen"
+
+msgid "Close"
+msgstr "Schließen"
+
+msgid "Search widgets"
+msgstr "Widgets suchen"
+
+msgid "Reset Layout"
+msgstr "Layout zurücksetzen"
+
+msgid "Confirm Reset"
+msgstr "Zurücksetzen bestätigen"
+
+msgid "Confirm reset layout"
+msgstr "Zurücksetzen des Layouts bestätigen"
+
+msgid "Open widget settings"
+msgstr "Widget-Einstellungen öffnen"
+
+msgid "No widgets found"
+msgstr "Keine Widgets gefunden"
+
+#, javascript-format
+msgid "%s widgets"
+msgstr "%s Widgets"
+
+msgid "Size"
+msgstr "Größe"
+
+#, javascript-format
+msgid "%s size options"
+msgstr "%s Größenoptionen"
+
+#, javascript-format
+msgid "Add %s widget to Desktop at %s size"
+msgstr "Widget %s in Größe %s zum Desktop hinzufügen"
+
+msgid "Done"
+msgstr "Fertig"
+
+msgid "Edit"
+msgstr "Bearbeiten"
+
+msgid "Finish editing widgets"
+msgstr "Widget-Bearbeitung beenden"
+
+msgid "Edit widgets"
+msgstr "Widgets bearbeiten"
+
+msgid "Open widget gallery"
+msgstr "Widget-Galerie öffnen"
+
+msgid "Open Widget Gallery"
+msgstr "Widget-Galerie öffnen"
+
+msgid "Extension Settings"
+msgstr "Erweiterungseinstellungen"
+
+msgid "Close Widget Gallery"
+msgstr "Widget-Galerie schließen"
+
+#, javascript-format
+msgid "Could not launch %s"
+msgstr "Could not launch %s"
+
+msgid "No apps configured"
+msgstr "Keine Apps konfiguriert"
+
+msgid "AM"
+msgstr "AM"
+
+msgid "PM"
+msgstr "PM"
+
+msgid "Untitled event"
+msgstr "Unbenannter Termin"
+
+msgid "Today"
+msgstr "Heute"
+
+msgid "Tomorrow"
+msgstr "Morgen"
+
+msgid "All day"
+msgstr "Ganztägig"
+
+#, javascript-format
+msgid "%s – %s"
+msgstr "%s – %s"
+
+msgid "Next 7 days"
+msgstr "Nächste 7 Tage"
+
+msgid "No upcoming events"
+msgstr "Keine anstehenden Termine"
+
+msgid "Nothing scheduled in the next 7 days."
+msgstr "Nothing scheduled in the next 7 days."
+
+msgid "Calendar service unavailable"
+msgstr "Kalenderdienst nicht verfügbar"
+
+msgid "Set up GNOME Calendar and make sure Evolution Data Server is installed."
+msgstr ""
+"Set up GNOME Calendar and make sure Evolution Data Server is installed."
+
+msgid "No calendars found"
+msgstr "Keine Kalender gefunden"
+
+msgid "Open GNOME Calendar to add a calendar or account."
+msgstr "Open GNOME Calendar to add a calendar or account."
+
+msgid "Couldn’t load events"
+msgstr "Couldn’t load events"
+
+msgid "Open GNOME Calendar and check your calendar accounts."
+msgstr "Open GNOME Calendar and check your calendar accounts."
+
+msgid "Loading events…"
+msgstr "Termine werden geladen …"
+
+msgid "Open GNOME Calendar and check that its calendar service is available."
+msgstr "Open GNOME Calendar and check that its calendar service is available."
+
+msgid "Jan"
+msgstr "Jan"
+
+msgid "Feb"
+msgstr "Feb"
+
+msgid "Mar"
+msgstr "Mar"
+
+msgid "Apr"
+msgstr "Apr"
+
+msgid "May"
+msgstr "May"
+
+msgid "Jun"
+msgstr "Jun"
+
+msgid "Jul"
+msgstr "Jul"
+
+msgid "Aug"
+msgstr "Aug"
+
+msgid "Sep"
+msgstr "Sep"
+
+msgid "Oct"
+msgstr "Oct"
+
+msgid "Nov"
+msgstr "Nov"
+
+msgid "Dec"
+msgstr "Dec"
+
+msgid "Mon"
+msgstr "Mon"
+
+msgid "Wed"
+msgstr "Wed"
+
+msgid "Fri"
+msgstr "Fri"
+
+msgid "M"
+msgstr "M"
+
+msgid "W"
+msgstr "W"
+
+msgid "F"
+msgstr "F"
+
+msgid "Click to set username"
+msgstr "Click to set username"
+
+msgid "Set user"
+msgstr "Set user"
+
+msgid "Click username to configure"
+msgstr "Click username to configure"
+
+msgid "Less"
+msgstr "Less"
+
+msgid "More"
+msgstr "More"
+
+msgid "Current streak"
+msgstr "Current streak"
+
+msgid "Longest streak"
+msgstr "Longest streak"
+
+msgid "Fetching…"
+msgstr "Fetching…"
+
+#, javascript-format
+msgid "%s commits"
+msgstr "%s Commits"
+
+#, javascript-format
+msgid "Synced %s"
+msgstr "Synced %s"
+
+msgid "Cached"
+msgstr "Cached"
+
+msgid "Error"
+msgstr "Fehler"
+
+msgid "Offline — cached"
+msgstr "Offline — cached"
+
+msgid "Error loading"
+msgstr "Fehler beim Laden"
+
+msgid "Invalid GitHub username"
+msgstr "Ungültiger GitHub-Benutzername"
+
+msgid "Cached offline"
+msgstr "Cached offline"
+
+msgid "Unknown artist"
+msgstr "Unbekannter Künstler"
+
+msgid "Nothing playing"
+msgstr "Keine Wiedergabe"
+
+msgid "Start playback in a media app"
+msgstr "Start playback in a media app"
+
+#, javascript-format
+msgid "%sh %sm"
+msgstr "%sh %sm"
+
+#, javascript-format
+msgid "%sm"
+msgstr "%sm"
+
+msgid "No activity recorded"
+msgstr "Keine Aktivität aufgezeichnet"
+
+msgid "Make tea"
+msgstr "Make tea"
+
+msgid "Make cake"
+msgstr "Make cake"
+
+msgid "Linux os"
+msgstr "Linux os"
+
+msgid "New task…"
+msgstr "Neue Aufgabe …"
+
+msgid "No tasks yet"
+msgstr "Noch keine Aufgaben"

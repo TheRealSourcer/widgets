@@ -1,0 +1,555 @@
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: widgets@distro.com 0.3.0\n"
+"Report-Msgid-Bugs-To: https://github.com/TheRealSourcer/widgets/issues\n"
+"POT-Creation-Date: 2026-10-05 19:59-0400\n"
+"PO-Revision-Date: 2026-09-20 00:00+0000\n"
+"Last-Translator: Widgets Japanese translation team\n"
+"Language-Team: Japanese\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Analog Clock"
+msgstr "アナログ時計"
+
+msgid "Clocks"
+msgstr "時計"
+
+msgid "An analog clock"
+msgstr "アナログ時計"
+
+msgid "Digital Clock"
+msgstr "デジタル時計"
+
+msgid "A scalable digital time display"
+msgstr "サイズ変更可能なデジタル時刻表示"
+
+msgid "Binary Clock"
+msgstr "バイナリ時計"
+
+msgid "Time displayed as binary-coded dots"
+msgstr "二進数の点で時刻を表示"
+
+msgid "Calendar"
+msgstr "カレンダー"
+
+msgid "A compact monthly calendar"
+msgstr "コンパクトな月間カレンダー"
+
+msgid "Events"
+msgstr "予定"
+
+msgid "Upcoming events from GNOME Calendar"
+msgstr "GNOME カレンダーの今後の予定"
+
+msgid "Weather"
+msgstr "天気"
+
+msgid "Information"
+msgstr "情報"
+
+msgid "Current conditions from GNOME Weather"
+msgstr "GNOME 天気から取得した現在の天候"
+
+msgid "Photos"
+msgstr "写真"
+
+msgid "Media"
+msgstr "メディア"
+
+msgid "Rotating pictures from your photo folders"
+msgstr "写真フォルダーの画像を順番に表示"
+
+msgid "Battery"
+msgstr "バッテリー"
+
+msgid "Computer and Bluetooth battery levels"
+msgstr "コンピューターと Bluetooth 機器のバッテリー残量"
+
+msgid "Media Player"
+msgstr "メディアプレーヤー"
+
+msgid "MPRIS playback information and controls"
+msgstr "MPRIS の再生情報と操作"
+
+msgid "Tasks"
+msgstr "タスク"
+
+msgid "Productivity"
+msgstr "生産性"
+
+msgid "A persistent interactive task list"
+msgstr "永続的な対話型タスクリスト"
+
+msgid "GitHub Activity"
+msgstr "GitHub アクティビティ"
+
+msgid "Contribution activity for a public profile"
+msgstr "公開プロフィールのコントリビューション活動"
+
+msgid "App Launcher"
+msgstr "アプリランチャー"
+
+msgid "Applications"
+msgstr "アプリケーション"
+
+msgid "Quick access to installed applications"
+msgstr "インストール済みアプリへのクイックアクセス"
+
+msgid "Screen Time"
+msgstr "スクリーンタイム"
+
+msgid "Local focused-application usage history"
+msgstr "フォーカスしたアプリのローカル使用履歴"
+
+msgid "Stocks"
+msgstr "株価"
+
+msgid "Finance"
+msgstr "金融"
+
+msgid "Market quotes and recent trends"
+msgstr "市場価格と最近の動向"
+
+msgid "Preferences"
+msgstr "設定"
+
+msgid "Widgets Preferences"
+msgstr "ウィジェットの設定"
+
+msgid "General"
+msgstr "一般"
+
+msgid "Control how the widget gallery and desktop launcher behave."
+msgstr "ウィジェットギャラリーとデスクトップランチャーの動作を設定します。"
+
+msgid "Show top-panel launcher"
+msgstr "トップパネルにランチャーを表示"
+
+msgid "Show the widget gallery button in the GNOME top panel"
+msgstr "GNOMEトップパネルにウィジェットギャラリーボタンを表示します"
+
+msgid "Widget gallery shortcut"
+msgstr "ウィジェットギャラリーのショートカット"
+
+msgid "Enter a GTK accelerator such as <Super>w, or leave empty to disable it"
+msgstr "Enter a GTK accelerator such as <Super>w, or leave empty to disable it"
+
+msgid "Reset widget layout"
+msgstr "ウィジェットのレイアウトをリセット"
+
+msgid "Restore the default widgets and their positions"
+msgstr "Restore the default widgets and their positions"
+
+msgid "Widgets"
+msgstr "Widgets"
+
+msgid "Configure widget appearance, content, and history."
+msgstr "ウィジェットの外観、内容、履歴を設定します。"
+
+msgid "Digital clock format"
+msgstr "デジタル時計の形式"
+
+msgid "Choose a 12-hour or 24-hour clock"
+msgstr "12時間表示または24時間表示を選択"
+
+msgid "12-hour"
+msgstr "12時間表示"
+
+msgid "24-hour"
+msgstr "24時間表示"
+
+msgid "Show seconds"
+msgstr "秒を表示"
+
+msgid "Display seconds when supported by the selected clock size"
+msgstr "Display seconds when supported by the selected clock size"
+
+msgid "Show AM/PM"
+msgstr "午前/午後を表示"
+
+msgid "Display the period indicator in 12-hour mode"
+msgstr "Display the period indicator in 12-hour mode"
+
+msgid "GitHub username"
+msgstr "GitHub ユーザー名"
+
+msgid "Public profile used by all GitHub Activity widgets"
+msgstr "Public profile used by all GitHub Activity widgets"
+
+msgid "Use GitHub green colors"
+msgstr "Use GitHub green colors"
+
+msgid "Use GitHub’s contribution colors instead of the system accent color"
+msgstr "Use GitHub’s contribution colors instead of the system accent color"
+
+msgid "Ignore web browsers"
+msgstr "ウェブブラウザーを無視"
+
+msgid "Prevent browser media sessions from taking over the Music widget"
+msgstr "Prevent browser media sessions from taking over the Music widget"
+
+msgid "Tint Music with album artwork"
+msgstr "Tint Music with album artwork"
+
+msgid "Use enlarged, dimmed artwork behind high-contrast playback controls"
+msgstr "Use enlarged, dimmed artwork behind high-contrast playback controls"
+
+msgid "Hide GNOME media controls"
+msgstr "GNOMEのメディアコントロールを非表示"
+
+msgid "Hide the built-in media cards when using the Music widget"
+msgstr "音楽ウィジェット使用時に標準のメディアカードを非表示にします"
+
+msgid "Stock symbols"
+msgstr "銘柄コード"
+
+msgid "Comma-separated market symbols, for example ^GSPC, AAPL, MSFT"
+msgstr "Comma-separated market symbols, for example ^GSPC, AAPL, MSFT"
+
+msgid "Screen Time retention"
+msgstr "スクリーンタイムの保存期間"
+
+msgid "Number of days of local per-application history to keep"
+msgstr "Number of days of local per-application history to keep"
+
+msgid "Translucent blurred widgets"
+msgstr "半透明でぼかしたウィジェット"
+
+msgid ""
+"Make widget surfaces semi-transparent and blur the wallpaper behind them"
+msgstr "ウィジェットの表面を半透明にし、背後の壁紙をぼかします"
+
+msgid "Widget corner radius"
+msgstr "ウィジェットの角の半径"
+
+msgid "Roundness of widget corners in pixels"
+msgstr "Roundness of widget corners in pixels"
+
+msgid "About"
+msgstr "このアプリケーションについて"
+
+msgid "Widgets for GNOME Shell"
+msgstr "Widgets for GNOME Shell"
+
+msgid "Project page"
+msgstr "プロジェクトページ"
+
+msgid "View the extension on extensions.gnome.org"
+msgstr "View the extension on extensions.gnome.org"
+
+msgid "Source code"
+msgstr "ソースコード"
+
+msgid "View and contribute on GitHub"
+msgstr "View and contribute on GitHub"
+
+msgid "Report a problem"
+msgstr "問題を報告"
+
+msgid "Open the GitHub issue tracker"
+msgstr "Open the GitHub issue tracker"
+
+msgid "GitHub network access"
+msgstr "GitHub へのネットワークアクセス"
+
+msgid ""
+"GitHub Activity contacts github.com to retrieve the configured public "
+"profile’s contribution data and avatar."
+msgstr ""
+"GitHub Activity contacts github.com to retrieve the configured public "
+"profile’s contribution data and avatar."
+
+msgid "Local Screen Time storage"
+msgstr "ローカルのスクリーンタイム保存領域"
+
+msgid ""
+"Screen Time records focused-application usage in local data files and "
+"removes old history according to the retention setting."
+msgstr ""
+"Screen Time records focused-application usage in local data files and "
+"removes old history according to the retention setting."
+
+msgid "Time/Clocks"
+msgstr "Time/Clocks"
+
+msgid "Small"
+msgstr "小"
+
+msgid "Wide"
+msgstr "横長"
+
+msgid "Large"
+msgstr "大"
+
+msgid "Widget gallery"
+msgstr "ウィジェットギャラリー"
+
+msgid "Choose a widget"
+msgstr "ウィジェットを選択"
+
+msgid "Close"
+msgstr "閉じる"
+
+msgid "Search widgets"
+msgstr "ウィジェットを検索"
+
+msgid "Reset Layout"
+msgstr "レイアウトをリセット"
+
+msgid "Confirm Reset"
+msgstr "リセットの確認"
+
+msgid "Confirm reset layout"
+msgstr "レイアウトのリセットを確認"
+
+msgid "Open widget settings"
+msgstr "ウィジェット設定を開く"
+
+msgid "No widgets found"
+msgstr "ウィジェットが見つかりません"
+
+#, javascript-format
+msgid "%s widgets"
+msgstr "%s 個のウィジェット"
+
+msgid "Size"
+msgstr "サイズ"
+
+#, javascript-format
+msgid "%s size options"
+msgstr "%s 個のサイズオプション"
+
+#, javascript-format
+msgid "Add %s widget to Desktop at %s size"
+msgstr "ウィジェット %s をサイズ %s でデスクトップに追加"
+
+msgid "Done"
+msgstr "完了"
+
+msgid "Edit"
+msgstr "編集"
+
+msgid "Finish editing widgets"
+msgstr "ウィジェットの編集を終了"
+
+msgid "Edit widgets"
+msgstr "ウィジェットを編集"
+
+msgid "Open widget gallery"
+msgstr "ウィジェットギャラリーを開く"
+
+msgid "Open Widget Gallery"
+msgstr "ウィジェットギャラリーを開く"
+
+msgid "Extension Settings"
+msgstr "拡張機能の設定"
+
+msgid "Close Widget Gallery"
+msgstr "ウィジェットギャラリーを閉じる"
+
+#, javascript-format
+msgid "Could not launch %s"
+msgstr "Could not launch %s"
+
+msgid "No apps configured"
+msgstr "アプリが設定されていません"
+
+msgid "AM"
+msgstr "AM"
+
+msgid "PM"
+msgstr "PM"
+
+msgid "Untitled event"
+msgstr "無題の予定"
+
+msgid "Today"
+msgstr "今日"
+
+msgid "Tomorrow"
+msgstr "明日"
+
+msgid "All day"
+msgstr "終日"
+
+#, javascript-format
+msgid "%s – %s"
+msgstr "%s – %s"
+
+msgid "Next 7 days"
+msgstr "今後7日間"
+
+msgid "No upcoming events"
+msgstr "今後の予定はありません"
+
+msgid "Nothing scheduled in the next 7 days."
+msgstr "Nothing scheduled in the next 7 days."
+
+msgid "Calendar service unavailable"
+msgstr "カレンダーサービスを利用できません"
+
+msgid "Set up GNOME Calendar and make sure Evolution Data Server is installed."
+msgstr ""
+"Set up GNOME Calendar and make sure Evolution Data Server is installed."
+
+msgid "No calendars found"
+msgstr "カレンダーが見つかりません"
+
+msgid "Open GNOME Calendar to add a calendar or account."
+msgstr "Open GNOME Calendar to add a calendar or account."
+
+msgid "Couldn’t load events"
+msgstr "Couldn’t load events"
+
+msgid "Open GNOME Calendar and check your calendar accounts."
+msgstr "Open GNOME Calendar and check your calendar accounts."
+
+msgid "Loading events…"
+msgstr "予定を読み込み中…"
+
+msgid "Open GNOME Calendar and check that its calendar service is available."
+msgstr "Open GNOME Calendar and check that its calendar service is available."
+
+msgid "Jan"
+msgstr "Jan"
+
+msgid "Feb"
+msgstr "Feb"
+
+msgid "Mar"
+msgstr "Mar"
+
+msgid "Apr"
+msgstr "Apr"
+
+msgid "May"
+msgstr "May"
+
+msgid "Jun"
+msgstr "Jun"
+
+msgid "Jul"
+msgstr "Jul"
+
+msgid "Aug"
+msgstr "Aug"
+
+msgid "Sep"
+msgstr "Sep"
+
+msgid "Oct"
+msgstr "Oct"
+
+msgid "Nov"
+msgstr "Nov"
+
+msgid "Dec"
+msgstr "Dec"
+
+msgid "Mon"
+msgstr "Mon"
+
+msgid "Wed"
+msgstr "Wed"
+
+msgid "Fri"
+msgstr "Fri"
+
+msgid "M"
+msgstr "M"
+
+msgid "W"
+msgstr "W"
+
+msgid "F"
+msgstr "F"
+
+msgid "Click to set username"
+msgstr "Click to set username"
+
+msgid "Set user"
+msgstr "Set user"
+
+msgid "Click username to configure"
+msgstr "Click username to configure"
+
+msgid "Less"
+msgstr "Less"
+
+msgid "More"
+msgstr "More"
+
+msgid "Current streak"
+msgstr "Current streak"
+
+msgid "Longest streak"
+msgstr "Longest streak"
+
+msgid "Fetching…"
+msgstr "Fetching…"
+
+#, javascript-format
+msgid "%s commits"
+msgstr "%s 件のコミット"
+
+#, javascript-format
+msgid "Synced %s"
+msgstr "Synced %s"
+
+msgid "Cached"
+msgstr "Cached"
+
+msgid "Error"
+msgstr "エラー"
+
+msgid "Offline — cached"
+msgstr "Offline — cached"
+
+msgid "Error loading"
+msgstr "読み込みエラー"
+
+msgid "Invalid GitHub username"
+msgstr "無効な GitHub ユーザー名"
+
+msgid "Cached offline"
+msgstr "Cached offline"
+
+msgid "Unknown artist"
+msgstr "不明なアーティスト"
+
+msgid "Nothing playing"
+msgstr "再生中のメディアはありません"
+
+msgid "Start playback in a media app"
+msgstr "Start playback in a media app"
+
+#, javascript-format
+msgid "%sh %sm"
+msgstr "%sh %sm"
+
+#, javascript-format
+msgid "%sm"
+msgstr "%sm"
+
+msgid "No activity recorded"
+msgstr "記録されたアクティビティはありません"
+
+msgid "Make tea"
+msgstr "Make tea"
+
+msgid "Make cake"
+msgstr "Make cake"
+
+msgid "Linux os"
+msgstr "Linux os"
+
+msgid "New task…"
+msgstr "新しいタスク…"
+
+msgid "No tasks yet"
+msgstr "タスクはまだありません"

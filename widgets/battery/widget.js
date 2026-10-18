@@ -3,6 +3,8 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
+import {surfaceStyle} from '../../utils/widget.js';
+import {VERTICAL, boxOrientation} from '../../compatibility.js';
 
 import { warn } from '../../logger.js';
 
@@ -10,6 +12,7 @@ export const type = 'battery';
 export const label = 'Battery';
 export const stylesheet = 'widgets/battery/stylesheet.css';
 export const defaultSize = 'medium';
+export const supportedSizes = ['small', 'medium', 'large'];
 
 const SLOT_COUNT = 4;
 
@@ -37,12 +40,8 @@ function variantValue(props, name, fallback = null) {
 };
 
 function batteryColor(percentage) {
-	if (percentage <= 20) {
-		return [0.93, 0.21, 0.25];
-	};
-	if (percentage <= 40) {
-		return [0.95, 0.68, 0.19];
-	};
+	if (percentage <= 20) return [0.93, 0.21, 0.25];
+	if (percentage <= 40) return [0.95, 0.68, 0.19];
 
 	return [0.34, 0.89, 0.54];
 };
@@ -52,21 +51,15 @@ function normalizeName(name) {
 };
 
 function bluezIconName(iconName) {
-	if (!iconName) {
-		return 'bluetooth-symbolic';
-	};
+	if (!iconName) return 'bluetooth-symbolic';
 
 	return iconName.endsWith('-symbolic') ? iconName : `${iconName}-symbolic`;
 };
 
 function iconForDevice(device) {
-	if (!device) {
-		return 'battery-missing-symbolic';
-	};
+	if (!device) return 'battery-missing-symbolic';
 
-	if (device.source === 'bluez' && device.iconName) {
-		return device.iconName;
-	};
+	if (device.source === 'bluez' && device.iconName) return device.iconName;
 
 	switch (device.kind) {
 		case DEVICE_TYPE.BATTERY:
@@ -102,21 +95,11 @@ function deviceName(props, kind) {
 	const model = String(variantValue(props, 'Model', '')).trim();
 	const vendor = String(variantValue(props, 'Vendor', '')).trim();
 
-	if (model) {
-		return model;
-	};
-	if (vendor) {
-		return vendor;
-	};
-	if (kind === DEVICE_TYPE.BATTERY) {
-		return 'Computer';
-	};
-	if (kind === DEVICE_TYPE.MOUSE) {
-		return 'Mouse';
-	};
-	if (kind === DEVICE_TYPE.KEYBOARD) {
-		return 'Keyboard';
-	};
+	if (model) return model;
+	if (vendor) return vendor;
+	if (kind === DEVICE_TYPE.BATTERY) return 'Computer';
+	if (kind === DEVICE_TYPE.MOUSE) return 'Mouse';
+	if (kind === DEVICE_TYPE.KEYBOARD) return 'Keyboard';
 
 	return 'Device';
 };
@@ -127,9 +110,7 @@ function isBatteryLike(props) {
 	const rechargeable = variantValue(props, 'IsRechargeable', false);
 	const present = variantValue(props, 'IsPresent', true);
 
-	if (!present || !Number.isFinite(percentage)) {
-		return false;
-	};
+	if (!present || !Number.isFinite(percentage)) return false;
 
 	return rechargeable || [
 		DEVICE_TYPE.BATTERY,
@@ -151,30 +132,31 @@ function isBatteryLike(props) {
 	].includes(kind);
 };
 
-function upowerCall(path, iface, method, params = null) {
-	return Gio.DBus.system.call_sync(
-		'org.freedesktop.UPower',
-		path,
-		iface,
-		method,
-		params,
-		null,
-		Gio.DBusCallFlags.NONE,
-		1000,
-		null);
+function busCall(busName, path, iface, method, params, cancellable) {
+	return new Promise((resolve, reject) => {
+		Gio.DBus.system.call(busName, path, iface, method, params, null,
+			Gio.DBusCallFlags.NONE, 1000, cancellable, (connection, result) => {
+				try {
+					resolve(connection.call_finish(result));
+				} catch (error) {
+					reject(error);
+				};
+			});
+	});
 };
 
-function readUPowerDevices() {
+async function readUPowerDevices(cancellable) {
 	try {
-		const [paths] = upowerCall('/org/freedesktop/UPower', 'org.freedesktop.UPower', 'EnumerateDevices').deep_unpack();
+		const reply = await busCall('org.freedesktop.UPower', '/org/freedesktop/UPower',
+			'org.freedesktop.UPower', 'EnumerateDevices', null, cancellable);
+		const [paths] = reply.deep_unpack();
+		const replies = await Promise.all(paths.map(path => busCall('org.freedesktop.UPower', path,
+			'org.freedesktop.DBus.Properties', 'GetAll',
+			new GLib.Variant('(s)', ['org.freedesktop.UPower.Device']), cancellable)));
 		const devices = [];
 
-		for (const path of paths) {
-			const [props] = upowerCall(
-				path,
-				'org.freedesktop.DBus.Properties',
-				'GetAll',
-				GLib.Variant.new('(s)', ['org.freedesktop.UPower.Device'])).deep_unpack();
+		for (const deviceReply of replies) {
+			const [props] = deviceReply.deep_unpack();
 
 			if (!isBatteryLike(props)) {
 				continue;
@@ -196,23 +178,18 @@ function readUPowerDevices() {
 
 		return devices;
 	} catch (error) {
-		warn('upower-read', `Could not read UPower batteries: ${error.message}`);
+		if (!cancellable.is_cancelled()) {
+			warn('upower-read', `Could not read UPower batteries: ${error.message}`);
+		};
 		return [];
 	};
 };
 
-function readBlueZDevices() {
+async function readBlueZDevices(cancellable) {
 	try {
-		const [objects] = Gio.DBus.system.call_sync(
-			'org.bluez',
-			'/',
-			'org.freedesktop.DBus.ObjectManager',
-			'GetManagedObjects',
-			null,
-			null,
-			Gio.DBusCallFlags.NONE,
-			1000,
-			null).deep_unpack();
+		const reply = await busCall('org.bluez', '/', 'org.freedesktop.DBus.ObjectManager',
+			'GetManagedObjects', null, cancellable);
+		const [objects] = reply.deep_unpack();
 		const devices = [];
 
 		for (const [path, interfaces] of Object.entries(objects)) {
@@ -243,7 +220,9 @@ function readBlueZDevices() {
 
 		return devices;
 	} catch (error) {
-		warn('bluez-read', `Could not read Bluetooth batteries: ${error.message}`);
+		if (!cancellable.is_cancelled()) {
+			warn('bluez-read', `Could not read Bluetooth batteries: ${error.message}`);
+		};
 		return [];
 	};
 };
@@ -251,9 +230,7 @@ function readBlueZDevices() {
 function deviceKey(device) {
 	const path = String(device.nativePath || '');
 
-	if (path.startsWith('/org/bluez/')) {
-		return path;
-	};
+	if (path.startsWith('/org/bluez/')) return path;
 
 	return normalizeName(device.name);
 };
@@ -273,8 +250,113 @@ function mergeDevices(devices) {
 	return [...merged.values()].sort((a, b) => Number(b.powerSupply) - Number(a.powerSupply) || a.name.localeCompare(b.name));
 };
 
-function readDevices() {
-	return mergeDevices([...readUPowerDevices(), ...readBlueZDevices()]);
+async function readDevices(cancellable) {
+	const [upower, bluez] = await Promise.all([
+		readUPowerDevices(cancellable), readBlueZDevices(cancellable),
+	]);
+	return mergeDevices([...upower, ...bluez]);
+};
+
+export const batteryService = {
+	listeners: new Set(),
+	devices: [],
+	signalIds: [],
+	timerId: 0,
+	cancellable: null,
+	updating: false,
+	refreshAgain: false,
+
+	subscribe(callback) {
+		if (this.listeners.size === 0) {
+			this.start();
+		};
+		this.listeners.add(callback);
+		callback(this.devices);
+		return () => {
+			this.listeners.delete(callback);
+			if (this.listeners.size === 0) {
+				this.stop();
+			};
+		};
+	},
+
+	start() {
+		this.cancellable = new Gio.Cancellable();
+		const refresh = () => this.refresh();
+		const refreshBlueZ = (_connection, _sender, _path, _iface, _signal, parameters) => {
+			const [iface] = parameters.deep_unpack();
+			if (['org.bluez.Device1', 'org.bluez.Battery1'].includes(iface)) {
+				this.refresh();
+			};
+		};
+		const bus = Gio.DBus.system;
+		const subscribe = (name, iface, signal, path, arg, callback) =>
+			bus.signal_subscribe(name, iface, signal, path, arg, Gio.DBusSignalFlags.NONE, callback);
+		this.signalIds = [
+			subscribe('org.freedesktop.UPower', 'org.freedesktop.UPower', 'DeviceAdded', '/org/freedesktop/UPower', null, refresh),
+			subscribe('org.freedesktop.UPower', 'org.freedesktop.UPower', 'DeviceRemoved', '/org/freedesktop/UPower', null, refresh),
+			subscribe('org.freedesktop.UPower', 'org.freedesktop.DBus.Properties', 'PropertiesChanged', null, 'org.freedesktop.UPower.Device', refresh),
+			subscribe('org.bluez', 'org.freedesktop.DBus.ObjectManager', 'InterfacesAdded', '/', null, refresh),
+			subscribe('org.bluez', 'org.freedesktop.DBus.ObjectManager', 'InterfacesRemoved', '/', null, refresh),
+			subscribe('org.bluez', 'org.freedesktop.DBus.Properties', 'PropertiesChanged', null, null, refreshBlueZ),
+		];
+		this.timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => {
+			this.refresh();
+			return GLib.SOURCE_CONTINUE;
+		});
+		this.refresh();
+	},
+
+	async refresh() {
+		if (!this.cancellable) return;
+		if (this.updating) {
+			this.refreshAgain = true;
+			return;
+		};
+		const cancellable = this.cancellable;
+		this.updating = true;
+		try {
+			const devices = await readDevices(cancellable);
+			if (cancellable.is_cancelled()) return;
+			this.devices = devices;
+			for (const callback of [...this.listeners]) {
+				if (this.listeners.has(callback)) {
+					callback(devices);
+				};
+			};
+		} catch (error) {
+			if (!cancellable.is_cancelled()) {
+				warn('battery-refresh', error.message);
+			};
+		} finally {
+			if (cancellable === this.cancellable) {
+				this.updating = false;
+				if (this.refreshAgain) {
+					this.refreshAgain = false;
+					this.refresh();
+				};
+			};
+		};
+	},
+
+	stop() {
+		this.cancellable?.cancel();
+		this.cancellable = null;
+		if (this.timerId) {
+			GLib.Source.remove(this.timerId);
+		};
+		this.timerId = 0;
+		for (const id of this.signalIds) Gio.DBus.system.signal_unsubscribe(id);
+		this.signalIds = [];
+		this.updating = false;
+		this.refreshAgain = false;
+	},
+};
+
+export function cleanup() {
+	batteryService.stop();
+	batteryService.listeners.clear();
+	batteryService.devices = [];
 };
 
 const BatteryRing = GObject.registerClass(
@@ -295,7 +377,7 @@ const BatteryRing = GObject.registerClass(
 				return;
 			};
 
-			const lineWidth = 7;
+			const lineWidth = Math.max(4, Math.round(Math.min(width, height) / 12));
 			const radius = Math.min(width, height) / 2 - lineWidth / 2 - 1;
 			const centerX = width / 2;
 			const centerY = height / 2;
@@ -317,28 +399,30 @@ const BatteryRing = GObject.registerClass(
 	});
 
 export function style(theme) {
-	return `background-color: ${theme.background}; border-color: ${theme.border}; color: ${theme.text};`;
+	return surfaceStyle(theme);
 };
 
-function createSlot(device, theme, createLabel) {
+function createSlot(device, theme, createLabel, small = false) {
 	const slot = new St.BoxLayout({
-		orientation: Clutter.Orientation.VERTICAL,
-		style_class: 'widget-battery-slot',
-		x_expand: true,
+		...VERTICAL,
+		style_class: small ? 'widget-battery-slot widget-battery-slot-small' : 'widget-battery-slot',
+		x_expand: !small,
 		x_align: Clutter.ActorAlign.CENTER,
 	});
 	const gauge = new St.Widget({style_class: 'widget-battery-gauge'});
 	const ring = new BatteryRing(device, theme);
+	const gaugeSize = small ? 60 : 84;
+	const iconSize = small ? 20 : 30;
 	const icon = new St.Icon({
 		icon_name: iconForDevice(device),
 		style_class: 'widget-battery-icon',
 		style: `color: ${device ? theme.text : theme.muted};`,
 	});
 
-	gauge.set_size(84, 84);
-	ring.set_size(84, 84);
-	icon.set_size(30, 30);
-	icon.set_position(27, 27);
+	gauge.set_size(gaugeSize, gaugeSize);
+	ring.set_size(gaugeSize, gaugeSize);
+	icon.set_size(iconSize, iconSize);
+	icon.set_position((gaugeSize - iconSize) / 2, (gaugeSize - iconSize) / 2);
 	gauge.add_child(ring);
 	gauge.add_child(icon);
 	slot.add_child(gauge);
@@ -351,18 +435,35 @@ function createSlot(device, theme, createLabel) {
 	return slot;
 };
 
-export function render({body, createLabel, theme}) {
-	const devices = readDevices().slice(0, SLOT_COUNT);
+export function render({body, widget, createLabel, theme}) {
+	const small = widget.size === 'small';
 	const tray = new St.BoxLayout({
-		style_class: 'widget-battery-tray',
+		...boxOrientation(small),
+		style_class: small ? 'widget-battery-tray widget-battery-tray-small' : 'widget-battery-tray',
 		x_expand: true,
 		y_expand: true,
+		...(small ? {x_align: Clutter.ActorAlign.CENTER} : {}),
 		y_align: Clutter.ActorAlign.CENTER,
 	});
 
-	for (let index = 0; index < SLOT_COUNT; index++) {
-		tray.add_child(createSlot(devices[index] ?? null, theme, createLabel));
+	const populate = allDevices => {
+		const devices = allDevices.slice(0, SLOT_COUNT);
+		tray.destroy_all_children();
+		if (small) {
+			for (let rowIndex = 0; rowIndex < 2; rowIndex++) {
+				const row = new St.BoxLayout({style_class: 'widget-battery-row', x_align: Clutter.ActorAlign.CENTER});
+				for (let column = 0; column < 2; column++) {
+					const index = rowIndex * 2 + column;
+					row.add_child(createSlot(devices[index] ?? null, theme, createLabel, true));
+				};
+				tray.add_child(row);
+			};
+		} else {
+			for (let index = 0; index < SLOT_COUNT; index++)
+				tray.add_child(createSlot(devices[index] ?? null, theme, createLabel));
+		};
 	};
-
 	body.add_child(tray);
+	const unsubscribe = batteryService.subscribe(populate);
+	tray.connectObject('destroy', unsubscribe, tray);
 };

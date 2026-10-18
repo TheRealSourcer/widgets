@@ -2,11 +2,13 @@ import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
+import {surfaceStyle} from '../../utils/widget.js';
 
 export const type = 'clock';
-export const label = 'Clock';
+export const label = 'Analog Clock';
 export const stylesheet = 'widgets/clock/stylesheet.css';
 export const defaultSize = 'small';
+export const supportedSizes = ['small', 'medium', 'large'];
 
 const CLOCK_RADIUS = 26;
 const TICK_INSET = 16;
@@ -29,9 +31,7 @@ function roundedRectangle(cr, x, y, width, height, radius) {
 function colorFromHex(hex, fallback) {
 	const match = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
 
-	if (!match) {
-		return fallback;
-	};
+	if (!match) return fallback;
 
 	const value = Number.parseInt(match[1], 16);
 
@@ -65,7 +65,7 @@ const AnalogClockFace = GObject.registerClass(
 				return GLib.SOURCE_CONTINUE;
 			});
 
-			this.connect('destroy', this._onDestroy.bind(this));
+			this.connectObject('destroy', this._onDestroy.bind(this), this);
 		};
 
 		_onDestroy() {
@@ -146,7 +146,7 @@ const AnalogClockFace = GObject.registerClass(
 );
 
 export function style(theme) {
-  return `background-color: ${theme.background}; border-color: ${theme.border}; border-radius: ${CLOCK_RADIUS}px; padding: 0px;`;
+	return surfaceStyle(theme);
 };
 
 export function render({body, theme}) {

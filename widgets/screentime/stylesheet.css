@@ -1,0 +1,72 @@
+.widget.widget-screentime,
+.widget-screentime .widget.widget-body {
+	padding: 0;
+}
+
+.widget-screentime-total {
+	font-size: 32px;
+	font-weight: 600;
+}
+
+.widget-screentime-controls {
+	spacing: 6px;
+}
+
+.widget-screentime-date {
+	font-size: 14px;
+	font-weight: 600;
+	opacity: 0.63;
+}
+
+.widget-screentime-axis {
+	font-size: 10px;
+	font-weight: 600;
+	opacity: 0.63;
+}
+
+.widget-screentime-empty {
+	font-size: 16px;
+	font-weight: 600;
+	opacity: 0.63;
+}
+
+.widget-screentime-duration {
+	font-weight: 600;
+	opacity: 0.63;
+}
+
+.widget-screentime-nav-icon {
+	opacity: 0.63;
+}
+
+.widget-screentime-app-row {
+	spacing: 10px;
+}
+
+.widget-screentime-app-list {
+	spacing: 14px;
+}
+
+.screentime-widget StButton {
+	transition-duration: 100ms;
+}
+
+.screentime-widget StButton:hover {
+	background-color: rgba(255, 255, 255, 0.05);
+}
+
+.screentime-widget StButton:active {
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+.screentime-widget .screentime-nav-button,
+.screentime-widget .screentime-nav-button:hover,
+.screentime-widget .screentime-nav-button:focus,
+.screentime-widget .screentime-nav-button:active {
+	width: 26px;
+	height: 26px;
+	border-width: 1px;
+	border-style: solid;
+	border-radius: 6px;
+	background-color: transparent;
+}

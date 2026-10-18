@@ -1,0 +1,25 @@
+.widget.widget-applauncher,
+.widget-applauncher .widget.widget-body {
+	padding: 0;
+}
+
+.widget-app-launcher-content {
+	padding: 12px;
+}
+
+.widget-app-launcher-grid,
+.widget-app-launcher-row {
+	spacing: 8px;
+}
+
+.widget-app-launcher-empty {
+	opacity: 0.55;
+	font-size: 14px;
+}
+
+.widget-app-launcher-button,
+.widget-app-launcher-button:hover,
+.widget-app-launcher-button:focus,
+.widget-app-launcher-button:active {
+	border-radius: 14px;
+}

@@ -1,31 +1,59 @@
+
+.widget-battery-row {
+	spacing: 32px;
+}
+
 .widget-battery .widget-body {
-  spacing: 0;
+	spacing: 0;
 }
 
 .widget-battery-tray {
-  padding: 0;
-  spacing: 12px;
+	padding: 0;
+	spacing: 12px;
 }
 
 .widget-battery-slot {
-  spacing: 12px;
+	spacing: 12px;
 }
 
 .widget-battery-gauge {
-  width: 84px;
-  height: 84px;
+	width: 84px;
+	height: 84px;
 }
 
 .widget-battery-ring {
-  width: 84px;
-  height: 84px;
+	width: 84px;
+	height: 84px;
 }
 
 .widget-battery-icon {
-  icon-size: 30px;
+	icon-size: 30px;
 }
 
 .widget-battery-percent {
-  font-size: 26px;
-  font-weight: 800;
+	font-size: 26px;
+	font-weight: 800;
+}
+
+.widget-battery-tray-small {
+	spacing: 8px;
+}
+
+.widget-battery-slot-small {
+	spacing: 4px;
+	min-height: 84px;
+}
+
+.widget-battery-tray-small .widget-battery-gauge,
+.widget-battery-tray-small .widget-battery-ring {
+	width: 60px;
+	height: 60px;
+}
+
+.widget-battery-tray-small .widget-battery-icon {
+	icon-size: 20px;
+}
+
+.widget-battery-tray-small .widget-battery-percent {
+	font-size: 16px;
 }

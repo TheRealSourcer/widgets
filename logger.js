@@ -10,9 +10,7 @@ export function warn(key, message) {
   const now = Date.now();
   const lastWarning = warningTimes.get(key) ?? 0;
 
-  if (now - lastWarning < WARNING_INTERVAL_MS) {
-    return;
-  };
+  if (now - lastWarning < WARNING_INTERVAL_MS) return;
 
   warningTimes.set(key, now);
 

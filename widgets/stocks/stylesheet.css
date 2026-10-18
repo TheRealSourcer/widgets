@@ -1,0 +1,43 @@
+.widget-stocks-content {
+	spacing: 6px;
+}
+
+.widget-stocks-header {
+	spacing: 8px;
+}
+
+.widget-stocks-list {
+	spacing: 2px;
+}
+
+.widget-stocks-row {
+	spacing: 6px;
+}
+
+.widget-stocks-identity,
+.widget-stocks-value-box {
+	spacing: 0;
+}
+
+.widget-stocks-title,
+.widget-stocks-symbol {
+	font-weight: 800;
+}
+
+.widget-stocks-name,
+.widget-stocks-status {
+	font-weight: 500;
+}
+
+.widget-stocks-value,
+.widget-stocks-change {
+	font-feature-settings: "tnum";
+}
+
+.widget-stocks-value {
+	font-weight: 750;
+}
+
+.widget-stocks-change {
+	font-weight: 700;
+}

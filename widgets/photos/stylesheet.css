@@ -1,7 +1,18 @@
+.widget.widget-photos,
+.widget-photos .widget.widget-body {
+	background-color: #000;
+	border: 0;
+	padding: 0;
+}
+
+.widget-photos-body {
+	padding: 0;
+	margin: 0;
+}
+
 .widget-photo {
-    background-color: #000;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: cover;
-    border-radius: 26px;
+	background-color: #000;
+	background-repeat: no-repeat;
+	background-size: cover;
+	border-radius: 26px;
 }

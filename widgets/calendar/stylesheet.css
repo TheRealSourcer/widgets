@@ -1,25 +1,69 @@
+.widget.widget-calendar,
+.widget-calendar .widget.widget-body {
+	padding: 12px 15px;
+}
+
+.widget-calendar-date-column {
+	spacing: 2px;
+}
+
+.widget-calendar-feature-weekday {
+	font-weight: 700;
+}
+
+.widget-calendar-today {
+	border-radius: 999px;
+}
+
+.widget-calendar-day.widget-calendar-weekday {
+	font-weight: 700;
+}
+
+.widget-calendar-today .widget-calendar-day {
+	color: #ffffff;
+	font-weight: 800;
+}
+
+.widget-calendar-content {
+	spacing: 3px;
+	padding: 0;
+}
+
+.widget-calendar-content.widget-calendar-content-split {
+	spacing: 0;
+}
+
+.widget-calendar-content.widget-calendar-content-medium-split {
+	spacing: 12px;
+}
+
 .widget-calendar-month {
 	font-size: 22px;
 	font-weight: 800;
+	text-align: left;
+}
+
+.widget-calendar-feature-date {
+	font-weight: 800;
+	font-feature-settings: "tnum";
 }
 
 .widget-calendar-grid {
 	spacing: 3px;
 }
 
-.widget-calendar-grid-compact {
-	spacing: 0;
-}
-
 .widget-calendar-row {
 	spacing: 3px;
 }
 
-.widget-calendar-cell {
+.widget-calendar-cell,
+.widget-calendar-today {
 	padding: 0;
 }
 
 .widget-calendar-day {
-	font-size: 12px;
+	font-size: 13px;
+	font-weight: 600;
+	font-feature-settings: "tnum";
 	text-align: center;
 }

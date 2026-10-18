@@ -3,6 +3,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
+import {surfaceStyle} from '../../utils/widget.js';
 
 import { warn } from '../../logger.js';
 
@@ -10,25 +11,22 @@ export const type = 'photos';
 export const label = 'Photos';
 export const stylesheet = 'widgets/photos/stylesheet.css';
 export const defaultSize = 'medium';
+export const supportedSizes = ['small', 'medium', 'large'];
+export const surface = {blur: false, clipContent: true};
 
 const IMAGE_EXTENSIONS = ['.avif', '.bmp', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp'];
 const PHOTO_CACHE_TTL_MS = 60 * 1000;
 const PHOTO_REFRESH_SECONDS = 15;
-const PHOTO_RADIUS = 26;
 
 let picturePoolCache = {time: 0, pools: []};
 const pictureAssignments = new Map();
 
 function collectPictures(directory, images, seenDirectories, depth = 0) {
-	if (!directory || depth > 4 || images.length >= 300) {
-		return;
-	};
+	if (!directory || depth > 4 || images.length >= 300) return;
 
 	const path = directory.get_path();
 
-	if (!path || seenDirectories.has(path)) {
-		return;
-	};
+	if (!path || seenDirectories.has(path)) return;
 
 	seenDirectories.add(path);
 
@@ -165,7 +163,7 @@ function releasePictureFile(assignment, file) {
 
 const PhotoFrame = GObject.registerClass(
 	class PhotoFrame extends St.Widget {
-		_init(assignment, file) {
+		_init(assignment, file, radius) {
 			super._init({
 				style_class: 'widget-photo',
 				x_expand: true,
@@ -175,6 +173,7 @@ const PhotoFrame = GObject.registerClass(
 			});
 
 			this._assignment = assignment;
+			this._radius = radius;
 			this._file = null;
 			this._setFile(file);
 
@@ -188,7 +187,7 @@ const PhotoFrame = GObject.registerClass(
 				return GLib.SOURCE_CONTINUE;
 			});
 
-			this.connect('destroy', this._onDestroy.bind(this));
+			this.connectObject('destroy', this._onDestroy.bind(this), this);
 		};
 
 		_onDestroy() {
@@ -210,7 +209,8 @@ const PhotoFrame = GObject.registerClass(
 
 			this._file = file;
 			const uri = file?.get_uri() ?? null;
-			this.set_style(uri ? `background-image: url(${JSON.stringify(uri)});` : null);
+			const imageStyle = uri ? `background-image: url(${JSON.stringify(uri)});` : '';
+			this.set_style(`${imageStyle} border-radius: ${this._radius}px;`);
 
 			return true;
 		};
@@ -230,13 +230,15 @@ const PhotoFrame = GObject.registerClass(
 );
 
 export function style(theme) {
-  return `background-color: #000000; border-color: ${theme.border}; border-radius: 26px; padding: 0px;`;
+	return surfaceStyle(theme, {background: null, border: false});
 };
 
-export function render({body, widget}) {
+export function render({body, widget, theme}) {
 	const assignment = {seed: widget.id};
-	const frame = new PhotoFrame(assignment, assignPictureFile(assignment));
+	const frame = new PhotoFrame(assignment, assignPictureFile(assignment), theme.radius);
 
+	body.add_style_class_name('widget-photos-body');
+	body.set_clip_to_allocation(true);
 	frame.set_x_expand(true);
 	frame.set_y_expand(true);
 	body.add_child(frame);

@@ -1,10 +1,91 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.widgets-distro-com" path="/org/gnome/shell/extensions/widgets-distro-com/">
-    <key name="layout-json" type="s">
-      <default>''</default>
-      <summary>Serialized widget layout</summary>
-      <description>Stores widget types, sizes, and desktop positions as JSON.</description>
-    </key>
-  </schema>
+	<schema id="org.gnome.shell.extensions.widgets-distro-com" path="/org/gnome/shell/extensions/widgets-distro-com/">
+		<key name="layout-json" type="s">
+			<default>''</default>
+			<summary>Serialized widget layout</summary>
+			<description>Stores widget types, sizes, and desktop positions as JSON.</description>
+		</key>
+		<key name="toggle-gallery" type="as">
+			<default>['&lt;Super&gt;w']</default>
+			<summary>Widget gallery shortcut</summary>
+			<description>Global keyboard shortcut used to show or hide the widget gallery. An empty array disables the shortcut.</description>
+		</key>
+		<key name="edge-launcher-enabled" type="b">
+			<default>true</default>
+			<summary>Show top-panel launcher</summary>
+			<description>Show the widget gallery button in the GNOME top panel.</description>
+		</key>
+		<key name="digitalclock-hour-format" type="s">
+			<choices>
+				<choice value="12" />
+				<choice value="24" />
+			</choices>
+			<default>'24'</default>
+			<summary>Digital clock hour format</summary>
+			<description>Use a 12-hour or 24-hour format in the Digital Clock widget.</description>
+		</key>
+		<key name="digitalclock-show-seconds" type="b">
+			<default>false</default>
+			<summary>Show seconds in the digital clock</summary>
+			<description>Display seconds when supported by the selected Digital Clock widget size.</description>
+		</key>
+		<key name="digitalclock-show-ampm" type="b">
+			<default>true</default>
+			<summary>Show AM/PM in the digital clock</summary>
+			<description>Display the AM/PM indicator when the Digital Clock uses the 12-hour format.</description>
+		</key>
+		<key name="github-username" type="s">
+			<default>''</default>
+			<summary>GitHub username</summary>
+			<description>Public GitHub profile used by all GitHub Activity widgets.</description>
+		</key>
+		<key name="github-use-green" type="b">
+			<default>false</default>
+			<summary>Use GitHub green colors</summary>
+			<description>Use GitHub contribution colors instead of the system accent color.</description>
+		</key>
+		<key name="music-ignore-browsers" type="b">
+			<default>false</default>
+			<summary>Ignore web browsers</summary>
+			<description>Prevent browser media sessions from taking over the Music widget.</description>
+		</key>
+		<key name="music-blurred-background" type="b">
+			<default>true</default>
+			<summary>Use an artwork background</summary>
+			<description>Show an enlarged, dimmed, and tinted version of the current album artwork behind Music controls.</description>
+		</key>
+		<key name="hide-system-media-controls" type="b">
+			<default>false</default>
+			<summary>Hide GNOME media controls</summary>
+			<description>Hide GNOME Shell's built-in MPRIS cards while this extension is enabled.</description>
+		</key>
+		<key name="stocks-symbols" type="as">
+			<default>['^GSPC', '^IXIC', 'AAPL']</default>
+			<summary>Stock symbols</summary>
+			<description>Symbols displayed by Stocks widgets.</description>
+		</key>
+		<key name="screentime-retention-days" type="i">
+			<range min="1" max="3650" />
+			<default>30</default>
+			<summary>Screen Time retention in days</summary>
+			<description>Number of days of local per-application Screen Time history to retain.</description>
+		</key>
+		<key name="style-border-radius" type="i">
+			<range min="12" max="40" />
+			<default>26</default>
+			<summary>Widget border radius</summary>
+			<description>Corner radius of widgets in pixels.</description>
+		</key>
+		<key name="style-background-blur" type="b">
+			<default>false</default>
+			<summary>Use translucent blurred widget surfaces</summary>
+			<description>Make widget surfaces semi-transparent and blur the wallpaper behind them.</description>
+		</key>
+		<key name="style-surface-default-migrated" type="b">
+			<default>false</default>
+			<summary>Solid surface default migration</summary>
+			<description>Tracks migration to solid widget surfaces by default.</description>
+		</key>
+	</schema>
 </schemalist>

@@ -1,0 +1,57 @@
+.widget-todo-title {
+	font-weight: 700;
+	opacity: 0.55;
+}
+
+.widget-todo-counter-row {
+	margin-top: 6px;
+	spacing: 8px;
+}
+
+.widget-todo-count {
+	font-weight: 500;
+}
+
+.widget-action-button.widget-todo-add-button,
+.widget-action-button.widget-todo-add-button:hover,
+.widget-action-button.widget-todo-add-button:focus,
+.widget-action-button.widget-todo-add-button:active {
+	border-radius: 9999px;
+}
+
+.widget-action-button.widget-todo-checkbox,
+.widget-action-button.widget-todo-checkbox:hover,
+.widget-action-button.widget-todo-checkbox:focus,
+.widget-action-button.widget-todo-checkbox:active {
+	border-radius: 9999px;
+	padding: 0;
+	min-width: 0;
+	min-height: 0;
+}
+
+.widget-action-button.widget-todo-checkbox-unchecked,
+.widget-action-button.widget-todo-checkbox-unchecked:hover,
+.widget-action-button.widget-todo-checkbox-unchecked:focus,
+.widget-action-button.widget-todo-checkbox-unchecked:active {
+	border-width: 1.5px;
+	border-style: solid;
+}
+
+.widget-todo-task-text {
+	opacity: 1;
+}
+
+.widget-todo-task-done,
+.widget-todo-empty {
+	opacity: 0.5;
+}
+
+.widget-action-button.widget-todo-delete-button,
+.widget-action-button.widget-todo-delete-button:hover,
+.widget-action-button.widget-todo-delete-button:focus,
+.widget-action-button.widget-todo-delete-button:active {
+	opacity: 0.65;
+	border-radius: 999px;
+	padding: 0;
+	background-color: transparent;
+}

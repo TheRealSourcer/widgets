@@ -1,0 +1,555 @@
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: widgets@distro.com 0.3.0\n"
+"Report-Msgid-Bugs-To: https://github.com/TheRealSourcer/widgets/issues\n"
+"POT-Creation-Date: 2026-10-05 19:59-0400\n"
+"PO-Revision-Date: 2026-09-20 00:00+0000\n"
+"Last-Translator: Widgets Simplified Chinese translation team\n"
+"Language-Team: Simplified Chinese\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Analog Clock"
+msgstr "模拟时钟"
+
+msgid "Clocks"
+msgstr "时钟"
+
+msgid "An analog clock"
+msgstr "模拟时钟"
+
+msgid "Digital Clock"
+msgstr "数字时钟"
+
+msgid "A scalable digital time display"
+msgstr "可缩放的数字时间显示"
+
+msgid "Binary Clock"
+msgstr "二进制时钟"
+
+msgid "Time displayed as binary-coded dots"
+msgstr "以二进制编码圆点显示时间"
+
+msgid "Calendar"
+msgstr "日历"
+
+msgid "A compact monthly calendar"
+msgstr "紧凑的月历"
+
+msgid "Events"
+msgstr "事件"
+
+msgid "Upcoming events from GNOME Calendar"
+msgstr "来自 GNOME 日历的近期事件"
+
+msgid "Weather"
+msgstr "天气"
+
+msgid "Information"
+msgstr "信息"
+
+msgid "Current conditions from GNOME Weather"
+msgstr "来自 GNOME 天气的当前状况"
+
+msgid "Photos"
+msgstr "照片"
+
+msgid "Media"
+msgstr "媒体"
+
+msgid "Rotating pictures from your photo folders"
+msgstr "轮换显示照片文件夹中的图片"
+
+msgid "Battery"
+msgstr "电池"
+
+msgid "Computer and Bluetooth battery levels"
+msgstr "电脑和蓝牙设备的电量"
+
+msgid "Media Player"
+msgstr "媒体播放器"
+
+msgid "MPRIS playback information and controls"
+msgstr "MPRIS 播放信息和控制"
+
+msgid "Tasks"
+msgstr "任务"
+
+msgid "Productivity"
+msgstr "效率"
+
+msgid "A persistent interactive task list"
+msgstr "持久保存的交互式任务列表"
+
+msgid "GitHub Activity"
+msgstr "GitHub 活动"
+
+msgid "Contribution activity for a public profile"
+msgstr "公开个人资料的贡献活动"
+
+msgid "App Launcher"
+msgstr "应用启动器"
+
+msgid "Applications"
+msgstr "应用程序"
+
+msgid "Quick access to installed applications"
+msgstr "快速访问已安装的应用程序"
+
+msgid "Screen Time"
+msgstr "屏幕时间"
+
+msgid "Local focused-application usage history"
+msgstr "本地前台应用使用历史"
+
+msgid "Stocks"
+msgstr "股票"
+
+msgid "Finance"
+msgstr "财经"
+
+msgid "Market quotes and recent trends"
+msgstr "市场报价和近期趋势"
+
+msgid "Preferences"
+msgstr "首选项"
+
+msgid "Widgets Preferences"
+msgstr "小组件首选项"
+
+msgid "General"
+msgstr "常规"
+
+msgid "Control how the widget gallery and desktop launcher behave."
+msgstr "设置小组件库和桌面启动器的行为。"
+
+msgid "Show top-panel launcher"
+msgstr "在顶部面板显示启动按钮"
+
+msgid "Show the widget gallery button in the GNOME top panel"
+msgstr "在 GNOME 顶部面板显示小组件库按钮"
+
+msgid "Widget gallery shortcut"
+msgstr "小组件库快捷键"
+
+msgid "Enter a GTK accelerator such as <Super>w, or leave empty to disable it"
+msgstr "Enter a GTK accelerator such as <Super>w, or leave empty to disable it"
+
+msgid "Reset widget layout"
+msgstr "重置小组件布局"
+
+msgid "Restore the default widgets and their positions"
+msgstr "Restore the default widgets and their positions"
+
+msgid "Widgets"
+msgstr "Widgets"
+
+msgid "Configure widget appearance, content, and history."
+msgstr "配置小组件的外观、内容和历史记录。"
+
+msgid "Digital clock format"
+msgstr "数字时钟格式"
+
+msgid "Choose a 12-hour or 24-hour clock"
+msgstr "选择 12 小时制或 24 小时制"
+
+msgid "12-hour"
+msgstr "12 小时制"
+
+msgid "24-hour"
+msgstr "24 小时制"
+
+msgid "Show seconds"
+msgstr "显示秒数"
+
+msgid "Display seconds when supported by the selected clock size"
+msgstr "Display seconds when supported by the selected clock size"
+
+msgid "Show AM/PM"
+msgstr "显示上午/下午"
+
+msgid "Display the period indicator in 12-hour mode"
+msgstr "Display the period indicator in 12-hour mode"
+
+msgid "GitHub username"
+msgstr "GitHub 用户名"
+
+msgid "Public profile used by all GitHub Activity widgets"
+msgstr "Public profile used by all GitHub Activity widgets"
+
+msgid "Use GitHub green colors"
+msgstr "Use GitHub green colors"
+
+msgid "Use GitHub’s contribution colors instead of the system accent color"
+msgstr "Use GitHub’s contribution colors instead of the system accent color"
+
+msgid "Ignore web browsers"
+msgstr "忽略网页浏览器"
+
+msgid "Prevent browser media sessions from taking over the Music widget"
+msgstr "Prevent browser media sessions from taking over the Music widget"
+
+msgid "Tint Music with album artwork"
+msgstr "Tint Music with album artwork"
+
+msgid "Use enlarged, dimmed artwork behind high-contrast playback controls"
+msgstr "Use enlarged, dimmed artwork behind high-contrast playback controls"
+
+msgid "Hide GNOME media controls"
+msgstr "隐藏 GNOME 媒体控件"
+
+msgid "Hide the built-in media cards when using the Music widget"
+msgstr "使用音乐小组件时隐藏内置媒体卡片"
+
+msgid "Stock symbols"
+msgstr "股票代码"
+
+msgid "Comma-separated market symbols, for example ^GSPC, AAPL, MSFT"
+msgstr "Comma-separated market symbols, for example ^GSPC, AAPL, MSFT"
+
+msgid "Screen Time retention"
+msgstr "屏幕时间保留期限"
+
+msgid "Number of days of local per-application history to keep"
+msgstr "Number of days of local per-application history to keep"
+
+msgid "Translucent blurred widgets"
+msgstr "半透明模糊小组件"
+
+msgid ""
+"Make widget surfaces semi-transparent and blur the wallpaper behind them"
+msgstr "使小组件表面半透明，并模糊其后的壁纸"
+
+msgid "Widget corner radius"
+msgstr "小组件圆角半径"
+
+msgid "Roundness of widget corners in pixels"
+msgstr "Roundness of widget corners in pixels"
+
+msgid "About"
+msgstr "关于"
+
+msgid "Widgets for GNOME Shell"
+msgstr "Widgets for GNOME Shell"
+
+msgid "Project page"
+msgstr "项目页面"
+
+msgid "View the extension on extensions.gnome.org"
+msgstr "View the extension on extensions.gnome.org"
+
+msgid "Source code"
+msgstr "源代码"
+
+msgid "View and contribute on GitHub"
+msgstr "View and contribute on GitHub"
+
+msgid "Report a problem"
+msgstr "报告问题"
+
+msgid "Open the GitHub issue tracker"
+msgstr "Open the GitHub issue tracker"
+
+msgid "GitHub network access"
+msgstr "GitHub 网络访问"
+
+msgid ""
+"GitHub Activity contacts github.com to retrieve the configured public "
+"profile’s contribution data and avatar."
+msgstr ""
+"GitHub Activity contacts github.com to retrieve the configured public "
+"profile’s contribution data and avatar."
+
+msgid "Local Screen Time storage"
+msgstr "本地屏幕时间存储"
+
+msgid ""
+"Screen Time records focused-application usage in local data files and "
+"removes old history according to the retention setting."
+msgstr ""
+"Screen Time records focused-application usage in local data files and "
+"removes old history according to the retention setting."
+
+msgid "Time/Clocks"
+msgstr "Time/Clocks"
+
+msgid "Small"
+msgstr "小"
+
+msgid "Wide"
+msgstr "宽"
+
+msgid "Large"
+msgstr "大"
+
+msgid "Widget gallery"
+msgstr "小组件库"
+
+msgid "Choose a widget"
+msgstr "选择小组件"
+
+msgid "Close"
+msgstr "关闭"
+
+msgid "Search widgets"
+msgstr "搜索小组件"
+
+msgid "Reset Layout"
+msgstr "重置布局"
+
+msgid "Confirm Reset"
+msgstr "确认重置"
+
+msgid "Confirm reset layout"
+msgstr "确认重置布局"
+
+msgid "Open widget settings"
+msgstr "打开小组件设置"
+
+msgid "No widgets found"
+msgstr "未找到小组件"
+
+#, javascript-format
+msgid "%s widgets"
+msgstr "%s 个小组件"
+
+msgid "Size"
+msgstr "尺寸"
+
+#, javascript-format
+msgid "%s size options"
+msgstr "%s 个尺寸选项"
+
+#, javascript-format
+msgid "Add %s widget to Desktop at %s size"
+msgstr "将 %s 小组件以 %s 大小添加到桌面"
+
+msgid "Done"
+msgstr "完成"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Finish editing widgets"
+msgstr "完成小组件编辑"
+
+msgid "Edit widgets"
+msgstr "编辑小组件"
+
+msgid "Open widget gallery"
+msgstr "打开小组件库"
+
+msgid "Open Widget Gallery"
+msgstr "打开小组件库"
+
+msgid "Extension Settings"
+msgstr "扩展设置"
+
+msgid "Close Widget Gallery"
+msgstr "关闭小组件库"
+
+#, javascript-format
+msgid "Could not launch %s"
+msgstr "Could not launch %s"
+
+msgid "No apps configured"
+msgstr "未配置应用"
+
+msgid "AM"
+msgstr "AM"
+
+msgid "PM"
+msgstr "PM"
+
+msgid "Untitled event"
+msgstr "无标题事件"
+
+msgid "Today"
+msgstr "今天"
+
+msgid "Tomorrow"
+msgstr "明天"
+
+msgid "All day"
+msgstr "全天"
+
+#, javascript-format
+msgid "%s – %s"
+msgstr "%s – %s"
+
+msgid "Next 7 days"
+msgstr "未来 7 天"
+
+msgid "No upcoming events"
+msgstr "没有即将发生的事件"
+
+msgid "Nothing scheduled in the next 7 days."
+msgstr "Nothing scheduled in the next 7 days."
+
+msgid "Calendar service unavailable"
+msgstr "日历服务不可用"
+
+msgid "Set up GNOME Calendar and make sure Evolution Data Server is installed."
+msgstr ""
+"Set up GNOME Calendar and make sure Evolution Data Server is installed."
+
+msgid "No calendars found"
+msgstr "未找到日历"
+
+msgid "Open GNOME Calendar to add a calendar or account."
+msgstr "Open GNOME Calendar to add a calendar or account."
+
+msgid "Couldn’t load events"
+msgstr "Couldn’t load events"
+
+msgid "Open GNOME Calendar and check your calendar accounts."
+msgstr "Open GNOME Calendar and check your calendar accounts."
+
+msgid "Loading events…"
+msgstr "正在加载事件…"
+
+msgid "Open GNOME Calendar and check that its calendar service is available."
+msgstr "Open GNOME Calendar and check that its calendar service is available."
+
+msgid "Jan"
+msgstr "Jan"
+
+msgid "Feb"
+msgstr "Feb"
+
+msgid "Mar"
+msgstr "Mar"
+
+msgid "Apr"
+msgstr "Apr"
+
+msgid "May"
+msgstr "May"
+
+msgid "Jun"
+msgstr "Jun"
+
+msgid "Jul"
+msgstr "Jul"
+
+msgid "Aug"
+msgstr "Aug"
+
+msgid "Sep"
+msgstr "Sep"
+
+msgid "Oct"
+msgstr "Oct"
+
+msgid "Nov"
+msgstr "Nov"
+
+msgid "Dec"
+msgstr "Dec"
+
+msgid "Mon"
+msgstr "Mon"
+
+msgid "Wed"
+msgstr "Wed"
+
+msgid "Fri"
+msgstr "Fri"
+
+msgid "M"
+msgstr "M"
+
+msgid "W"
+msgstr "W"
+
+msgid "F"
+msgstr "F"
+
+msgid "Click to set username"
+msgstr "Click to set username"
+
+msgid "Set user"
+msgstr "Set user"
+
+msgid "Click username to configure"
+msgstr "Click username to configure"
+
+msgid "Less"
+msgstr "Less"
+
+msgid "More"
+msgstr "More"
+
+msgid "Current streak"
+msgstr "Current streak"
+
+msgid "Longest streak"
+msgstr "Longest streak"
+
+msgid "Fetching…"
+msgstr "Fetching…"
+
+#, javascript-format
+msgid "%s commits"
+msgstr "%s 次提交"
+
+#, javascript-format
+msgid "Synced %s"
+msgstr "Synced %s"
+
+msgid "Cached"
+msgstr "Cached"
+
+msgid "Error"
+msgstr "错误"
+
+msgid "Offline — cached"
+msgstr "Offline — cached"
+
+msgid "Error loading"
+msgstr "加载错误"
+
+msgid "Invalid GitHub username"
+msgstr "无效的 GitHub 用户名"
+
+msgid "Cached offline"
+msgstr "Cached offline"
+
+msgid "Unknown artist"
+msgstr "未知艺术家"
+
+msgid "Nothing playing"
+msgstr "没有正在播放的内容"
+
+msgid "Start playback in a media app"
+msgstr "Start playback in a media app"
+
+#, javascript-format
+msgid "%sh %sm"
+msgstr "%sh %sm"
+
+#, javascript-format
+msgid "%sm"
+msgstr "%sm"
+
+msgid "No activity recorded"
+msgstr "未记录活动"
+
+msgid "Make tea"
+msgstr "Make tea"
+
+msgid "Make cake"
+msgstr "Make cake"
+
+msgid "Linux os"
+msgstr "Linux os"
+
+msgid "New task…"
+msgstr "新任务…"
+
+msgid "No tasks yet"
+msgstr "暂无任务"

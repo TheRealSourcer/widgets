@@ -1,0 +1,53 @@
+.widget-github-bold,
+.widget-github-secondary {
+	font-weight: 700;
+}
+
+.widget-github-secondary {
+	opacity: 0.55;
+}
+
+.widget-github-avatar {
+	border-radius: 999px;
+	background-size: cover;
+}
+
+.widget-github-stats {
+	spacing: 6px;
+	margin-top: 4px;
+}
+
+.widget-github-legend {
+	spacing: 3px;
+}
+
+.widget-github-legend-less {
+	margin-right: 3px;
+}
+
+.widget-github-legend-more {
+	margin-left: 3px;
+}
+
+.widget-github-legend-cell {
+	border-radius: 2px;
+	width: 9px;
+	height: 9px;
+}
+
+.widget-github-stat-row {
+	border-radius: 10px;
+	padding: 6px 12px;
+	spacing: 8px;
+}
+
+.widget-github-stat-label {
+	font-size: 16px;
+	font-weight: 400;
+	opacity: 0.55;
+}
+
+.widget-github-stat-value {
+	font-size: 14px;
+	font-weight: 700;
+}

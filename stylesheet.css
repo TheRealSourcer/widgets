@@ -7,11 +7,228 @@
     font-size: 16px;
 }
 
+.widget-body {
+	padding: 0;
+	margin: 0;
+}
+
+.widget.widget-body {
+	padding: 15px;
+}
+
+StWidget.widget.widget-blurred-surface {
+	background-color: transparent;
+	border: 0;
+	padding: 0;
+}
+
+.button.widget-accent-button,
+.button.widget-accent-button:hover,
+.button.widget-accent-button:focus,
+.button.widget-accent-button:active {
+	color: white;
+	border-radius: 12px;
+	padding: 9px 13px;
+	font-weight: bold;
+}
+
 .widget-edit-border {
-    border: 2px solid #3585e4;
+    border: 2px solid transparent;
     border-radius: 26px;
 }
 
-.widget-panel-icon {
-    icon-size: 16px;
+.widget-remove-button {
+	padding: 0;
+	min-width: 0;
+	min-height: 0;
+	border-radius: 999px;
+	background-color: rgba(36, 36, 36, 0.88);
+	color: #fff;
+}
+
+.widget-action-button,
+.widget-remove-button {
+	transition-duration: 120ms;
+}
+
+.widget-action-button:hover,
+.widget-action-button:focus {
+	background-color: rgba(255, 255, 255, 0.14);
+}
+
+.widget-action-button:active {
+	background-color: rgba(255, 255, 255, 0.24);
+	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.widget-remove-button:hover,
+.widget-remove-button:focus {
+	background-color: rgba(58, 58, 64, 0.96);
+}
+
+.widget-task-delete-button:hover,
+.widget-task-delete-button:focus,
+.widget-task-delete-button:active {
+	border-radius: 999px;
+}
+
+.widget-icon-button:hover,
+.widget-icon-button:focus {
+	opacity: 1;
+}
+
+.widget-gallery-button,
+.widget-gallery-card,
+.widget-gallery-size-chip {
+	transition-duration: 140ms;
+}
+
+.widget-gallery-button:hover,
+.widget-gallery-button:focus,
+.widget-gallery-size-chip:hover,
+.widget-gallery-size-chip:focus {
+	background-color: rgba(255, 255, 255, 0.10);
+}
+
+.widget-gallery-button:active,
+.widget-gallery-size-chip:active {
+	box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.34);
+}
+
+.widget-gallery-card:hover {
+	background-color: rgba(255, 255, 255, 0.11);
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+.widget-gallery-drawer {
+	background-color: rgb(28, 28, 32);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 24px 24px 0 0;
+	box-shadow: none;
+	padding: 12px 18px;
+}
+
+.widget-gallery-header {
+	spacing: 10px;
+	padding: 0 2px 10px 2px;
+}
+
+.widget-gallery-title {
+	font-size: 18px;
+	font-weight: bold;
+}
+
+.button.widget-gallery-button {
+	background-color: rgba(255, 255, 255, 0.10);
+	border-radius: 12px;
+	padding: 9px 13px;
+}
+
+.button.widget-gallery-close-button,
+.button.widget-gallery-settings-button {
+	padding: 0;
+	min-width: 0;
+	min-height: 0;
+}
+
+.widget-gallery-search-entry,
+.widget-gallery-search-entry:hover,
+.widget-gallery-search-entry:focus {
+	background-color: rgba(255, 255, 255, 0.09);
+	border: 1px solid rgba(255, 255, 255, 0.10);
+	border-radius: 14px;
+	padding: 10px 12px;
+}
+
+.widget-gallery-scroll-view {
+	border-radius: 16px;
+	min-height: 0;
+}
+
+.widget-gallery-sections {
+	spacing: 18px;
+	padding: 2px 4px 10px 4px;
+}
+
+.widget-gallery-footer {
+	spacing: 10px;
+	padding-top: 12px;
+}
+
+.button.widget-gallery-reset-armed,
+.button.widget-gallery-reset-armed:hover,
+.button.widget-gallery-reset-armed:focus {
+	background-color: rgba(224, 27, 36, 0.88);
+	color: white;
+	font-weight: bold;
+}
+
+.widget-gallery-empty-state {
+	padding: 42px;
+}
+
+.widget-gallery-empty-icon {
+	color: rgba(255, 255, 255, 0.45);
+}
+
+.widget-gallery-empty-label {
+	padding-top: 10px;
+	color: rgba(255, 255, 255, 0.66);
+}
+
+.widget-gallery-section {
+	spacing: 9px;
+}
+
+.widget-gallery-section-header {
+	font-size: 19px;
+	font-weight: 800;
+	color: rgba(255, 255, 255, 0.72);
+	padding: 0 4px;
+}
+
+.widget-gallery-preview-item {
+	spacing: 6px;
+	padding: 0;
+	background-color: transparent;
+	border: 0;
+}
+
+.widget-gallery-preview-content {
+	spacing: 6px;
+}
+
+.widget-gallery-preview-title {
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.widget-gallery-size-label {
+	font-size: 12px;
+	font-weight: 700;
+	color: rgba(255, 255, 255, 0.68);
+}
+
+.widget-gallery-size-options,
+.widget-gallery-size-row {
+	spacing: 4px;
+}
+
+.button.widget-gallery-size-chip {
+	background-color: rgba(255, 255, 255, 0.10);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 9px;
+	padding: 4px 7px;
+	font-size: 10px;
+}
+
+.button.widget-gallery-size-chip-selected {
+	color: white;
+}
+
+.widget-gallery-drag-ghost {
+	background-color: rgba(36, 36, 36, 0.94);
+	border-radius: 14px;
+	padding: 10px 14px;
+	spacing: 8px;
 }

@@ -1,0 +1,556 @@
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: widgets@distro.com 0.3.0\n"
+"Report-Msgid-Bugs-To: https://github.com/TheRealSourcer/widgets/issues\n"
+"POT-Creation-Date: 2026-10-05 19:59-0400\n"
+"PO-Revision-Date: 2026-09-20 00:00+0000\n"
+"Last-Translator: Widgets Ukrainian translation team\n"
+"Language-Team: Ukrainian\n"
+"Language: uk\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "Analog Clock"
+msgstr "Аналоговий годинник"
+
+msgid "Clocks"
+msgstr "Годинники"
+
+msgid "An analog clock"
+msgstr "Аналоговий годинник"
+
+msgid "Digital Clock"
+msgstr "Цифровий годинник"
+
+msgid "A scalable digital time display"
+msgstr "Масштабований цифровий годинник"
+
+msgid "Binary Clock"
+msgstr "Бінарний годинник"
+
+msgid "Time displayed as binary-coded dots"
+msgstr "Час у вигляді двійково кодованих точок"
+
+msgid "Calendar"
+msgstr "Календар"
+
+msgid "A compact monthly calendar"
+msgstr "Компактний календар на місяць"
+
+msgid "Events"
+msgstr "Events"
+
+msgid "Upcoming events from GNOME Calendar"
+msgstr "Майбутні події з Календаря GNOME"
+
+msgid "Weather"
+msgstr "Погода"
+
+msgid "Information"
+msgstr "Інформація"
+
+msgid "Current conditions from GNOME Weather"
+msgstr "Поточна погода з «Погоди GNOME»"
+
+msgid "Photos"
+msgstr "Фотографії"
+
+msgid "Media"
+msgstr "Мультимедіа"
+
+msgid "Rotating pictures from your photo folders"
+msgstr "Зміна зображень із тек із фотографіями"
+
+msgid "Battery"
+msgstr "Батарея"
+
+msgid "Computer and Bluetooth battery levels"
+msgstr "Рівні заряду комп’ютера та Bluetooth-пристроїв"
+
+msgid "Media Player"
+msgstr "Медіаплеєр"
+
+msgid "MPRIS playback information and controls"
+msgstr "Відомості про відтворення та керування MPRIS"
+
+msgid "Tasks"
+msgstr "Завдання"
+
+msgid "Productivity"
+msgstr "Продуктивність"
+
+msgid "A persistent interactive task list"
+msgstr "Постійний інтерактивний список завдань"
+
+msgid "GitHub Activity"
+msgstr "Активність GitHub"
+
+msgid "Contribution activity for a public profile"
+msgstr "Активність загальнодоступного профілю"
+
+msgid "App Launcher"
+msgstr "Панель програм"
+
+msgid "Applications"
+msgstr "Застосунки"
+
+msgid "Quick access to installed applications"
+msgstr "Швидкий доступ до встановлених застосунків"
+
+msgid "Screen Time"
+msgstr "Екранний час"
+
+msgid "Local focused-application usage history"
+msgstr "Локальна історія використання активних застосунків"
+
+msgid "Stocks"
+msgstr "Stocks"
+
+msgid "Finance"
+msgstr "Фінанси"
+
+msgid "Market quotes and recent trends"
+msgstr "Біржові котирування й останні тенденції"
+
+msgid "Preferences"
+msgstr "Параметри"
+
+msgid "Widgets Preferences"
+msgstr "Параметри віджетів"
+
+msgid "General"
+msgstr "Основне"
+
+msgid "Control how the widget gallery and desktop launcher behave."
+msgstr "Налаштуйте поведінку галереї віджетів і засобу запуску на стільниці."
+
+msgid "Show top-panel launcher"
+msgstr "Показувати кнопку на верхній панелі"
+
+msgid "Show the widget gallery button in the GNOME top panel"
+msgstr "Показувати кнопку галереї віджетів на верхній панелі GNOME"
+
+msgid "Widget gallery shortcut"
+msgstr "Комбінація клавіш для галереї віджетів"
+
+msgid "Enter a GTK accelerator such as <Super>w, or leave empty to disable it"
+msgstr "Enter a GTK accelerator such as <Super>w, or leave empty to disable it"
+
+msgid "Reset widget layout"
+msgstr "Скинути розкладку віджетів"
+
+msgid "Restore the default widgets and their positions"
+msgstr "Restore the default widgets and their positions"
+
+msgid "Widgets"
+msgstr "Віджети"
+
+msgid "Configure widget appearance, content, and history."
+msgstr "Configure widget appearance, content, and history."
+
+msgid "Digital clock format"
+msgstr "Формат цифрового годинника"
+
+msgid "Choose a 12-hour or 24-hour clock"
+msgstr "Оберіть 12- або 24-годинний формат"
+
+msgid "12-hour"
+msgstr "12-годинний"
+
+msgid "24-hour"
+msgstr "24-годинний"
+
+msgid "Show seconds"
+msgstr "Показувати секунди"
+
+msgid "Display seconds when supported by the selected clock size"
+msgstr "Display seconds when supported by the selected clock size"
+
+msgid "Show AM/PM"
+msgstr "Показувати AM/PM"
+
+msgid "Display the period indicator in 12-hour mode"
+msgstr "Display the period indicator in 12-hour mode"
+
+msgid "GitHub username"
+msgstr "Ім’я користувача GitHub"
+
+msgid "Public profile used by all GitHub Activity widgets"
+msgstr "Public profile used by all GitHub Activity widgets"
+
+msgid "Use GitHub green colors"
+msgstr "Use GitHub green colors"
+
+msgid "Use GitHub’s contribution colors instead of the system accent color"
+msgstr "Use GitHub’s contribution colors instead of the system accent color"
+
+msgid "Ignore web browsers"
+msgstr "Ігнорувати браузери"
+
+msgid "Prevent browser media sessions from taking over the Music widget"
+msgstr "Prevent browser media sessions from taking over the Music widget"
+
+msgid "Tint Music with album artwork"
+msgstr "Tint Music with album artwork"
+
+msgid "Use enlarged, dimmed artwork behind high-contrast playback controls"
+msgstr "Use enlarged, dimmed artwork behind high-contrast playback controls"
+
+msgid "Hide GNOME media controls"
+msgstr "Приховати елементи керування мультимедіа GNOME"
+
+msgid "Hide the built-in media cards when using the Music widget"
+msgstr "Приховувати вбудовані медіакартки під час використання віджета Музика"
+
+msgid "Stock symbols"
+msgstr "Біржові символи"
+
+msgid "Comma-separated market symbols, for example ^GSPC, AAPL, MSFT"
+msgstr "Comma-separated market symbols, for example ^GSPC, AAPL, MSFT"
+
+msgid "Screen Time retention"
+msgstr "Зберігання екранного часу"
+
+msgid "Number of days of local per-application history to keep"
+msgstr "Number of days of local per-application history to keep"
+
+msgid "Translucent blurred widgets"
+msgstr "Напівпрозорі віджети з розмиттям"
+
+msgid ""
+"Make widget surfaces semi-transparent and blur the wallpaper behind them"
+msgstr "Зробити поверхні віджетів напівпрозорими та розмити шпалери позаду них"
+
+msgid "Widget corner radius"
+msgstr "Радіус кутів віджетів"
+
+msgid "Roundness of widget corners in pixels"
+msgstr "Roundness of widget corners in pixels"
+
+msgid "About"
+msgstr "Про розширення"
+
+msgid "Widgets for GNOME Shell"
+msgstr "Widgets for GNOME Shell"
+
+msgid "Project page"
+msgstr "Project page"
+
+msgid "View the extension on extensions.gnome.org"
+msgstr "View the extension on extensions.gnome.org"
+
+msgid "Source code"
+msgstr "Source code"
+
+msgid "View and contribute on GitHub"
+msgstr "View and contribute on GitHub"
+
+msgid "Report a problem"
+msgstr "Report a problem"
+
+msgid "Open the GitHub issue tracker"
+msgstr "Open the GitHub issue tracker"
+
+msgid "GitHub network access"
+msgstr "Мережевий доступ до GitHub"
+
+msgid ""
+"GitHub Activity contacts github.com to retrieve the configured public "
+"profile’s contribution data and avatar."
+msgstr ""
+"GitHub Activity contacts github.com to retrieve the configured public "
+"profile’s contribution data and avatar."
+
+msgid "Local Screen Time storage"
+msgstr "Локальне сховище екранного часу"
+
+msgid ""
+"Screen Time records focused-application usage in local data files and "
+"removes old history according to the retention setting."
+msgstr ""
+"Screen Time records focused-application usage in local data files and "
+"removes old history according to the retention setting."
+
+msgid "Time/Clocks"
+msgstr "Time/Clocks"
+
+msgid "Small"
+msgstr "Малий"
+
+msgid "Wide"
+msgstr "Широкий"
+
+msgid "Large"
+msgstr "Великий"
+
+msgid "Widget gallery"
+msgstr "Галерея віджетів"
+
+msgid "Choose a widget"
+msgstr "Оберіть віджет"
+
+msgid "Close"
+msgstr "Закрити"
+
+msgid "Search widgets"
+msgstr "Пошук віджетів"
+
+msgid "Reset Layout"
+msgstr "Скинути розкладку"
+
+msgid "Confirm Reset"
+msgstr "Підтвердити скидання"
+
+msgid "Confirm reset layout"
+msgstr "Підтвердити скидання розкладки"
+
+msgid "Open widget settings"
+msgstr "Відкрити налаштування віджета"
+
+msgid "No widgets found"
+msgstr "Віджетів не знайдено"
+
+#, javascript-format
+msgid "%s widgets"
+msgstr "Віджетів: %s"
+
+msgid "Size"
+msgstr "Розмір"
+
+#, javascript-format
+msgid "%s size options"
+msgstr "Варіантів розміру: %s"
+
+#, javascript-format
+msgid "Add %s widget to Desktop at %s size"
+msgstr "Додати віджет %s на стільницю з розміром %s"
+
+msgid "Done"
+msgstr "Готово"
+
+msgid "Edit"
+msgstr "Редагувати"
+
+msgid "Finish editing widgets"
+msgstr "Завершити редагування віджетів"
+
+msgid "Edit widgets"
+msgstr "Редагувати віджети"
+
+msgid "Open widget gallery"
+msgstr "Відкрити галерею віджетів"
+
+msgid "Open Widget Gallery"
+msgstr "Відкрити галерею віджетів"
+
+msgid "Extension Settings"
+msgstr "Налаштування розширення"
+
+msgid "Close Widget Gallery"
+msgstr "Закрити галерею віджетів"
+
+#, javascript-format
+msgid "Could not launch %s"
+msgstr "Не вдалося запустити %s"
+
+msgid "No apps configured"
+msgstr "Застосунки не налаштовано"
+
+msgid "AM"
+msgstr "AM"
+
+msgid "PM"
+msgstr "PM"
+
+msgid "Untitled event"
+msgstr "Подія без назви"
+
+msgid "Today"
+msgstr "Сьогодні"
+
+msgid "Tomorrow"
+msgstr "Завтра"
+
+msgid "All day"
+msgstr "All day"
+
+#, javascript-format
+msgid "%s – %s"
+msgstr "%s – %s"
+
+msgid "Next 7 days"
+msgstr "Наступні 7 днів"
+
+msgid "No upcoming events"
+msgstr "Немає майбутніх подій"
+
+msgid "Nothing scheduled in the next 7 days."
+msgstr "Nothing scheduled in the next 7 days."
+
+msgid "Calendar service unavailable"
+msgstr "Служба календаря недоступна"
+
+msgid "Set up GNOME Calendar and make sure Evolution Data Server is installed."
+msgstr ""
+"Set up GNOME Calendar and make sure Evolution Data Server is installed."
+
+msgid "No calendars found"
+msgstr "Календарів не знайдено"
+
+msgid "Open GNOME Calendar to add a calendar or account."
+msgstr "Open GNOME Calendar to add a calendar or account."
+
+msgid "Couldn’t load events"
+msgstr "Couldn’t load events"
+
+msgid "Open GNOME Calendar and check your calendar accounts."
+msgstr "Open GNOME Calendar and check your calendar accounts."
+
+msgid "Loading events…"
+msgstr "Завантаження подій…"
+
+msgid "Open GNOME Calendar and check that its calendar service is available."
+msgstr "Open GNOME Calendar and check that its calendar service is available."
+
+msgid "Jan"
+msgstr "Січ"
+
+msgid "Feb"
+msgstr "Лют"
+
+msgid "Mar"
+msgstr "Бер"
+
+msgid "Apr"
+msgstr "Кві"
+
+msgid "May"
+msgstr "Тра"
+
+msgid "Jun"
+msgstr "Чер"
+
+msgid "Jul"
+msgstr "Лип"
+
+msgid "Aug"
+msgstr "Сер"
+
+msgid "Sep"
+msgstr "Вер"
+
+msgid "Oct"
+msgstr "Жов"
+
+msgid "Nov"
+msgstr "Лис"
+
+msgid "Dec"
+msgstr "Гру"
+
+msgid "Mon"
+msgstr "Пн"
+
+msgid "Wed"
+msgstr "Ср"
+
+msgid "Fri"
+msgstr "Пт"
+
+msgid "M"
+msgstr "П"
+
+msgid "W"
+msgstr "С"
+
+msgid "F"
+msgstr "П"
+
+msgid "Click to set username"
+msgstr "Натисніть, щоб вказати ім’я користувача"
+
+msgid "Set user"
+msgstr "Вказати користувача"
+
+msgid "Click username to configure"
+msgstr "Натисніть ім’я, щоб налаштувати"
+
+msgid "Less"
+msgstr "Менше"
+
+msgid "More"
+msgstr "Більше"
+
+msgid "Current streak"
+msgstr "Поточна серія"
+
+msgid "Longest streak"
+msgstr "Найдовша серія"
+
+msgid "Fetching…"
+msgstr "Отримання…"
+
+#, javascript-format
+msgid "%s commits"
+msgstr "%s коммітів"
+
+#, javascript-format
+msgid "Synced %s"
+msgstr "Синхронізовано %s"
+
+msgid "Cached"
+msgstr "Кеш"
+
+msgid "Error"
+msgstr "Помилка"
+
+msgid "Offline — cached"
+msgstr "Офлайн — кеш"
+
+msgid "Error loading"
+msgstr "Помилка завантаження"
+
+msgid "Invalid GitHub username"
+msgstr "Недійсне ім’я користувача GitHub"
+
+msgid "Cached offline"
+msgstr "Кеш офлайн"
+
+msgid "Unknown artist"
+msgstr "Невідомий виконавець"
+
+msgid "Nothing playing"
+msgstr "Нічого не відтворюється"
+
+msgid "Start playback in a media app"
+msgstr "Start playback in a media app"
+
+#, javascript-format
+msgid "%sh %sm"
+msgstr "%sг %sхв"
+
+#, javascript-format
+msgid "%sm"
+msgstr "%sхв"
+
+msgid "No activity recorded"
+msgstr "Активність не записана"
+
+msgid "Make tea"
+msgstr "Приготувати чай"
+
+msgid "Make cake"
+msgstr "Приготувати торт"
+
+msgid "Linux os"
+msgstr "ОС Linux"
+
+msgid "New task…"
+msgstr "Нове завдання…"
+
+msgid "No tasks yet"
+msgstr "Завдань поки немає"

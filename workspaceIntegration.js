@@ -1,15 +1,13 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
+import {CHILD_ADDED} from './compatibility.js';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { MonitorGroup as WorkspaceAnimationMonitorGroup } from 'resource:///org/gnome/shell/ui/workspaceAnimation.js';
 
-import { warn } from './logger.js';
-
 function destroyActor(actor) {
-  if (!actor) {
-    return;
-  };
+  if (!actor) return;
 
   actor.destroy();
 };
@@ -18,7 +16,6 @@ export class WorkspaceIntegration {
   constructor() {
     this._enabled = false;
     this._source = null;
-    this._signals = [];
     this._overviewClones = new Map();
     this._overviewSyncId = 0;
     this._workspaceAnimationClones = new Set();
@@ -28,50 +25,25 @@ export class WorkspaceIntegration {
     this._enabled = true;
     this.setSource(source);
 
-    this._signals.push([
-      Main.uiGroup,
-      Main.uiGroup.connect('child-added', (_group, child) => {
-        if (child instanceof WorkspaceAnimationMonitorGroup) {
-          this._addWorkspaceAnimationMonitorGroup(child)
-        };
-      }),
-    ]);
+    Main.uiGroup.connectObject(CHILD_ADDED, (_group, child) => {
+      if (child instanceof WorkspaceAnimationMonitorGroup) {
+        this._addWorkspaceAnimationMonitorGroup(child);
+      };
+    }, this);
 
-    this._signals.push([
-      Main.overview,
-      Main.overview.connect('showing', () => {
+    Main.overview.connectObject(
+      'showing', () => {
         this._syncOverviewPreviews();
         this.queueSync();
-      }),
-    ]);
+      },
+      'shown', () => this._syncOverviewPreviews(),
+      'hidden', () => this._clearOverviewClones(),
+      this);
 
-    this._signals.push([
-      Main.overview,
-      Main.overview.connect('shown', () => {
-        this._syncOverviewPreviews();
-      }),
-    ]);
-
-    this._signals.push([
-      Main.overview,
-      Main.overview.connect('hidden', () => {
-        this._clearOverviewClones();
-      }),
-    ]);
-
-    this._signals.push([
-      global.workspace_manager,
-      global.workspace_manager.connect('notify::n-workspaces', () => {
-        this.queueSync();
-      }),
-    ]);
-
-    this._signals.push([
-      global.workspace_manager,
-      global.workspace_manager.connect('workspaces-reordered', () => {
-        this.queueSync();
-      }),
-    ]);
+    global.workspace_manager.connectObject(
+      'notify::n-workspaces', () => this.queueSync(),
+      'workspaces-reordered', () => this.queueSync(),
+      this);
 
     if (Main.overview.visible || Main.overview.visibleTarget) {
       this.queueSync();
@@ -84,18 +56,14 @@ export class WorkspaceIntegration {
     this._clearOverviewClones();
     this._clearWorkspaceAnimationClones();
 
-    for (const [actor, id] of this._signals) {
-      actor.disconnect(id);
-    };
-
-    this._signals = [];
+    Main.uiGroup.disconnectObject(this);
+    Main.overview.disconnectObject(this);
+    global.workspace_manager.disconnectObject(this);
     this._source = null;
   };
 
   setSource(source) {
-    if (source === this._source) {
-      return;
-    };
+    if (source === this._source) return;
 
     this._clearOverviewClones();
     this._clearWorkspaceAnimationClones();
@@ -106,10 +74,29 @@ export class WorkspaceIntegration {
     };
   };
 
+  desktopPointForStagePoint(stageX, stageY) {
+		const monitor = Main.layoutManager.primaryMonitor;
+		if (!monitor || (!Main.overview.visible && !Main.overview.visibleTarget)) {
+			return null;
+		};
+
+		for (const {clone} of this._overviewClones.values()) {
+			const [x, y] = clone.get_transformed_position();
+			const [width, height] = clone.get_transformed_size();
+			if (width <= 0 || height <= 0 || stageX < x || stageX > x + width || stageY < y || stageY > y + height) {
+				continue;
+			};
+			return {
+				x: monitor.x + (stageX - x) * monitor.width / width,
+				y: monitor.y + (stageY - y) * monitor.height / height,
+			};
+		};
+
+		return null;
+	};
+
   queueSync() {
-    if (!this._enabled || this._overviewSyncId || (!Main.overview.visible && !Main.overview.visibleTarget)) {
-      return;
-    };
+    if (!this._enabled || this._overviewSyncId || (!Main.overview.visible && !Main.overview.visibleTarget)) return;
 
     this._overviewSyncId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
       this._overviewSyncId = 0;
@@ -125,9 +112,7 @@ export class WorkspaceIntegration {
   };
 
   _cancelSync() {
-    if (!this._overviewSyncId) {
-      return;
-    };
+    if (!this._overviewSyncId) return;
 
     GLib.source_remove(this._overviewSyncId);
     this._overviewSyncId = 0;
@@ -149,18 +134,16 @@ export class WorkspaceIntegration {
     this._workspaceAnimationClones.clear();
   };
 
-  _addWorkspaceAnimationClone(workspaceBackground) {
-    const monitor = workspaceBackground?._monitor;
+	_addWorkspaceAnimationClone(workspaceGroup) {
+		const workspaceBackground = workspaceGroup?._background;
+		const legacy = workspaceBackground instanceof Meta.BackgroundGroup;
+		const monitor = workspaceGroup?._monitor ?? workspaceBackground?._monitor;
 
-    if (!this._source || monitor?.index !== Main.layoutManager.primaryIndex) {
-      return;
-    };
+		if (!this._source || !workspaceBackground || monitor?.index !== Main.layoutManager.primaryIndex) return;
 
-    const backgroundGroup = workspaceBackground.get_first_child();
+		const backgroundGroup = legacy ? workspaceBackground : workspaceBackground.get_first_child();
 
-    if (!backgroundGroup) {
-      return;
-    };
+    if (!backgroundGroup) return;
 
     const clone = new Clutter.Clone({
       source: this._source,
@@ -171,26 +154,30 @@ export class WorkspaceIntegration {
       height: monitor.height
     });
 
+    clone.opacity = this._source.opacity;
+		const dim = this._source.get_effect('dim');
+    if (dim?.factor > 0) {
+      clone.add_effect(new Clutter.DesaturateEffect({factor: dim.factor}));
+    };
+
     backgroundGroup.add_child(clone);
-    backgroundGroup.connectObject('child-added', (_actor, child) => {
+    backgroundGroup.connectObject(CHILD_ADDED, (_actor, child) => {
       if (child !== clone && clone.get_parent() === backgroundGroup) {
         backgroundGroup.set_child_above_sibling(clone, null);
       };
     }, clone);
 
-    clone.connect('destroy', () => this._workspaceAnimationClones.delete(clone));
+    clone.connectObject('destroy', () => this._workspaceAnimationClones.delete(clone), clone);
 
     this._workspaceAnimationClones.add(clone);
     backgroundGroup.set_child_above_sibling(clone, null);
   };
 
   _addWorkspaceAnimationMonitorGroup(monitorGroup) {
-    if (monitorGroup.index !== Main.layoutManager.primaryIndex) {
-      return;
-    };
+    if (monitorGroup.index !== Main.layoutManager.primaryIndex) return;
 
     for (const workspaceGroup of monitorGroup._workspaceGroups ?? []) {
-      this._addWorkspaceAnimationClone(workspaceGroup._background);
+      this._addWorkspaceAnimationClone(workspaceGroup);
     };
   };
 
@@ -236,9 +223,7 @@ export class WorkspaceIntegration {
   };
 
   _restackOverviewClone(container, clone, aboveSiblings) {
-    if (clone.get_parent() !== container) {
-      return;
-    };
+    if (clone.get_parent() !== container) return;
 
     if (aboveSiblings) {
       container.set_child_above_sibling(clone, null);
@@ -264,21 +249,21 @@ export class WorkspaceIntegration {
     } else {
       clone.set_position(target.x, target.y);
       clone.set_size(target.width, target.height);
-    }
+    };
 
     container.add_child(clone);
 
-    container.connectObject('child-added', (_actor, child) => {
+    container.connectObject(CHILD_ADDED, (_actor, child) => {
       if (child !== clone) {
         this._restackOverviewClone(container, clone, record.aboveSiblings);
       };
     }, clone);
 
-    clone.connect('destroy', () => {
+    clone.connectObject('destroy', () => {
       if (this._overviewClones.get(container)?.clone === clone) {
         this._overviewClones.delete(container);
       };
-    });
+    }, clone);
 
     this._overviewClones.set(container, record);
     this._restackOverviewClone(container, clone, record.aboveSiblings);

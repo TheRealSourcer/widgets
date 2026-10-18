@@ -1,38 +1,63 @@
 .widget-weather-location-row {
-  spacing: 5px;
+	spacing: 5px;
 }
 
 .widget-weather-location-icon {
-    icon-size: 12px;
+	icon-size: 13px;
 }
 
 .widget-weather-location-name {
-  font-size: 16px;
-  font-weight: 700;
+	font-size: 16px;
+	font-weight: 700;
 }
 
-.widget-weather-bottom {
-  spacing: 2px;
-}
-
-.widget-weather-details {
-  spacing: 2px;
-}
-
-.widget-weather-icon {
-  icon-size: 24px;
+.widget-weather-temp-stage {
+	min-height: 0;
 }
 
 .widget-weather-temp {
-  font-size: 72px;
-  font-weight: 800;
+	font-size: 72px;
+	font-weight: 800;
+	font-feature-settings: "tnum";
+	text-shadow: 0 2px 5px rgba(0, 0, 0, 0.16);
+}
+
+.widget-weather-temp-previous {
+	color: rgba(255, 255, 255, 0.72);
+}
+
+.widget-weather-bottom {
+	spacing: 3px;
+}
+
+.widget-weather-bottom-wide {
+	spacing: 8px;
+}
+
+.widget-weather-details {
+	spacing: 2px;
+}
+
+.widget-weather-icon {
+	icon-size: 28px;
+	icon-shadow: 0 2px 4px rgba(0, 0, 0, 0.42);
 }
 
 .widget-weather-summary {
-  font-size: 16px;
-  font-weight: 700;
+	font-size: 16px;
+	font-weight: 700;
 }
 
 .widget-weather-feels-like {
-  font-size: 14px;
+	font-size: 14px;
+	font-weight: 500;
+}
+
+.widget-weather-forecast-temp {
+	font-weight: 700;
+}
+
+.widget-weather-forecast-day,
+.widget-weather-forecast-temp {
+	text-align: center;
 }
