@@ -888,7 +888,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	const dotsRow = new St.BoxLayout(boxLayoutProps({
 		x_expand: true,
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: 6px; margin-bottom: 0px;`,
+		style: `spacing: 6px; margin-bottom: 1px;`,
 	}));
 	// Keep the row fully inside the body: the clip area cuts children at
 	// its allocation, so flush (0px) is the lowest clean position.
