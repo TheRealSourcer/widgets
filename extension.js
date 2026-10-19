@@ -519,7 +519,10 @@ class WidgetController {
       // accent and neutral text color the moment the toggle flips.
       'changed::weather-use-accent-color', () => this._refreshWeatherViews(),
       'changed::digitalclock-hour-format', () => this._scheduleAppearance('refresh'),
-      'changed::digitalclock-show-seconds', () => this._scheduleAppearance('refresh'),
+      'changed::digitalclock-show-seconds', () => {
+        log('DW-SET: digitalclock-show-seconds signal seen');
+        this._scheduleAppearance('refresh');
+      },
       'changed::digitalclock-show-ampm', () => this._scheduleAppearance('refresh'),
       'changed::github-use-green', () => this._scheduleAppearance('refresh'),
       'changed::github-username', () => this._scheduleAppearance('refresh'),
@@ -722,6 +725,7 @@ class WidgetController {
   };
 
   _scheduleAppearance(kind) {
+    log(`DW-APPEAR: kind=${kind} dragActive=${this._layoutSettings.get_boolean('drag-active')}`);
     if (this._layoutSettings.get_boolean('drag-active')) {
       this._pendingAppearance[kind] = true;
       return;
@@ -2107,6 +2111,7 @@ class WidgetController {
   };
 
   _refreshWidgets() {
+    log(`DW-REFRESH: enter dragActor=${Boolean(this._dragActor)} views=${this._views.size}`);
     if (this._dragActor) {
       return;
     };
