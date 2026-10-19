@@ -11,14 +11,6 @@ import { boxLayoutProps } from '../../utils/gnomeCompat.js';
 import { CanvasButton } from '../../lib/canvasButton.js';
 import { SeekBar } from '../../lib/seekBar.js';
 import { parseCssColor } from '../../utils/ported.js';
-import {
-	paintPlayIcon,
-	paintPauseIcon,
-	paintNextIcon,
-	paintPreviousIcon,
-	paintLoopIcon,
-} from '../../lib/musicControls.js';
-
 export const type = 'music';
 export const label = 'Music';
 export const stylesheet = 'widgets/music/stylesheet.css';
@@ -377,53 +369,30 @@ function controlIcon(theme, iconName, isActive = false) {
 };
 
 function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius = 9, isActive = false) {
-	// Theme colors for painting
-	const isDark = theme.dark ?? false;
-	const color = isDark ? [1, 1, 1] : [0, 0, 0]; // white/black based on theme
-	
-	// CanvasButton with bounce animation — paint callback draws the icon
+	// Buttons keep the CanvasButton click/bounce behavior; the icon is the
+	// bundled SVG (gray when inactive, white/black when active) rendered by
+	// St.Icon — the same icon logic as the reference implementation.
 	const button = new CanvasButton((cr, btn) => {
-		const [w, h] = btn.get_surface_size();
-		const cx = w / 2;
-		const cy = h / 2;
-		
-		// Background (subtle on hover/pressed)
+		// Hover/pressed disc painted under the icon.
 		if (btn.hover || btn.pressed) {
-			cr.setSourceRGBA(...color, btn.pressed ? 0.15 : 0.08);
-			cr.arc(cx, cy, Math.min(w, h) / 2, 0, 2 * Math.PI);
+			const [w, h] = btn.get_surface_size();
+			const isDark = theme.dark ?? false;
+
+			cr.setSourceRGBA(...(isDark ? [1, 1, 1] : [0, 0, 0]), btn.pressed ? 0.15 : 0.08);
+			cr.arc(w / 2, h / 2, Math.min(w, h) / 2, 0, 2 * Math.PI);
 			cr.fill();
 		}
-		
-		// Determine opacity based on state
-		const opacity = btn._isActive ? 1.0 : 0.4;
-		
-		// Paint the appropriate icon (btn._iconName wins — setButtonIcon
-		// swaps it at runtime; iconName is the fallback captured on create)
-		switch (btn._iconName ?? iconName) {
-			case 'play':
-				paintPlayIcon(cr, cx, cy, iconSize, color, opacity);
-				break;
-			case 'circle-pause':
-			case 'pause':
-				paintPauseIcon(cr, cx, cy, iconSize, color, opacity);
-				break;
-			case 'fast-forward':
-			case 'next':
-				paintNextIcon(cr, cx, cy, iconSize, color, opacity);
-				break;
-			case 'rewind':
-			case 'previous':
-				paintPreviousIcon(cr, cx, cy, iconSize, color, opacity);
-				break;
-			case 'repeat':
-			case 'repeat-1':
-			case 'repeat-off':
-				paintLoopIcon(cr, cx, cy, iconSize, color, opacity);
-				break;
-		}
 	}, {bounce: true});
-	
+
+	// BinLayout centers the St.Icon child over the painted disc.
+	button.layout_manager = new Clutter.BinLayout();
 	button.set_size(27, 27);
+
+	const icon = new St.Icon({ gicon: controlIcon(theme, iconName, isActive) });
+	icon.style = `icon-size: ${iconSize}px;`;
+	icon.x_align = Clutter.ActorAlign.CENTER;
+	icon.y_align = Clutter.ActorAlign.CENTER;
+	button.set_child(icon);
 
 	// Store metadata for later updates
 	button._iconSize = iconSize;
@@ -431,22 +400,24 @@ function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius
 	button._theme = theme;
 	button._isActive = isActive;
 
-	return {button};
+	return {button, icon};
 };
 
 function recolorIcon(target, alpha = 1) {
-	// CanvasButton repaints automatically based on _isActive state
-	if (target.button) {
-		target.button._isActive = alpha >= 1;
-		target.button.queue_repaint();
+	// Inactive/active tints come from the SVG variants; alpha only dims the
+	// loop control while playback control is unavailable.
+	if (target.icon) {
+		target.icon.opacity = Math.round(255 * Math.max(0, Math.min(1, alpha)));
 	}
 };
 
 function setButtonIcon(target, iconName, isActive = false) {
-	if (target.button) {
+	const gicon = controlIcon(target.button?._theme, iconName, isActive);
+
+	if (gicon && target.icon) {
+		target.icon.gicon = gicon;
 		target.button._iconName = iconName;
 		target.button._isActive = isActive;
-		target.button.queue_repaint();
 	}
 };
 
