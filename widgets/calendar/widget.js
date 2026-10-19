@@ -880,15 +880,15 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		y_expand: true,
 	}));
 
-	// Page-indicator dots: a BinLayout stacks the pages and the dots row in
-	// the same area — alignment comes from each child's own x_align/y_align
-	// (the pattern used across this extension's widgets), so the dots sit at
-	// the same bottom-center height on both the calendar and events pages.
+	// Page-indicator dots: a BinLayout stacks the pages and the dots in the
+	// same area. The dots wrap expands and uses a y-expanding filler above
+	// the row (BinLayout here ignores child y_align), so the row is pinned
+	// to the very bottom-center of the shared rect on both pages.
 	const dotsRow = new St.BoxLayout(boxLayoutProps({
+		x_expand: true,
+		x_align: Clutter.ActorAlign.CENTER,
 		style: `spacing: 6px; margin-bottom: 6px;`,
 	}));
-	dotsRow.x_align = Clutter.ActorAlign.CENTER;
-	dotsRow.y_align = Clutter.ActorAlign.END;
 	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
 		width: 5,
 		height: 5,
@@ -896,6 +896,14 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		style: `border-radius: 999px; background-color: ${text};`,
 	}));
 	dots.forEach(dot => dotsRow.add_child(dot));
+
+	const dotsWrap = new St.BoxLayout(boxLayoutProps({
+		vertical: true,
+		x_expand: true,
+		y_expand: true,
+	}));
+	dotsWrap.add_child(new St.Widget({y_expand: true}));
+	dotsWrap.add_child(dotsRow);
 
 	const pageStack = new St.Widget({
 		layout_manager: new Clutter.BinLayout(),
@@ -905,7 +913,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	container.x_align = Clutter.ActorAlign.FILL;
 	container.y_align = Clutter.ActorAlign.FILL;
 	pageStack.add_child(container);
-	pageStack.add_child(dotsRow); // dots paint above the pages
+	pageStack.add_child(dotsWrap); // dots paint above the pages
 
 	const refreshDots = () => {
 		dots.forEach((dot, index) => {
