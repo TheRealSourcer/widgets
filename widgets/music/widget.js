@@ -1375,7 +1375,7 @@ let Controller = class Controller {
 		};
 
 		const target = Math.max(0, Math.min(this._length, Math.floor(this._length * fraction)));
-		const trackId = (await this._readTrackId()) || this._trackId || '/org/mpris/MediaPlayer2/TrackList/NoTrack';
+		const trackId = (await this._readTrackId()) || this._trackId || null;
 
 		this._position = target;
 		this._posAt = Date.now();
@@ -1383,16 +1383,30 @@ let Controller = class Controller {
 		this._seekLockUntil = Date.now() + 2000;
 		this._render();
 
-		const reply = await this._callRemote(this._name, PLAYER_PATH, PLAYER_IFACE, 'SetPosition',
-			GLib.Variant.new('(ox)', [trackId, target]), null);
+		// Reference seekTo rule: SetPosition only with the player's real,
+		// current trackId; players without one (or that reject it) only honor
+		// relative Seek — feeding them a fabricated NoTrack object path makes
+		// GetPosition-targeted apps silently ignore the seek.
+		if (trackId && trackId.startsWith('/')) {
+			const reply = await this._callRemote(this._name, PLAYER_PATH, PLAYER_IFACE, 'SetPosition',
+				GLib.Variant.new('(ox)', [trackId, target]), null);
 
-		if (reply === null) {
+			if (reply === null) {
+				const offset = target - this._positionBeforeSeek;
+				const seekReply = await this._callRemote(this._name, PLAYER_PATH, PLAYER_IFACE, 'Seek',
+					GLib.Variant.new('(x)', [offset]), null);
+
+				if (seekReply === null) {
+					warn('music-seek-failed', 'SetPosition failed and fallback Seek failed too');
+				};
+			};
+		} else {
 			const offset = target - this._positionBeforeSeek;
-			const seekReply = await this._callRemote(this._name, PLAYER_PATH, PLAYER_IFACE, 'Seek',
+			const reply = await this._callRemote(this._name, PLAYER_PATH, PLAYER_IFACE, 'Seek',
 				GLib.Variant.new('(x)', [offset]), null);
 
-			if (seekReply === null) {
-				warn('music-seek-failed', 'SetPosition and Seek both failed');
+			if (reply === null) {
+				warn('music-seek-failed', 'Seek failed (no trackId)');
 			};
 		};
 	};
