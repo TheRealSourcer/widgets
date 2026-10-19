@@ -368,58 +368,93 @@ function controlIcon(theme, iconName, isActive = false) {
 		: null;
 };
 
+// SVG via GdkPixbuf (librsvg loader) — St.Icon/FileIcon renders 0x0 in the
+// shell here, so the cairo paint handles icons directly instead.
+function loadIconPixbuf(theme, iconName, isActive, iconSize) {
+	const file = controlIconFile(theme, iconName, isActive);
+
+	if (!file || !Gio.File.new_for_path(file).query_exists(null)) {
+		return null;
+	};
+
+	try {
+		// 2x for crispness at the 27px button scale.
+		return GdkPixbuf.Pixbuf.new_from_file_at_size(file, iconSize * 2, iconSize * 2);
+	} catch (_error) {
+		return null;
+	};
+};
+
 function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius = 9, isActive = false) {
-	// Buttons keep the CanvasButton click/bounce behavior; the icon is the
-	// bundled SVG (gray when inactive, white/black when active) rendered by
-	// St.Icon — the same icon logic as the reference implementation.
+	// CanvasButton keeps the click/bounce behavior; the icon is painted over
+	// cairo from the bundled SVG — gray when inactive, white/black when
+	// active (the same variant logic as the reference implementation).
+	const pixbufCache = new Map();
+
 	const button = new CanvasButton((cr, btn) => {
-		// Hover/pressed disc painted under the icon.
+		const [w, h] = btn.get_surface_size();
+
+		// Hover/pressed disc under the icon.
 		if (btn.hover || btn.pressed) {
-			const [w, h] = btn.get_surface_size();
 			const isDark = theme.dark ?? false;
 
 			cr.setSourceRGBA(...(isDark ? [1, 1, 1] : [0, 0, 0]), btn.pressed ? 0.15 : 0.08);
 			cr.arc(w / 2, h / 2, Math.min(w, h) / 2, 0, 2 * Math.PI);
 			cr.fill();
 		}
+
+		// Draw the SVG icon (cached pixbuf per icon name + active state).
+		const name = btn._iconName ?? iconName;
+		const active = Boolean(btn._isActive);
+		const key = `${name}:${active ? 1 : 0}`;
+
+		if (!pixbufCache.has(key)) {
+			pixbufCache.set(key, loadIconPixbuf(theme, name, active, iconSize));
+		};
+
+		const pix = pixbufCache.get(key);
+
+		if (pix) {
+			const px = Math.round((w - pix.get_width()) / 2);
+			const py = Math.round((h - pix.get_height()) / 2);
+			const alpha = Math.max(0, Math.min(1, btn._iconAlpha ?? 1));
+
+			cr.setSourcePixbuf(pix, px, py);
+
+			if (alpha < 1) {
+				cr.paintWithAlpha(alpha);
+			} else {
+				cr.paint();
+			};
+		};
 	}, {bounce: true});
 
-	// BinLayout centers the St.Icon child over the painted disc.
-	button.layout_manager = new Clutter.BinLayout();
 	button.set_size(27, 27);
-
-	const icon = new St.Icon({ gicon: controlIcon(theme, iconName, isActive) });
-	icon.style = `icon-size: ${iconSize}px;`;
-	icon.x_align = Clutter.ActorAlign.CENTER;
-	icon.y_align = Clutter.ActorAlign.CENTER;
-	// St.DrawingArea has no set_child (that's an St.Bin/Button convenience);
-	// plain add_child with the BinLayout manager centers it.
-	button.add_child(icon);
 
 	// Store metadata for later updates
 	button._iconSize = iconSize;
 	button._iconName = iconName;
 	button._theme = theme;
 	button._isActive = isActive;
+	button._pixbufCache = pixbufCache;
 
-	return {button, icon};
+	return {button};
 };
 
 function recolorIcon(target, alpha = 1) {
 	// Inactive/active tints come from the SVG variants; alpha only dims the
 	// loop control while playback control is unavailable.
-	if (target.icon) {
-		target.icon.opacity = Math.round(255 * Math.max(0, Math.min(1, alpha)));
+	if (target.button) {
+		target.button._iconAlpha = Math.max(0, Math.min(1, alpha));
+		target.button.queue_repaint();
 	}
 };
 
 function setButtonIcon(target, iconName, isActive = false) {
-	const gicon = controlIcon(target.button?._theme, iconName, isActive);
-
-	if (gicon && target.icon) {
-		target.icon.gicon = gicon;
+	if (target.button) {
 		target.button._iconName = iconName;
 		target.button._isActive = isActive;
+		target.button.queue_repaint();
 	}
 };
 
@@ -1635,12 +1670,16 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				const [posX, posY] = child.get_position();
 				const [kidW, kidH] = child.get_size();
 				const iconChild = child.get_children?.()[0];
+				const cache = child._pixbufCache;
+				const pixState = cache
+					? ([...cache.values()].some(p => p) ? 'LOADED' : 'NULL')
+					: 'none';
 
 				return `${child.constructor?.name} ${kidW.toFixed(0)}x${kidH.toFixed(0)}@(${posX.toFixed(0)},${posY.toFixed(0)})` +
 					` box=${Math.round(cb?.get_width() ?? -1)}x${Math.round(cb?.get_height() ?? -1)}` +
 					` vis=${child.visible}/map=${child.is_mapped()}` +
 					` lm=${child.get_layout_manager()?.constructor?.name ?? 'none'}` +
-					` icon=${iconChild ? `${iconChild.get_gicon()?.constructor?.name ?? 'null'} ${iconChild.get_size()[0].toFixed(0)}x${iconChild.get_size()[1].toFixed(0)}` : 'NO-ICON'}`;
+					` pix=${pixState}`;
 			});
 
 			log(`DW-MUSIC-PROBE: controls=${cw.toFixed(0)}x${ch.toFixed(0)} allocBox=${calW}x${calH} kids=[${kids.join(' | ')}] colSize=(${card.column.get_size()[0].toFixed(0)}x${card.column.get_size()[1].toFixed(0)})`);
