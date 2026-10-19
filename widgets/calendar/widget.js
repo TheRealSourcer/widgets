@@ -3,6 +3,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Pango from 'gi://Pango';
 import PangoCairo from 'gi://PangoCairo';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -256,7 +257,7 @@ function uppercaseWeekday(date) {
 	return date.toLocaleDateString(undefined, {weekday: 'long'}).toUpperCase();
 };
 
-function weekdayLabels(format) {
+function weekdayLabels(format, firstDay = 1) {
 	const referenceDates = [
 		new Date(2024, 0, 7), // Sunday
 		new Date(2024, 0, 1), // Monday
@@ -267,8 +268,8 @@ function weekdayLabels(format) {
 		new Date(2024, 0, 6), // Saturday
 	];
 
-	return referenceDates.map(date => {
-		const label = date.toLocaleDateString(undefined, {weekday: format === 'narrow' ? 'narrow' : 'short'});
+	return Array.from({length: 7}, (_unused, column) => {
+		const label = referenceDates[(firstDay + column) % 7].toLocaleDateString(undefined, {weekday: format === 'narrow' ? 'narrow' : 'short'});
 
 		if (format === 'narrow') {
 			return label.charAt(0).toUpperCase();
@@ -278,6 +279,43 @@ function weekdayLabels(format) {
 
 		return two.charAt(0).toUpperCase() + two.slice(1);
 	});
+};
+
+// Which days count as weekend, and which day a week starts on — resolved
+// from the user locale (Intl.Locale.getWeekInfo), with the GNOME
+// "first day of week" setting as a fallback. Mirror of the reference
+// calendar widget.
+function localeCalendarInfo() {
+	const localeName = Intl.DateTimeFormat().resolvedOptions().locale;
+	let weekend = new Set([0, 6]);
+
+	try {
+		const locale = new Intl.Locale(localeName);
+		const info = typeof locale.getWeekInfo === 'function'
+			? locale.getWeekInfo()
+			: locale.weekInfo;
+
+		if (info) {
+			const localeWeekend = (info.weekend ?? []).map(day => Number(day) % 7);
+			if (localeWeekend.length > 0) {
+				weekend = new Set(localeWeekend);
+			};
+
+			if (Number.isFinite(Number(info.firstDay))) return {firstDay: Number(info.firstDay) % 7, weekend};
+		};
+	} catch (_error) {
+	};
+
+	const shellFirstDay = typeof Shell.util_get_week_start === 'function'
+		? Number(Shell.util_get_week_start())
+		: NaN;
+
+	return {
+		firstDay: Number.isInteger(shellFirstDay) && shellFirstDay >= 0 && shellFirstDay <= 6
+			? shellFirstDay
+			: 1,
+		weekend,
+	};
 };
 
 function measureTextWidth(text, fontSizePx) {
@@ -421,6 +459,9 @@ function buildGrid(options) {
 		accent,
 		weekdays,
 		useAccentColor,
+		firstDay = 1,
+		weekend = new Set([0, 6]),
+		weekendColor = null,
 		cellsInteractive = true,
 	} = options;
 	const grid = new St.BoxLayout(boxLayoutProps({
@@ -436,10 +477,12 @@ function buildGrid(options) {
 		style: `spacing: ${gap}px;`,
 	}));
 
-	for (const weekday of weekdays) {
+	for (const [column, weekday] of weekdays.entries()) {
+		const nativeDay = (firstDay + column) % 7;
+
 		weekdayRow.add_child(calendarCell(
 			weekday,
-			`font-size: ${Math.max(8, weekdayFont)}px; font-weight: 600; color: ${secondary};`,
+			`font-size: ${Math.max(8, weekdayFont)}px; font-weight: 600; color: ${weekendColor && weekend.has(nativeDay) ? weekendColor : secondary};`,
 			null,
 			createLabel,
 			cellWidth,
@@ -455,7 +498,7 @@ function buildGrid(options) {
 	grid.add_child(weekdayRow);
 
 	const first = new Date(now.getFullYear(), now.getMonth(), 1);
-	const start = first.getDay();
+	const start = (first.getDay() - firstDay + 7) % 7;
 	const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 	let day = 1;
 
@@ -473,9 +516,11 @@ function buildGrid(options) {
 			};
 
 			const isToday = day === today;
+			const nativeDay = (firstDay + column) % 7;
+			const isWeekend = weekendColor && weekend.has(nativeDay);
 			const labelStyle = isToday
 				? `font-size: ${dayFont}px; font-weight: 500; color: #ffffff;`
-				: `font-size: ${dayFont}px; font-weight: 500; color: ${text};`;
+				: `font-size: ${dayFont}px; font-weight: 500; color: ${isWeekend ? weekendColor : text};`;
 			const cellStyle = isToday
 				? `background-color: ${accent}; border-radius: 999px;`
 				: null;
@@ -509,7 +554,7 @@ export function style(theme) {
 };
 
 function buildCalendarView(options) {
-	const {createLabel, now, today, weekCount, cellWidth, cellHeight, dayFont, weekdayFont, gap, text, secondary, theme, useAccentColor, weekdays, cellsInteractive = true} = options;
+	const {createLabel, now, today, weekCount, cellWidth, cellHeight, dayFont, weekdayFont, gap, text, secondary, theme, useAccentColor, weekdays, firstDay, weekend, weekendColor, cellsInteractive = true} = options;
 
 	const view = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
@@ -534,6 +579,9 @@ function buildCalendarView(options) {
 		accent: theme.accent,
 		weekdays,
 		useAccentColor,
+		firstDay,
+		weekend,
+		weekendColor,
 		cellsInteractive,
 	}));
 
@@ -686,12 +734,16 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	const secondary = theme?.muted ?? SECONDARY;
 	const weekdayFormat = settings?.get_string('calendar-weekday-format') ?? 'short';
 	const useAccentColor = settings?.get_boolean('calendar-use-accent-color') ?? false;
-	const weekdays = weekdayLabels(weekdayFormat);
+	const {firstDay, weekend} = localeCalendarInfo();
+	// Dimmed text for weekend days — slightly lighter on dark themes and
+	// darker gray on light ones (reference calendar treatment).
+	const weekendColor = theme?.dark ? 'rgba(255, 255, 255, 0.55)' : '#787680';
+	const weekdays = weekdayLabels(weekdayFormat, firstDay);
 	const now = new Date();
 	const today = now.getDate();
 	const first = new Date(now.getFullYear(), now.getMonth(), 1);
 	const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-	const start = first.getDay();
+	const start = (first.getDay() - firstDay + 7) % 7;
 	const weekCount = Math.ceil((start + days) / 7);
 	const compact = weekCount === 6;
 	const wide = widgetWidth >= WIDE_THRESHOLD;
@@ -796,6 +848,9 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 			accent: theme.accent,
 			weekdays,
 			useAccentColor,
+			firstDay,
+			weekend,
+			weekendColor,
 		}));
 
 		container.add_child(left);
@@ -845,6 +900,9 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 				theme,
 				useAccentColor,
 				weekdays,
+				firstDay,
+				weekend,
+				weekendColor,
 				cellsInteractive: false,
 			});
 			currentEventBox = null;
