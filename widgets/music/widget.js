@@ -900,11 +900,14 @@ let Controller = class Controller {
 			};
 		};
 
-		if (bestNonChrome && !(bestNonChrome.isProxy && bestChrome && bestNonChrome.value <= bestChrome.value)) {
-			return bestNonChrome;
-		};
+		const chosen = bestNonChrome && !(bestNonChrome.isProxy && bestChrome && bestNonChrome.value <= bestChrome.value)
+			? bestNonChrome
+			: bestChrome;
 
-		return bestChrome;
+		// TEMP MUSIC PROBE — one line per scan with candidate facts + pick.
+		log(`DW-MUSIC: scan rows=${rows.map(r => `${r.name}:${r.status}:${r.hasTitle}:${r.value}`).join(' | ') || 'none'} chosen=${chosen?.name ?? 'none'}`);
+
+		return chosen;
 	};
 
 	async _readProps(name) {
@@ -919,6 +922,8 @@ let Controller = class Controller {
 		if (typeof name !== 'string' || !name) {
 			return;
 		};
+
+		log(`DW-MUSIC: wire ${name}`);
 
 		for (const id of this._subIds) {
 			this._bus?.signal_unsubscribe(id);
@@ -1113,6 +1118,8 @@ let Controller = class Controller {
 			const pinned = Boolean(this._lockedTrackId) && meta.trackId === this._lockedTrackId;
 			const acceptNew = Date.now() < this._acceptUntil;
 
+			log(`DW-MUSIC: metaChange title=${JSON.stringify(meta.title ?? null)} sameTrack=${sameTrack} chromeblock pinned=${pinned} acceptNew=${acceptNew}`);
+
 			if (!(pinned && sameTrack) && !acceptNew) {
 				return;
 			};
@@ -1167,6 +1174,8 @@ let Controller = class Controller {
 		const meta = parseMetadata(variantValue(props.Metadata));
 		const position = Number(variantValue(props.Position) ?? 0);
 		const trackChanged = meta.trackId && meta.trackId !== this._trackId;
+
+		log(`DW-MUSIC: applyProps status=${status} title=${JSON.stringify(meta.title ?? null)} len=${meta.length} trackId=${JSON.stringify(meta.trackId ?? null)}`);
 
 		this._applyStatus(status);
 
