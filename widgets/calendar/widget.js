@@ -880,14 +880,13 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		y_expand: true,
 	}));
 
-	// Page-indicator dots: the 1x1 widget holds two swipeable pages
-	// (calendar / events); the row stays pinned at the very bottom, the
-	// active page's dot is full color.
+	// Page-indicator dots on an overlay ABOVE both pages: the overlay fills
+	// the shared swipe area, so the dots sit at the exact same bottom-center
+	// spot (slightly lifted off the edge) on the calendar and events pages.
 	const dotsRow = new St.BoxLayout(boxLayoutProps({
 		x_expand: true,
 		x_align: Clutter.ActorAlign.CENTER,
-		// Slightly above the bottom edge so the dots do not hug the border.
-		style: `spacing: 6px; margin-top: 5px; margin-bottom: 6px;`,
+		style: `spacing: 6px; margin-bottom: 6px;`,
 	}));
 	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
 		width: 5,
@@ -896,7 +895,22 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		style: `border-radius: 999px; background-color: ${text};`,
 	}));
 	dots.forEach(dot => dotsRow.add_child(dot));
-	container.add_child(dotsRow);
+
+	const dotsOverlay = new St.BoxLayout(boxLayoutProps({
+		vertical: true,
+		x_expand: true,
+		y_expand: true,
+	}));
+	dotsOverlay.add_child(new St.Widget({y_expand: true}));
+	dotsOverlay.add_child(dotsRow);
+
+	const pageStack = new St.Widget({
+		layout_manager: new Clutter.OverlayLayout(),
+		x_expand: true,
+		y_expand: true,
+	});
+	pageStack.add_child(container);
+	pageStack.add_child(dotsOverlay);
 
 	const refreshDots = () => {
 		dots.forEach((dot, index) => {
@@ -906,10 +920,6 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 				mode: Clutter.AnimationMode.EASE_OUT_QUAD,
 			});
 		});
-	};
-
-	const keepDotsAtBottom = () => {
-		container.set_child_at_index(dotsRow, container.get_n_children() - 1);
 	};
 
 	const rebuild = (enterX = 0) => {
@@ -986,7 +996,6 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 			});
 		}
 
-		keepDotsAtBottom();
 		refreshDots();
 	};
 
@@ -1045,5 +1054,5 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		events.requestRange(startEpoch, startEpoch + EVENTS_WINDOW_DAYS * 86400);
 	}
 
-	body.add_child(container);
+	body.add_child(pageStack);
 };
