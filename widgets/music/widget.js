@@ -392,7 +392,9 @@ function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius
 	icon.style = `icon-size: ${iconSize}px;`;
 	icon.x_align = Clutter.ActorAlign.CENTER;
 	icon.y_align = Clutter.ActorAlign.CENTER;
-	button.set_child(icon);
+	// St.DrawingArea has no set_child (that's an St.Bin/Button convenience);
+	// plain add_child with the BinLayout manager centers it.
+	button.add_child(icon);
 
 	// Store metadata for later updates
 	button._iconSize = iconSize;
