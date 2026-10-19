@@ -1627,19 +1627,23 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			};
 
 			const [cw, ch] = controls.get_size();
-			const [, , calW, calH] = controls.get_allocation_box();
+			const cbox = controls.get_allocation_box();
+			const calW = cbox ? Math.round(cbox.get_width()) : -1;
+			const calH = cbox ? Math.round(cbox.get_height()) : -1;
 			const kids = controls.get_children().map(child => {
-				const [x0, y0] = child.get_allocation_box();
+				const cb = child.get_allocation_box();
+				const [posX, posY] = child.get_position();
 				const [kidW, kidH] = child.get_size();
 				const iconChild = child.get_children?.()[0];
 
-				return `${child.constructor?.name} ${kidW.toFixed(0)}x${kidH.toFixed(0)}@(${x0.toFixed(0)},${y0.toFixed(0)})` +
+				return `${child.constructor?.name} ${kidW.toFixed(0)}x${kidH.toFixed(0)}@(${posX.toFixed(0)},${posY.toFixed(0)})` +
+					` box=${Math.round(cb?.get_width() ?? -1)}x${Math.round(cb?.get_height() ?? -1)}` +
 					` vis=${child.visible}/map=${child.is_mapped()}` +
 					` lm=${child.get_layout_manager()?.constructor?.name ?? 'none'}` +
 					` icon=${iconChild ? `${iconChild.get_gicon()?.constructor?.name ?? 'null'} ${iconChild.get_size()[0].toFixed(0)}x${iconChild.get_size()[1].toFixed(0)}` : 'NO-ICON'}`;
 			});
 
-			log(`DW-MUSIC-PROBE: controls=${cw.toFixed(0)}x${ch.toFixed(0)} alloc=${calW.toFixed(0)}x${calH.toFixed(0)} kids=[${kids.join(' | ')}] colSize=(${card.column.get_size()[0].toFixed(0)}x${card.column.get_size()[1].toFixed(0)})`);
+			log(`DW-MUSIC-PROBE: controls=${cw.toFixed(0)}x${ch.toFixed(0)} allocBox=${calW}x${calH} kids=[${kids.join(' | ')}] colSize=(${card.column.get_size()[0].toFixed(0)}x${card.column.get_size()[1].toFixed(0)})`);
 		} catch (probeError) {
 			log(`DW-MUSIC-PROBE: failed: ${probeError.message}`);
 		};
