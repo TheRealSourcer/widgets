@@ -1,0 +1,16 @@
+.widget-photo {
+    /* The background comes from theme.background in style(): a hardcoded color
+       here would keep the frame dark in the light theme. */
+    background-color: transparent;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+.widget-photo-empty {
+    padding: 12px;
+}
+
+.widget-photo-empty:active {
+    background-color: rgba(128, 128, 128, 0.18);
+}

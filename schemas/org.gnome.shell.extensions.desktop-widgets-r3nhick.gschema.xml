@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.desktop-widgets-r3nhick" path="/org/gnome/shell/extensions/desktop-widgets-r3nhick/">
+    <key name="layout-json" type="s">
+      <default>''</default>
+      <summary>Serialized widget layout</summary>
+      <description>Stores widget types, sizes, and desktop positions as JSON.</description>
+    </key>
+    <key name="edit-mode" type="b">
+      <default>false</default>
+      <summary>Edit mode</summary>
+      <description>Enable widget edit mode to move and remove widgets on the desktop.</description>
+    </key>
+    <key name="custom-photo" type="s">
+      <default>''</default>
+      <summary>Custom photo path</summary>
+      <description>Absolute path to a photo to display in the Photos widget instead of the automatic selection. Leave empty to use the automatic rotating photos.</description>
+    </key>
+    <key name="photo-size" type="s">
+      <default>'cover'</default>
+      <summary>Photo size</summary>
+      <description>How the photo fits the widget: cover (fill and crop), contain (entire photo visible), fill (stretch), or small (centered). Allowed values: cover, contain, fill, small.</description>
+    </key>
+    <key name="battery-icon-size" type="s">
+      <default>'medium'</default>
+      <summary>Battery icon size</summary>
+      <description>Size of the device icon inside each battery ring: small, medium, or large.</description>
+    </key>
+    <key name="battery-slot-count" type="i">
+      <default>4</default>
+      <summary>Battery slot count</summary>
+      <description>Maximum number of devices shown in the Battery widget.</description>
+    </key>
+    <key name="battery-show-percent" type="b">
+      <default>true</default>
+      <summary>Show battery percentage</summary>
+      <description>Show the charge percentage below each battery ring.</description>
+    </key>
+    <key name="screentime-retention-days" type="i">
+      <default>30</default>
+      <summary>Screen Time retention (days)</summary>
+      <description>Number of days of per-app screen time history to keep. Data files older than this are deleted automatically.</description>
+    </key>
+    <key name="arrange-widgets" type="b">
+      <default>false</default>
+      <summary>Arrange widgets</summary>
+      <description>Set to true to align all widgets into a shared grid of columns and rows. The extension performs the arrangement and resets the key to false.</description>
+    </key>
+    <key name="music-ignore-browsers" type="b">
+      <default>true</default>
+      <summary>Ignore Web Browsers</summary>
+      <description>Prevent browsers like Chrome or Firefox from taking over the music widget.</description>
+    </key>
+    <key name="music-empty-gif" type="s">
+      <default>'pushy.gif'</default>
+      <summary>Empty state GIF</summary>
+      <description>Animated GIF shown by the music widget when no track is playing. Allowed values: pushy.gif, pushy2.gif, pushy3.gif, pushy4.gif, pushy5.gif.</description>
+    </key>
+    <key name="music-custom-app" type="s">
+      <default>''</default>
+      <summary>Custom music app</summary>
+      <description>Desktop app ID launched when the Music widget is clicked. When set, it takes priority over the built-in list of music players. Leave empty for default.</description>
+    </key>
+    <key name="calendar-weekday-format" type="s">
+      <default>'short'</default>
+      <summary>Calendar weekday format</summary>
+      <description>How weekday labels appear in the calendar header. Allowed values: short (Mo Tu We) or narrow (M T W).</description>
+    </key>
+    <key name="calendar-use-accent-color" type="b">
+      <default>false</default>
+      <summary>Use accent color for calendar</summary>
+      <description>Use system or custom accent color for month and weekday labels. When disabled, uses neutral text color (white or black based on theme).</description>
+    </key>
+    <key name="calendar-hour-format" type="s">
+      <default>'24'</default>
+      <summary>Calendar time format</summary>
+      <description>Time format for events in the Calendar widget. Allowed values: 24 or 12.</description>
+    </key>
+    <key name="weather-use-accent-color" type="b">
+      <default>true</default>
+      <summary>Use accent color for weather</summary>
+      <description>Use system or custom accent color for the main temperature of the Weather widget. When disabled, uses neutral text color (white or black based on theme).</description>
+    </key>
+    <key name="digitalclock-hour-format" type="s">
+      <default>'24'</default>
+      <summary>Digital clock time format</summary>
+      <description>Time format for the Digital Clock widget. Allowed values: 24 or 12.</description>
+    </key>
+    <key name="digitalclock-show-seconds" type="b">
+      <default>false</default>
+      <summary>Digital clock show seconds</summary>
+      <description>Show seconds in the Digital Clock widget. Only available in the 2×1 and 2×1 mini sizes.</description>
+    </key>
+    <key name="digitalclock-show-ampm" type="b">
+      <default>true</default>
+      <summary>Digital clock show AM/PM</summary>
+      <description>Show the AM/PM indicator next to the time in 12-hour format.</description>
+    </key>
+    <key name="digitalclock-smooth-seconds" type="b">
+      <default>false</default>
+      <summary>Smooth seconds animation</summary>
+      <description>Animate the seconds hand smoothly (every frame) instead of stepping once per second. Only available when seconds are visible.</description>
+    </key>
+    <key name="edit-mode-binding" type="as">
+      <default>[]</default>
+      <summary>Edit mode shortcut</summary>
+      <description>Global keyboard shortcut to toggle edit mode on the desktop. Leave empty to disable.</description>
+    </key>
+    <key name="github-use-green" type="b">
+      <default>false</default>
+      <summary>GitHub use green colors</summary>
+      <description>Use GitHub's default green color scheme instead of the theme accent color for contribution cells.</description>
+    </key>
+    <key name="github-username" type="s">
+      <default>''</default>
+      <summary>GitHub username</summary>
+      <description>GitHub nickname used by the GitHub Activity widget. Applies to all GitHub widgets. Empty to set a username per widget by clicking it.</description>
+    </key>
+    <key name="style-border-radius" type="i">
+      <default>16</default>
+      <summary>Border Radius</summary>
+      <description>Corner radius for the widgets.</description>
+    </key>
+    <key name="style-border-width" type="i">
+      <default>1</default>
+      <summary>Border Width</summary>
+      <description>Border width in pixels.</description>
+    </key>
+    <key name="style-background" type="s">
+      <default>''</default>
+      <summary>Background Color</summary>
+      <description>Custom CSS background color. Leave empty for default.</description>
+    </key>
+    <key name="style-border-color" type="s">
+      <default>''</default>
+      <summary>Border Color</summary>
+      <description>Custom CSS border color. Leave empty for default.</description>
+    </key>
+    <key name="style-shadow" type="s">
+      <default>''</default>
+      <summary>Box Shadow</summary>
+      <description>Custom CSS box shadow. Leave empty for default.</description>
+    </key>
+    <key name="style-shadow-size" type="i">
+      <default>24</default>
+      <summary>Shadow Size</summary>
+      <description>Blur radius of the custom box shadow in pixels.</description>
+    </key>
+    <key name="style-widget-opacity" type="d">
+      <default>1.0</default>
+      <summary>Widget opacity</summary>
+      <description>Global opacity of all desktop widgets, from 0.1 (nearly invisible) to 1.0 (fully opaque).</description>
+    </key>
+    <key name="style-use-custom-accent" type="b">
+      <default>false</default>
+      <summary>Use custom accent color</summary>
+      <description>Override the system accent color with a custom color for all widgets.</description>
+    </key>
+    <key name="style-accent-color" type="s">
+      <default>''</default>
+      <summary>Custom accent color</summary>
+      <description>Custom CSS accent color used by all widgets when custom accent color is enabled. Leave empty to use the system accent color.</description>
+    </key>
+    <key name="style-mode" type="i">
+      <default>0</default>
+      <summary>Style mode</summary>
+      <description>0 = Glass (transparent with refraction), 1 = Solid (opaque background)</description>
+    </key>
+    <key name="appearance" type="i">
+      <default>2</default>
+      <summary>Appearance</summary>
+      <description>0 = Dark, 1 = Light, 2 = Follow system</description>
+    </key>
+    <key name="roundness-x10" type="i">
+      <default>75</default>
+      <summary>Roundness (×10)</summary>
+      <description>Squircle roundness parameter (20-200). Higher values make corners more circular.</description>
+    </key>
+    <key name="refract-thickness" type="i">
+      <default>55</default>
+      <summary>Refraction thickness</summary>
+      <description>Edge refraction band thickness in pixels (0-100).</description>
+    </key>
+    <key name="refract-ior-x100" type="i">
+      <default>170</default>
+      <summary>Refraction IOR (×100)</summary>
+      <description>Index of refraction (100-300). 100 = no refraction, 170 = glass-like.</description>
+    </key>
+    <key name="refract-scale" type="i">
+      <default>65</default>
+      <summary>Refraction scale</summary>
+      <description>Refraction displacement strength (0-200).</description>
+    </key>
+    <key name="tint-alpha-pct" type="i">
+      <default>10</default>
+      <summary>Tint opacity (%)</summary>
+      <description>Glass tint opacity percentage (0-100). 0 = fully transparent tint, 100 = opaque.</description>
+    </key>
+    <key name="chroma-strength-pct" type="i">
+      <default>30</default>
+      <summary>Chromatic aberration (%)</summary>
+      <description>Chromatic aberration strength percentage (0-100).</description>
+    </key>
+    <key name="spec-strength-pct" type="i">
+      <default>70</default>
+      <summary>Specular highlights (%)</summary>
+      <description>Specular highlight strength percentage (0-100).</description>
+    </key>
+    <key name="blur-radius-px" type="i">
+      <default>6</default>
+      <summary>Blur radius</summary>
+      <description>Background blur radius in pixels (0-60).</description>
+    </key>
+    <key name="drag-active" type="b">
+      <default>false</default>
+      <summary>Slider drag in progress</summary>
+      <description>Internal flag set by the preferences window while a slider is being dragged, used to defer widget re-rendering until the drag ends.</description>
+    </key>
+    <key name="notes-title-font-size" type="i">
+      <default>16</default>
+      <summary>Notes title font size</summary>
+      <description>Font size in pixels for the Notes widget title.</description>
+    </key>
+    <key name="notes-content-font-size" type="i">
+      <default>18</default>
+      <summary>Notes content font size</summary>
+      <description>Font size in pixels for the Notes widget content text.</description>
+    </key>
+    <key name="widget-gap" type="i">
+      <default>15</default>
+      <summary>Widget gap in pixels</summary>
+      <description>Space between widgets and screen edges (0-50px)</description>
+      <range min="0" max="50"/>
+    </key>
+    <key name="pomodoro-work-minutes" type="i">
+      <default>25</default>
+      <summary>Pomodoro work duration</summary>
+      <description>Duration of the work/focus phase in minutes.</description>
+      <range min="1" max="90"/>
+    </key>
+    <key name="pomodoro-short-break-minutes" type="i">
+      <default>5</default>
+      <summary>Pomodoro short break duration</summary>
+      <description>Duration of the short break in minutes.</description>
+      <range min="1" max="30"/>
+    </key>
+    <key name="pomodoro-long-break-minutes" type="i">
+      <default>15</default>
+      <summary>Pomodoro long break duration</summary>
+      <description>Duration of the long break in minutes.</description>
+      <range min="1" max="60"/>
+    </key>
+    <key name="pomodoro-sessions-before-long-break" type="i">
+      <default>4</default>
+      <summary>Sessions before long break</summary>
+      <description>Number of completed work sessions before a long break.</description>
+      <range min="1" max="8"/>
+    </key>
+    <key name="lava-use-accent-color" type="b">
+      <default>false</default>
+      <summary>Lava use accent color</summary>
+      <description>Use system or custom accent color for lava balls. When disabled, uses a neutral gray color.</description>
+    </key>
+    <key name="pause-animations-fullscreen" type="b">
+      <default>true</default>
+      <summary>Pause animations in fullscreen</summary>
+      <description>Automatically pause widget animations when any window is in fullscreen mode to save system resources.</description>
+    </key>
+    <key name="folder-file-manager" type="s">
+      <default>'org.gnome.Nautilus.desktop'</default>
+      <summary>File manager for Folder Launcher</summary>
+      <description>Desktop file ID of the file manager to use for opening folders.</description>
+    </key>
+    <key name="folder-show-names" type="b">
+      <default>true</default>
+      <summary>Show folder names</summary>
+      <description>Display folder names below icons in the Folder Launcher widget.</description>
+    </key>
+    <key name="show-panel-icon" type="b">
+      <default>true</default>
+      <summary>Show panel icon</summary>
+      <description>Display the Desktop Widgets icon in the top panel for quick access to edit mode.</description>
+    </key>
+    <key name="use-custom-widget-theme" type="b">
+      <default>false</default>
+      <summary>Use custom widget theme</summary>
+      <description>Override system theme for widgets with custom theme preferences.</description>
+    </key>
+    <key name="use-same-theme-for-both" type="b">
+      <default>true</default>
+      <summary>Use same widget theme for both light and dark modes</summary>
+      <description>When enabled, use the same widget theme regardless of system theme. When disabled, set different themes for light and dark system modes.</description>
+    </key>
+    <key name="widget-theme-unified" type="s">
+      <default>'dark'</default>
+      <summary>Widget theme for all modes</summary>
+      <description>Theme to use for widgets in all system modes. Allowed values: dark, light.</description>
+    </key>
+    <key name="widget-theme-for-light" type="s">
+      <default>'dark'</default>
+      <summary>Widget theme when system is light</summary>
+      <description>Theme to use for widgets when system is in light mode. Allowed values: dark, light.</description>
+    </key>
+    <key name="widget-theme-for-dark" type="s">
+      <default>'dark'</default>
+      <summary>Widget theme when system is dark</summary>
+      <description>Theme to use for widgets when system is in dark mode. Allowed values: dark, light.</description>
+    </key>
+    <key name="open-widget-picker" type="b">
+      <default>false</default>
+      <summary>Open widget picker on preferences launch</summary>
+      <description>Internal flag to trigger widget picker dialog when preferences window opens.</description>
+    </key>
+  </schema>
+</schemalist>
