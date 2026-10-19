@@ -367,9 +367,28 @@ function controlIcon(theme, iconName, isActive = false) {
 		: null;
 };
 
+// Click squash-and-spring on a plain St.Button — inspired by the reference
+// CanvasButton bounce (0.7 in / 1 out) but softer and slightly quicker.
+function playBounce(button) {
+	button.remove_transition('scale-x');
+	button.remove_transition('scale-y');
+	button.ease({
+		scale_x: 0.8,
+		scale_y: 0.8,
+		duration: 90,
+		mode: Clutter.AnimationMode.EASE_IN_QUAD,
+		onComplete: () => button.ease({
+			scale_x: 1,
+			scale_y: 1,
+			duration: 260,
+			mode: Clutter.AnimationMode.EASE_OUT_BACK,
+		}),
+	});
+};
+
 // Control buttons: plain St.Button + St.Icon with the bundled SVG, exactly
 // like the reference implementation (gray when inactive, white/black when
-// active). No cairo painting, no bounce.
+// active). No cairo painting; click gets a squash-and-spring bounce.
 function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius = 9, isActive = false) {
 	const gicon = controlIcon(theme, iconName, isActive);
 
@@ -392,6 +411,8 @@ function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius
 	button.set_child(icon);
 	button.set_width(27);
 	button.set_height(27);
+	button.set_pivot_point(0.5, 0.5);
+	button.connect('clicked', () => playBounce(button));
 
 	return {button, icon};
 };
