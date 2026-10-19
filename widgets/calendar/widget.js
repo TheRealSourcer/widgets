@@ -889,6 +889,8 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		x_align: Clutter.ActorAlign.CENTER,
 		style: `spacing: 6px; margin-bottom: 0px;`,
 	}));
+	// Keep the row fully inside the body: the clip area cuts children at
+	// its allocation, so flush (0px) is the lowest clean position.
 	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
 		width: 5,
 		height: 5,
@@ -896,11 +898,9 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		style: `border-radius: 999px; background-color: ${text};`,
 	}));
 	dots.forEach(dot => dotsRow.add_child(dot));
-
-	// Final pixel-nudge below the layout position: a translation below the
-	// widget body's bottom (St clamps negative bottom margins to 0, so the
-	// requested extra step is applied as a direct transform).
-	dotsRow.translation_y = 1;
+	// Flush with the very bottom of the widget body. Do NOT shift the row
+	// below the body allocation (translation/negative margin): body is
+	// clipped to allocation, the extra pixel got sheared off the circles.
 
 	const dotsWrap = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
