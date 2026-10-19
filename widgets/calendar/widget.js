@@ -880,16 +880,15 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		y_expand: true,
 	}));
 
-	// Page-indicator dots: pinned to the bottom-center of a shared BinLayout
-	// stack so the calendar and events pages show them at the same height.
-	// BinLayout is a core Clutter API present in every supported shell
-	// (OverlayLayout was dropped in newer shells); if set_alignment is
-	// unavailable the dots fall back to simple in-flow layout.
+	// Page-indicator dots: a BinLayout stacks the pages and the dots row in
+	// the same area — alignment comes from each child's own x_align/y_align
+	// (the pattern used across this extension's widgets), so the dots sit at
+	// the same bottom-center height on both the calendar and events pages.
 	const dotsRow = new St.BoxLayout(boxLayoutProps({
-		x_expand: true,
-		x_align: Clutter.ActorAlign.CENTER,
 		style: `spacing: 6px; margin-bottom: 6px;`,
 	}));
+	dotsRow.x_align = Clutter.ActorAlign.CENTER;
+	dotsRow.y_align = Clutter.ActorAlign.END;
 	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
 		width: 5,
 		height: 5,
@@ -903,19 +902,10 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		x_expand: true,
 		y_expand: true,
 	});
-	let dotsInFlow = false;
-
-	if (Clutter.BinAlignment && typeof pageStack.layout_manager.set_alignment === 'function') {
-		pageStack.layout_manager.set_alignment(container, Clutter.BinAlignment.FILL, Clutter.BinAlignment.FILL);
-		pageStack.layout_manager.set_alignment(dotsRow, Clutter.BinAlignment.CENTER, Clutter.BinAlignment.END);
-		pageStack.add_child(container);
-		pageStack.add_child(dotsRow);
-	} else {
-		// Degrade to the classic flow layout: dots live inside the swipe
-		// container and are kept last on every page switch.
-		dotsInFlow = true;
-		container.add_child(dotsRow);
-	};
+	container.x_align = Clutter.ActorAlign.FILL;
+	container.y_align = Clutter.ActorAlign.FILL;
+	pageStack.add_child(container);
+	pageStack.add_child(dotsRow); // dots paint above the pages
 
 	const refreshDots = () => {
 		dots.forEach((dot, index) => {
@@ -925,10 +915,6 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 				mode: Clutter.AnimationMode.EASE_OUT_QUAD,
 			});
 		});
-
-		if (dotsInFlow) {
-			container.set_child_at_index(dotsRow, container.get_n_children() - 1);
-		};
 	};
 
 	const rebuild = (enterX = 0) => {
