@@ -887,7 +887,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	const dotsRow = new St.BoxLayout(boxLayoutProps({
 		x_expand: true,
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: 6px; margin-bottom: 6px;`,
+		style: `spacing: 6px; margin-bottom: 3px;`,
 	}));
 	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
 		width: 5,
