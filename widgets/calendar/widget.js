@@ -550,8 +550,9 @@ function monthLabel(now, createLabel, dayFont, theme, useAccentColor, scale = 1)
 };
 
 export function style(theme) {
-	// Inner padding kept 1px tighter than the original framing.
-	return `background-color: ${theme.background}; border-color: ${theme.border}; color: ${theme.text}; border-radius: 16px; padding: 17px 15px;`;
+	// Inner padding kept tighter than the original framing; the bottom is
+	// 4px so the 1x1 page dots can sit close to the frame edge.
+	return `background-color: ${theme.background}; border-color: ${theme.border}; color: ${theme.text}; border-radius: 16px; padding: 17px 15px 4px 15px;`;
 };
 
 function buildCalendarView(options) {
