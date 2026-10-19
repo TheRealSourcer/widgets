@@ -922,7 +922,7 @@ class WidgetController {
   _clearViews() {
     for (const view of this._views.values()) {
       view.sizeMenu?.destroy();
-      this._destroyContextMenu(view);
+      view.contextMenu?.destroy();
       view.actor.disconnectObject(this);
     };
 
@@ -1397,7 +1397,8 @@ class WidgetController {
         // final size/position so nothing is left at an intermediate state
         // after leaving edit mode.
         this._animateWidget(view.widget, false);
-        this._destroyContextMenu(view);
+        view.contextMenu?.destroy();
+        view.contextMenu = null;
         view.sizeMenu?.destroy();
         view.sizeButton?.destroy();
         view.editBorder?.destroy();
@@ -1493,7 +1494,7 @@ class WidgetController {
     };
 
     view.sizeMenu?.destroy();
-    this._destroyContextMenu(view);
+    view.contextMenu?.destroy();
     view.editBorder?.destroy();
     view.removeButton?.destroy();
     view.pinButton?.destroy();
@@ -3069,7 +3070,7 @@ class WidgetController {
 
   _hideContextMenus() {
     for (const view of this._views.values()) {
-      view.contextMenu?.close();
+      view.contextMenu?.hide();
     };
   };
 
@@ -3077,8 +3078,7 @@ class WidgetController {
     let openMenuView = null;
 
     for (const view of this._views.values()) {
-      // PopupMenu exposes open state via isOpen (mapped no longer applies).
-      if (view.contextMenu?.isOpen) {
+      if (view.contextMenu?.mapped) {
         openMenuView = view;
         break;
       };
@@ -3107,7 +3107,7 @@ class WidgetController {
     const pickedActor = global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, stageX, stageY);
 
     const onOwnerWidget = openMenuView.actor && this._actorContains(openMenuView.actor, pickedActor);
-    const insideMenu = this._actorContains(openMenuView.contextMenu.actor, pickedActor);
+    const insideMenu = this._actorContains(openMenuView.contextMenu, pickedActor);
 
     if (onOwnerWidget || insideMenu) {
       return Clutter.EVENT_PROPAGATE;
@@ -3116,7 +3116,7 @@ class WidgetController {
     const source = event.get_source();
     const onOtherWidget = !!source && (() => {
       for (const view of this._views.values()) {
-        if (view.contextMenu?.isOpen) {
+        if (view.contextMenu?.mapped) {
           continue;
         };
 
@@ -3155,6 +3155,47 @@ class WidgetController {
     return false;
   };
 
+  _contextMenuItem(label, callback) {
+    const item = new St.Button({
+      style_class: 'widget-size-menu-item widget-context-menu-item',
+      label,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+
+    item.connectObject('button-press-event', (_source, event) => {
+      if ((event.get_button() ?? 1) !== 1) {
+        return Clutter.EVENT_PROPAGATE;
+      };
+
+      try {
+        callback();
+      } catch (error) {
+        warn('context-menu-action', `"${label}" failed: ${error}`);
+      };
+
+      this._hideContextMenus();
+      return Clutter.EVENT_STOP;
+    }, this);
+    return item;
+  };
+
+  _contextMenuHeader(label) {
+    return new St.Label({
+      style_class: 'widget-context-menu-title',
+      text: label,
+      x_expand: true,
+    });
+  };
+
+  _contextMenuSeparator() {
+    return new St.Widget({
+      x_expand: true,
+      style: 'height: 1px; min-height: 1px; background-color: rgba(255, 255, 255, 0.15); margin: 4px 6px;',
+    });
+  };
+
   _menuStagePosition(menu, stageX, stageY) {
     menu.ensure_style();
     const [, menuWidth] = menu.get_preferred_width(-1);
@@ -3176,75 +3217,63 @@ class WidgetController {
     view.sizeMenu?.hide();
     this._hideContextMenus();
 
-    this._destroyContextMenu(view);
+    view.contextMenu?.destroy();
+    view.contextMenu = null;
 
-    // Reference-style context menu (liquidglass desktopWidget): the standard
-    // GNOME PopupMenu attached to the widget wrapper — the shell theme draws
-    // it, the manager dismisses it on outside clicks and Escape.
-    const menu = new PopupMenu.PopupMenu(view.actor, 0.5, St.Side.TOP);
-    const manager = new PopupMenu.PopupMenuManager(view.actor);
-    manager.addMenu(menu);
-    Main.uiGroup.add_child(menu.actor);
-    menu.actor.hide();
+    const menu = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      style_class: 'widget-size-menu widget-context-menu',
+      reactive: true,
+    }));
+    Main.uiGroup.add_child(menu);
 
     const widgetModule = WIDGETS.get(view.widget.type);
     const supportedSizes = widgetModule?.supportedSizes ?? [];
     const menuSizes = orderedSizes(supportedSizes);
 
     if (menuSizes.length > 0) {
-      const header = new PopupMenu.PopupMenuItem(_('Widget size'), {
-        reactive: false,
-        can_focus: false,
-      });
-      menu.addMenuItem(header);
+      menu.add_child(this._contextMenuHeader(_('Widget size')));
 
       for (const sizeKey of menuSizes) {
-        const item = new PopupMenu.PopupMenuItem(sizeLabel(sizeKey));
+        const item = this._contextMenuItem(sizeLabel(sizeKey), () => {
+          this._setWidgetSize(view.widget, sizeKey);
+          this._hideContextMenus();
+        });
 
         if (view.widget.size === sizeKey) {
-          item.setOrnament(PopupMenu.Ornament.CHECK);
+          item.add_style_pseudo_class('active');
         };
 
-        item.connectObject('activate', () => {
-          this._setWidgetSize(view.widget, sizeKey);
-        }, this);
-        menu.addMenuItem(item);
+        menu.add_child(item);
       };
 
-      menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+      menu.add_child(this._contextMenuSeparator());
     };
 
     if (view.widget.type === 'photos') {
-      const photoItem = new PopupMenu.PopupMenuItem(_('Change photo'));
-      photoItem.connectObject('activate', () => {
+      menu.add_child(this._contextMenuItem(_('Change photo'), () => {
         PhotosWidget.openPhotoChooser(view.widget, path => this._setWidgetPhoto(view.widget, view.body, path));
-      }, this);
-      menu.addMenuItem(photoItem);
+      }));
     };
 
-    const pinItem = new PopupMenu.PopupMenuItem(view.widget.pinned ? _('Unpin widget') : _('Pin widget'));
-    pinItem.connectObject('activate', () => {
+    menu.add_child(this._contextMenuItem(view.widget.pinned ? _('Unpin widget') : _('Pin widget'), () => {
       this.togglePin(view.widget.id);
-    }, this);
-    menu.addMenuItem(pinItem);
+      this._hideContextMenus();
+    }));
 
-    const removeItem = new PopupMenu.PopupMenuItem(_('Remove widget'));
-    removeItem.add_style_class_name('widget-context-menu-item-danger');
-    removeItem.connectObject('activate', () => {
+    const removeItem = this._contextMenuItem(_('Remove widget'), () => {
       this.removeWidget(view.widget.id);
-    }, this);
-    menu.addMenuItem(removeItem);
+      this._hideContextMenus();
+    });
+    removeItem.add_style_class_name('widget-context-menu-item-danger');
+    menu.add_child(removeItem);
 
+    const [stageX, stageY] = event.get_coords();
+    const [x, y] = this._menuStagePosition(menu, stageX, stageY);
+
+    menu.set_position(x, y);
+    raiseActor(menu);
     view.contextMenu = menu;
-    view.contextMenuManager = manager;
-    menu.open();
-  };
-
-  _destroyContextMenu(view) {
-    view.contextMenuManager?.destroy();
-    view.contextMenuManager = null;
-    view.contextMenu?.destroy();
-    view.contextMenu = null;
   };
 
   _fillWidgetBody(widget, body) {
