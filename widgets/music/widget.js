@@ -8,7 +8,6 @@ import { warn } from '../../logger.js';
 import { widgetResourcePath } from '../../paths.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
-import { CanvasButton } from '../../lib/canvasButton.js';
 import { SeekBar } from '../../lib/seekBar.js';
 import { parseCssColor } from '../../utils/ported.js';
 export const type = 'music';
@@ -368,93 +367,46 @@ function controlIcon(theme, iconName, isActive = false) {
 		: null;
 };
 
-// SVG via GdkPixbuf (librsvg loader) — St.Icon/FileIcon renders 0x0 in the
-// shell here, so the cairo paint handles icons directly instead.
-function loadIconPixbuf(theme, iconName, isActive, iconSize) {
-	const file = controlIconFile(theme, iconName, isActive);
-
-	if (!file || !Gio.File.new_for_path(file).query_exists(null)) {
-		return null;
-	};
-
-	try {
-		// 2x for crispness at the 27px button scale.
-		return GdkPixbuf.Pixbuf.new_from_file_at_size(file, iconSize * 2, iconSize * 2);
-	} catch (_error) {
-		return null;
-	};
-};
-
+// Control buttons: plain St.Button + St.Icon with the bundled SVG, exactly
+// like the reference implementation (gray when inactive, white/black when
+// active). No cairo painting, no bounce.
 function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius = 9, isActive = false) {
-	// CanvasButton keeps the click/bounce behavior; the icon is painted over
-	// cairo from the bundled SVG — gray when inactive, white/black when
-	// active (the same variant logic as the reference implementation).
-	const pixbufCache = new Map();
+	const gicon = controlIcon(theme, iconName, isActive);
 
-	const button = new CanvasButton((cr, btn) => {
-		const [w, h] = btn.get_surface_size();
+	const icon = new St.Icon({
+		gicon,
+		style: `icon-size: ${iconSize}px;`
+	});
 
-		// Hover/pressed disc under the icon.
-		if (btn.hover || btn.pressed) {
-			const isDark = theme.dark ?? false;
+	const button = new St.Button({
+		style_class: 'widget-music-button',
+		can_focus: false,
+		reactive: true,
+		style: `border-radius: ${radius}px; padding: ${padding}px;`,
+	});
 
-			cr.setSourceRGBA(...(isDark ? [1, 1, 1] : [0, 0, 0]), btn.pressed ? 0.15 : 0.08);
-			cr.arc(w / 2, h / 2, Math.min(w, h) / 2, 0, 2 * Math.PI);
-			cr.fill();
-		}
-
-		// Draw the SVG icon (cached pixbuf per icon name + active state).
-		const name = btn._iconName ?? iconName;
-		const active = Boolean(btn._isActive);
-		const key = `${name}:${active ? 1 : 0}`;
-
-		if (!pixbufCache.has(key)) {
-			pixbufCache.set(key, loadIconPixbuf(theme, name, active, iconSize));
-		};
-
-		const pix = pixbufCache.get(key);
-
-		if (pix) {
-			const px = Math.round((w - pix.get_width()) / 2);
-			const py = Math.round((h - pix.get_height()) / 2);
-			const alpha = Math.max(0, Math.min(1, btn._iconAlpha ?? 1));
-
-			cr.setSourcePixbuf(pix, px, py);
-
-			if (alpha < 1) {
-				cr.paintWithAlpha(alpha);
-			} else {
-				cr.paint();
-			};
-		};
-	}, {bounce: true});
-
-	button.set_size(27, 27);
-
-	// Store metadata for later updates
 	button._iconSize = iconSize;
 	button._iconName = iconName;
 	button._theme = theme;
 	button._isActive = isActive;
-	button._pixbufCache = pixbufCache;
+	button.set_child(icon);
+	button.set_width(27);
+	button.set_height(27);
 
-	return {button};
+	return {button, icon};
 };
 
 function recolorIcon(target, alpha = 1) {
-	// Inactive/active tints come from the SVG variants; alpha only dims the
-	// loop control while playback control is unavailable.
-	if (target.button) {
-		target.button._iconAlpha = Math.max(0, Math.min(1, alpha));
-		target.button.queue_repaint();
-	}
+	target.icon.style = `icon-size: ${target.button._iconSize ?? 18}px;${alpha < 1 ? ` opacity: ${alpha};` : ''}`;
 };
 
 function setButtonIcon(target, iconName, isActive = false) {
-	if (target.button) {
+	const gicon = controlIcon(target.button._theme, iconName, isActive);
+
+	if (gicon) {
+		target.icon.gicon = gicon;
 		target.button._iconName = iconName;
 		target.button._isActive = isActive;
-		target.button.queue_repaint();
 	}
 };
 
@@ -1649,46 +1601,6 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	const card = createCard(theme, createLabel, widgetWidth, widgetHeight);
 	card._settings = settings;
 	const controller = new Controller(card, sessionBus(), settings);
-
-	// Temp probe: report the real allocation state of the controls row so a
-	// missing-button bug can be read straight from the journal.
-	GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
-		try {
-			const controls = card?.controls;
-
-			if (!controls) {
-				log('DW-MUSIC-PROBE: no controls in card');
-				return GLib.SOURCE_REMOVE;
-			};
-
-			const [cw, ch] = controls.get_size();
-			const cbox = controls.get_allocation_box();
-			const calW = cbox ? Math.round(cbox.get_width()) : -1;
-			const calH = cbox ? Math.round(cbox.get_height()) : -1;
-			const kids = controls.get_children().map(child => {
-				const cb = child.get_allocation_box();
-				const [posX, posY] = child.get_position();
-				const [kidW, kidH] = child.get_size();
-				const iconChild = child.get_children?.()[0];
-				const cache = child._pixbufCache;
-				const pixState = cache
-					? ([...cache.values()].some(p => p) ? 'LOADED' : 'NULL')
-					: 'none';
-
-				return `${child.constructor?.name} ${kidW.toFixed(0)}x${kidH.toFixed(0)}@(${posX.toFixed(0)},${posY.toFixed(0)})` +
-					` box=${Math.round(cb?.get_width() ?? -1)}x${Math.round(cb?.get_height() ?? -1)}` +
-					` vis=${child.visible}/map=${child.is_mapped()}` +
-					` lm=${child.get_layout_manager()?.constructor?.name ?? 'none'}` +
-					` pix=${pixState}`;
-			});
-
-			log(`DW-MUSIC-PROBE: controls=${cw.toFixed(0)}x${ch.toFixed(0)} allocBox=${calW}x${calH} kids=[${kids.join(' | ')}] colSize=(${card.column.get_size()[0].toFixed(0)}x${card.column.get_size()[1].toFixed(0)})`);
-		} catch (probeError) {
-			log(`DW-MUSIC-PROBE: failed: ${probeError.message}`);
-		};
-
-		return GLib.SOURCE_REMOVE;
-	});
 
 	body.add_child(card.container);
 	body.connect('destroy', () => controller.destroy());
