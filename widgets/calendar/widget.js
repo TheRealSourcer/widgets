@@ -886,6 +886,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	// (OverlayLayout was dropped in newer shells); if set_alignment is
 	// unavailable the dots fall back to simple in-flow layout.
 	const dotsRow = new St.BoxLayout(boxLayoutProps({
+		x_expand: true,
 		x_align: Clutter.ActorAlign.CENTER,
 		style: `spacing: 6px; margin-bottom: 6px;`,
 	}));
