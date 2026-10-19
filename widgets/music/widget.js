@@ -1180,9 +1180,16 @@ let Controller = class Controller {
 		this._applyStatus(status);
 
 		if (this._status === 'Stopped') {
-			this._meta = {title: null, artist: null, artUrl: null};
-			this._length = 0;
+			// Players like Amberol pre-load queue metadata while Stopped and
+			// never re-emit Metadata when playback starts on the SAME track
+			// (only PlaybackStatus changes) — dropping it here left the card
+			// empty with just buttons/slider reacting. The reference renders
+			// whatever metadata the player reports, Stopped or not.
+			this._meta = meta.title
+				? {title: meta.title, artist: meta.artist, artUrl: meta.artUrl}
+				: {title: null, artist: null, artUrl: null};
 			this._lockedTrackId = null;
+			this._length = meta.length > 0 ? meta.length : 0;
 		} else {
 			this._meta = {title: meta.title, artist: meta.artist, artUrl: meta.artUrl};
 			this._lockedTrackId = meta.trackId ?? null;
