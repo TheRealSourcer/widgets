@@ -519,10 +519,7 @@ class WidgetController {
       // accent and neutral text color the moment the toggle flips.
       'changed::weather-use-accent-color', () => this._refreshWeatherViews(),
       'changed::digitalclock-hour-format', () => this._scheduleAppearance('refresh'),
-      'changed::digitalclock-show-seconds', () => {
-        log('DW-SET: digitalclock-show-seconds signal seen');
-        this._scheduleAppearance('refresh');
-      },
+      'changed::digitalclock-show-seconds', () => this._scheduleAppearance('refresh'),
       'changed::digitalclock-show-ampm', () => this._scheduleAppearance('refresh'),
       'changed::github-use-green', () => this._scheduleAppearance('refresh'),
       'changed::github-username', () => this._scheduleAppearance('refresh'),
@@ -725,7 +722,6 @@ class WidgetController {
   };
 
   _scheduleAppearance(kind) {
-    log(`DW-APPEAR: kind=${kind} dragActive=${this._layoutSettings.get_boolean('drag-active')}`);
     if (this._layoutSettings.get_boolean('drag-active')) {
       this._pendingAppearance[kind] = true;
       return;
@@ -2111,7 +2107,6 @@ class WidgetController {
   };
 
   _refreshWidgets() {
-    log(`DW-REFRESH: enter dragActor=${Boolean(this._dragActor)} views=${this._views.size}`);
     if (this._dragActor) {
       return;
     };
@@ -2124,23 +2119,24 @@ class WidgetController {
       };
 
       try {
-        log(`DW-REFRESH-FILL: type=${view.widget.type} id=${id}`);
-        if (view.actor.get_parent() !== this._layer || view.body.get_parent() !== view.actor) {
+        // The wrapper refactor moved the body into the styled content box:
+        // view.actor is the outer wrapper, view.box is the BoxLayout that
+        // owns the body. Comparing body.parent to the wrapper was ALWAYS
+        // false, so every refresh dropped 3 of 4 views and left only the
+        // last-touched widget editable until a rebuild.
+        if (view.actor.get_parent() !== this._layer || view.body.get_parent() !== view.box) {
           view.actor.disconnectObject(this);
           this._views.delete(id);
-          log(`DW-REFRESH-DROP: type=${view.widget.type} stale-parent`);
           continue;
         };
 
         this._fillWidgetBody(view.widget, view.body);
       } catch (error) {
-        log(`DW-REFRESH-FAIL: type=${view.widget.type} err=${error.message}`);
         warn('stale-widget-view', `Dropping stale widget view: ${error.message}`);
         view.actor.disconnectObject(this);
         this._views.delete(id);
       };
     };
-    log(`DW-REFRESH: leaves views=${this._views.size}`);
   };
 
   _createWidget(widget) {
