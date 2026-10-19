@@ -367,6 +367,43 @@ function controlIcon(theme, iconName, isActive = false) {
 		: null;
 };
 
+// Loop-control icons painted in the widget accent color (system accent or
+// style-accent-color). St.Icon + FileIcon renders these fine, so the SVG is
+// recolored on disk in a per-(icon,state,accent) cache file.
+function controlAccentIcon(theme, iconName, isActive = false) {
+	const accent = String(theme?.accent ?? '#5b9de0');
+	const file = controlIconFile(theme, iconName, isActive);
+
+	if (!file || !Gio.File.new_for_path(file).query_exists(null)) {
+		return null;
+	};
+
+	const id = `${String(iconName)}-${isActive ? 1 : 0}-${accent.replace(/[^a-zA-Z0-9]/g, '_')}`;
+	const cachePath = GLib.build_filenamev([
+		GLib.get_user_cache_dir(), 'desktop-widgets', 'music-icons', `${id}.svg`,
+	]);
+
+	try {
+		if (!Gio.File.new_for_path(cachePath).query_exists(null)) {
+			const [ok, contents] = Gio.File.new_for_path(file).load_contents(null);
+
+			if (ok) {
+				const svg = new TextDecoder().decode(contents)
+					.replace(/stroke="[^"]*"/g, `stroke="${accent}"`)
+					.replace(/fill="(?!none)[^"]*"/g, `fill="${accent}"`);
+
+				GLib.mkdir_with_parents(GLib.path_get_dirname(cachePath), 0o755);
+				Gio.File.new_for_path(cachePath).replace_contents(svg, null, false, Gio.FileCreateFlags.NONE, null);
+			};
+		};
+
+		return Gio.FileIcon.new(Gio.File.new_for_path(cachePath));
+	} catch (_error) {
+		// Fall back to the plain variant rather than an invisible icon.
+		return controlIcon(theme, iconName, isActive);
+	};
+};
+
 // Click squash-and-spring on a plain St.Button — inspired by the reference
 // CanvasButton bounce (0.7 in / 1 out) but softer and slightly quicker.
 function playBounce(button) {
@@ -389,8 +426,10 @@ function playBounce(button) {
 // Control buttons: plain St.Button + St.Icon with the bundled SVG, exactly
 // like the reference implementation (gray when inactive, white/black when
 // active). No cairo painting; click gets a squash-and-spring bounce.
-function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius = 9, isActive = false) {
-	const gicon = controlIcon(theme, iconName, isActive);
+function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius = 9, isActive = false, accentPainted = false) {
+	const gicon = accentPainted
+		? controlAccentIcon(theme, iconName, isActive)
+		: controlIcon(theme, iconName, isActive);
 
 	const icon = new St.Icon({
 		gicon,
@@ -408,6 +447,7 @@ function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius
 	button._iconName = iconName;
 	button._theme = theme;
 	button._isActive = isActive;
+	button._accentIcon = accentPainted;
 	button.set_child(icon);
 	button.set_width(27);
 	button.set_height(27);
@@ -422,7 +462,9 @@ function recolorIcon(target, alpha = 1) {
 };
 
 function setButtonIcon(target, iconName, isActive = false) {
-	const gicon = controlIcon(target.button._theme, iconName, isActive);
+	const gicon = target.button._accentIcon
+		? controlAccentIcon(target.button._theme, iconName, isActive)
+		: controlIcon(target.button._theme, iconName, isActive);
 
 	if (gicon) {
 		target.icon.gicon = gicon;
@@ -550,7 +592,9 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		x_align: Clutter.ActorAlign.CENTER,
 	});
 
-	card.btnLoop = createControlButton(theme, 'repeat', 18, 4, 9);
+	// The repeat control is painted in the widget accent color (system accent
+	// or style-accent-color), per the reference look.
+	card.btnLoop = createControlButton(theme, 'repeat', 18, 4, 9, false, true);
 	card.btnPrev = createControlButton(theme, 'rewind', 18, 4, 9);
 	card.btnPlay = createControlButton(theme, 'play', 22, 2, 11);
 	card.btnNext = createControlButton(theme, 'fast-forward', 18, 4, 9);
