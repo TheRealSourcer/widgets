@@ -1615,6 +1615,38 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	card._settings = settings;
 	const controller = new Controller(card, sessionBus(), settings);
 
+	// Temp probe: report the real allocation state of the controls row so a
+	// missing-button bug can be read straight from the journal.
+	GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+		try {
+			const controls = card?.controls;
+
+			if (!controls) {
+				log('DW-MUSIC-PROBE: no controls in card');
+				return GLib.SOURCE_REMOVE;
+			};
+
+			const [cw, ch] = controls.get_size();
+			const [, , calW, calH] = controls.get_allocation_box();
+			const kids = controls.get_children().map(child => {
+				const [x0, y0] = child.get_allocation_box();
+				const [kidW, kidH] = child.get_size();
+				const iconChild = child.get_children?.()[0];
+
+				return `${child.constructor?.name} ${kidW.toFixed(0)}x${kidH.toFixed(0)}@(${x0.toFixed(0)},${y0.toFixed(0)})` +
+					` vis=${child.visible}/map=${child.is_mapped()}` +
+					` lm=${child.get_layout_manager()?.constructor?.name ?? 'none'}` +
+					` icon=${iconChild ? `${iconChild.get_gicon()?.constructor?.name ?? 'null'} ${iconChild.get_size()[0].toFixed(0)}x${iconChild.get_size()[1].toFixed(0)}` : 'NO-ICON'}`;
+			});
+
+			log(`DW-MUSIC-PROBE: controls=${cw.toFixed(0)}x${ch.toFixed(0)} alloc=${calW.toFixed(0)}x${calH.toFixed(0)} kids=[${kids.join(' | ')}] colSize=(${card.column.get_size()[0].toFixed(0)}x${card.column.get_size()[1].toFixed(0)})`);
+		} catch (probeError) {
+			log(`DW-MUSIC-PROBE: failed: ${probeError.message}`);
+		};
+
+		return GLib.SOURCE_REMOVE;
+	});
+
 	body.add_child(card.container);
 	body.connect('destroy', () => controller.destroy());
 	controller.start();
