@@ -1253,7 +1253,7 @@ let Controller = class Controller {
 		});
 	};
 
-	_reconsider() {
+	async _reconsider() {
 		if (this._relisten === false || !this._bus) {
 			return;
 		};
@@ -1261,7 +1261,10 @@ let Controller = class Controller {
 		let best;
 
 		try {
-			best = this._pickActive();
+			// _pickActive is async — without await this was a Promise, so the
+			// player switch check always bailed and widgets missed freshly
+			// started players (e.g. first track in Amberol).
+			best = await this._pickActive();
 		} catch (error) {
 			warn('music: failed to scan MPRIS players', error);
 			return;
