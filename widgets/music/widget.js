@@ -649,8 +649,8 @@ card.artist.text = _('Play something to get going');
 		card.slider.setEnabled?.(seekable);
 		card.slider.reactive = seekable;
 
-		// Update play/pause icon
-		setButtonIcon(card.btnPlay, playing ? 'circle-pause' : 'play', hasTrack);
+		// Update play/pause icon (bare pause bars — no ring, bigger symbol)
+		setButtonIcon(card.btnPlay, playing ? 'pause' : 'play', hasTrack);
 		recolorIcon(card.btnPlay);
 		
 		// Update navigation icons (prev/next) with active state
