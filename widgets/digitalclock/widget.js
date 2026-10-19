@@ -357,6 +357,7 @@ export function render({body, theme, settings, widget}) {
 	const use24h = settings?.get_string('digitalclock-hour-format') !== '12';
 	const sizeKey = String(widget?.size ?? 'small');
 	const vertical = sizeKey === 'portrait' || sizeKey === 'portraitmini';
+	log(`DW-RESIZE: digitalclock render sizeKey=${sizeKey}, body exists=${Boolean(body)}`);
 	const showSeconds = settings?.get_boolean('digitalclock-show-seconds') === true &&
 		(sizeKey === 'medium' || sizeKey === 'mini' || vertical);
 	const showAmPm = settings?.get_boolean('digitalclock-show-ampm') !== false;

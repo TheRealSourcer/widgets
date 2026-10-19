@@ -2044,6 +2044,8 @@ class WidgetController {
       return;
     };
 
+    const [prevW, prevH] = this._sizeFor(widget);
+    log(`DW-RESIZE: onSizeChange ${widget.type}: ${widget.size} -> ${sizeKey} (was ${prevW}x${prevH}px)`);
     widget.size = sizeKey;
     this._clampWidget(widget);
     this._resolveLayout(widget, true, true);
@@ -2055,14 +2057,53 @@ class WidgetController {
       return;
     };
 
+    const [prevW, prevH] = this._sizeFor(widget);
+    log(`DW-RESIZE: setWidgetSize ${widget.type}: ${widget.size} -> ${sizeKey} (was ${prevW}x${prevH}px)`);
     widget.size = sizeKey;
     widget.data = {...(widget.data ?? {}), sizeManual: true};
     this._views.get(widget.id)?.sizeMenu?.hide();
+    const [newW, newH] = this._sizeFor(widget);
+    log(`DW-RESIZE: new target ${newW}x${newH}px, re-rendering body now`);
     this._safeFillWidgetBody(widget, this._views.get(widget.id)?.body);
     this._clampWidget(widget);
     this._resolveLayout(widget, true, true);
     this._animateWidget(widget, true);
     this._saveWidgets();
+
+    // The body was re-rendered before the wrapper eased to the new size, so
+    // some inner allocations keep the old frame. Re-render once the ease has
+    // landed — the theme-switch path re-renders at the settled size and that
+    // is exactly what makes everything fall into place.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 160, () => {
+      const view = this._views.get(widget.id);
+
+      if (!view || !view.body) {
+        return GLib.SOURCE_REMOVE;
+      };
+
+      const [wrapperW, wrapperH] = view.actor?.get_size() ?? [0, 0];
+      const [boxW, boxH] = view.box?.get_size() ?? [0, 0];
+      const [glW, glH] = view.glass?.get_size() ?? [0, 0];
+      log(`DW-RESIZE: post-ease re-fill ${widget.type}; wrapper=${wrapperW}x${wrapperH} box-before=${boxW}x${boxH} glass-before=${glW}x${glH}`);
+
+      // Force-sync children to the settled wrapper size (notify hooks miss).
+      if (view.box && wrapperW > 0 && wrapperH > 0) {
+        view.box.set_size(wrapperW, wrapperH);
+      };
+
+      if (view.glass && wrapperW > 0 && wrapperH > 0) {
+        view.glass.set_size(wrapperW, wrapperH);
+        const [gsx, gsy] = view.actor.get_transformed_position();
+
+        if (Number.isFinite(gsx) && Number.isFinite(gsy)) {
+          view.glass.setGeometry(gsx, gsy, wrapperW, wrapperH);
+        };
+      };
+
+      this._safeFillWidgetBody(widget, view.body);
+
+      return GLib.SOURCE_REMOVE;
+    });
   };
 
   _refreshWidgets() {
@@ -3374,9 +3415,27 @@ class WidgetController {
     if (!animate) {
       view.actor.set_position(widget.x, widget.y);
       view.actor.set_size(width, height);
+      // notify::width/height hooks don't reliably track cluster changes, so
+      // sync the children we care about right here.
+      if (view.box) {
+        view.box.set_size(width, height);
+      };
+
+      if (view.glass && width > 0 && height > 0) {
+        view.glass.set_size(width, height);
+        const [gsx, gsy] = view.actor.get_transformed_position();
+
+        if (Number.isFinite(gsx) && Number.isFinite(gsy)) {
+          view.glass.setGeometry(gsx, gsy, width, height);
+        };
+      };
+
       this._syncEditControls(widget);
       return;
     };
+
+    const [curW, curH] = view.actor.get_size();
+    log(`DW-RESIZE: animate ${widget.type}: actor now ${curW}x${curH} -> easing to ${width}x${height} @${widget.x},${widget.y}`);
 
     view.actor.ease({
       x: widget.x,
