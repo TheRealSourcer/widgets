@@ -880,6 +880,37 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		y_expand: true,
 	}));
 
+	// Page-indicator dots: the 1x1 widget holds two swipeable pages
+	// (calendar / events); the row stays pinned at the very bottom, the
+	// active page's dot is full color.
+	const dotsRow = new St.BoxLayout(boxLayoutProps({
+		x_expand: true,
+		x_align: Clutter.ActorAlign.CENTER,
+		style: `spacing: 6px; margin-top: 5px;`,
+	}));
+	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
+		width: 5,
+		height: 5,
+		opacity: 90,
+		style: `border-radius: 999px; background-color: ${text};`,
+	}));
+	dots.forEach(dot => dotsRow.add_child(dot));
+	container.add_child(dotsRow);
+
+	const refreshDots = () => {
+		dots.forEach((dot, index) => {
+			dot.ease({
+				opacity: index === currentView ? 255 : 90,
+				duration: 120,
+				mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+			});
+		});
+	};
+
+	const keepDotsAtBottom = () => {
+		container.set_child_at_index(dotsRow, container.get_n_children() - 1);
+	};
+
 	const rebuild = (enterX = 0) => {
 		if (viewContainer) {
 			container.remove_child(viewContainer);
@@ -953,6 +984,9 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 				},
 			});
 		}
+
+		keepDotsAtBottom();
+		refreshDots();
 	};
 
 	// Swipe gesture handlers (same as system monitor)
