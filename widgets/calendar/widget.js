@@ -880,11 +880,12 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		y_expand: true,
 	}));
 
-	// Page-indicator dots on an overlay ABOVE both pages: the overlay fills
-	// the shared swipe area, so the dots sit at the exact same bottom-center
-	// spot (slightly lifted off the edge) on the calendar and events pages.
+	// Page-indicator dots: pinned to the bottom-center of a shared BinLayout
+	// stack so the calendar and events pages show them at the same height.
+	// BinLayout is a core Clutter API present in every supported shell
+	// (OverlayLayout was dropped in newer shells); if set_alignment is
+	// unavailable the dots fall back to simple in-flow layout.
 	const dotsRow = new St.BoxLayout(boxLayoutProps({
-		x_expand: true,
 		x_align: Clutter.ActorAlign.CENTER,
 		style: `spacing: 6px; margin-bottom: 6px;`,
 	}));
@@ -896,21 +897,24 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	}));
 	dots.forEach(dot => dotsRow.add_child(dot));
 
-	const dotsOverlay = new St.BoxLayout(boxLayoutProps({
-		vertical: true,
-		x_expand: true,
-		y_expand: true,
-	}));
-	dotsOverlay.add_child(new St.Widget({y_expand: true}));
-	dotsOverlay.add_child(dotsRow);
-
 	const pageStack = new St.Widget({
-		layout_manager: new Clutter.OverlayLayout(),
+		layout_manager: new Clutter.BinLayout(),
 		x_expand: true,
 		y_expand: true,
 	});
-	pageStack.add_child(container);
-	pageStack.add_child(dotsOverlay);
+	let dotsInFlow = false;
+
+	if (Clutter.BinAlignment && typeof pageStack.layout_manager.set_alignment === 'function') {
+		pageStack.layout_manager.set_alignment(container, Clutter.BinAlignment.FILL, Clutter.BinAlignment.FILL);
+		pageStack.layout_manager.set_alignment(dotsRow, Clutter.BinAlignment.CENTER, Clutter.BinAlignment.END);
+		pageStack.add_child(container);
+		pageStack.add_child(dotsRow);
+	} else {
+		// Degrade to the classic flow layout: dots live inside the swipe
+		// container and are kept last on every page switch.
+		dotsInFlow = true;
+		container.add_child(dotsRow);
+	};
 
 	const refreshDots = () => {
 		dots.forEach((dot, index) => {
@@ -920,6 +924,10 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 				mode: Clutter.AnimationMode.EASE_OUT_QUAD,
 			});
 		});
+
+		if (dotsInFlow) {
+			container.set_child_at_index(dotsRow, container.get_n_children() - 1);
+		};
 	};
 
 	const rebuild = (enterX = 0) => {
