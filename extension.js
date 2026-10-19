@@ -2124,19 +2124,23 @@ class WidgetController {
       };
 
       try {
+        log(`DW-REFRESH-FILL: type=${view.widget.type} id=${id}`);
         if (view.actor.get_parent() !== this._layer || view.body.get_parent() !== view.actor) {
           view.actor.disconnectObject(this);
           this._views.delete(id);
+          log(`DW-REFRESH-DROP: type=${view.widget.type} stale-parent`);
           continue;
         };
 
         this._fillWidgetBody(view.widget, view.body);
       } catch (error) {
+        log(`DW-REFRESH-FAIL: type=${view.widget.type} err=${error.message}`);
         warn('stale-widget-view', `Dropping stale widget view: ${error.message}`);
         view.actor.disconnectObject(this);
         this._views.delete(id);
       };
     };
+    log(`DW-REFRESH: leaves views=${this._views.size}`);
   };
 
   _createWidget(widget) {
