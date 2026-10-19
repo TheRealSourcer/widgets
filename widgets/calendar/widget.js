@@ -482,7 +482,7 @@ function buildGrid(options) {
 
 		weekdayRow.add_child(calendarCell(
 			weekday,
-			`font-size: ${Math.max(8, weekdayFont)}px; font-weight: 600; color: ${weekendColor && weekend.has(nativeDay) ? weekendColor : secondary};`,
+			`font-size: ${Math.max(8, weekdayFont)}px; font-weight: 700; color: ${weekendColor && weekend.has(nativeDay) ? weekendColor : secondary};`,
 			null,
 			createLabel,
 			cellWidth,
@@ -519,8 +519,8 @@ function buildGrid(options) {
 			const nativeDay = (firstDay + column) % 7;
 			const isWeekend = weekendColor && weekend.has(nativeDay);
 			const labelStyle = isToday
-				? `font-size: ${dayFont}px; font-weight: 500; color: #ffffff;`
-				: `font-size: ${dayFont}px; font-weight: 500; color: ${isWeekend ? weekendColor : text};`;
+				? `font-size: ${dayFont}px; font-weight: 800; color: #ffffff;`
+				: `font-size: ${dayFont}px; font-weight: 600; color: ${isWeekend ? weekendColor : text};`;
 			const cellStyle = isToday
 				? `background-color: ${accent}; border-radius: 999px;`
 				: null;
@@ -550,7 +550,8 @@ function monthLabel(now, createLabel, dayFont, theme, useAccentColor, scale = 1)
 };
 
 export function style(theme) {
-	return `background-color: ${theme.background}; border-color: ${theme.border}; color: ${theme.text}; border-radius: 16px; padding: 18px 16px;`;
+	// Inner padding kept 1px tighter than the original framing.
+	return `background-color: ${theme.background}; border-color: ${theme.border}; color: ${theme.text}; border-radius: 16px; padding: 17px 15px;`;
 };
 
 function buildCalendarView(options) {
