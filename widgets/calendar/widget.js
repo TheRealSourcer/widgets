@@ -887,7 +887,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	const dotsRow = new St.BoxLayout(boxLayoutProps({
 		x_expand: true,
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: 6px; margin-bottom: -1px;`,
+		style: `spacing: 6px; margin-bottom: 0px;`,
 	}));
 	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
 		width: 5,
@@ -896,6 +896,11 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		style: `border-radius: 999px; background-color: ${text};`,
 	}));
 	dots.forEach(dot => dotsRow.add_child(dot));
+
+	// Final pixel-nudge below the layout position: a translation below the
+	// widget body's bottom (St clamps negative bottom margins to 0, so the
+	// requested extra step is applied as a direct transform).
+	dotsRow.translation_y = 1;
 
 	const dotsWrap = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
