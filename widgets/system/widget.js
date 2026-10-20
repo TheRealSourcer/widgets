@@ -583,16 +583,25 @@ function createSparkTile(theme, label, value, unit, accentColor, samples, maxVal
 
   const lucideGIcon = lucideIcon(theme, metricKey);
 
+  // Measured on GNOME 51 (Ubuntu 13px): the label's line box is 14px tall
+  // while its caps ink spans 0..10, so the text's optical center sits 2px
+  // ABOVE the line-box center. Clutter.BoxLayout gives every child the full
+  // row height and ignores child y_align, and St.Icon centers its texture
+  // in the line box — so the 14px glyph visually hangs below the caps
+  // (Lucide cpu text-ink center measured at 6.5 vs caps center 5.0).
+  // Paint-only lift: translates the glyph up without touching the layout.
+  const iconTranslateY = -1.5;
+
   const icon = lucideGIcon
     ? new St.Icon({
         gicon: lucideGIcon,
         icon_size: 14,
-        y_align: Clutter.ActorAlign.CENTER,
+        translation_y: iconTranslateY,
       })
     : new St.Icon({
         icon_name: 'computer-symbolic',
         icon_size: 14,
-        y_align: Clutter.ActorAlign.CENTER,
+        translation_y: iconTranslateY,
         style: `color: ${theme.muted};`,
       });
 
