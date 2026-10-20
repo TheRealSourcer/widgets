@@ -1208,6 +1208,19 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     };
 
     unsubscribe = monitor.subscribe(onData);
+
+    // Same bottom page-dash strip as the 2x1: after a resize the pane keeps
+    // its visual anchors. The strip still represents the three dashboard
+    // views (CPU/RAM, GPU/RAM, network); the active marker honours the last
+    // swiped position restored from the persisted state.
+    const pageDashes = attachPageDashes({
+      paneRoot, sizeForWidget, widget,
+      count: 3,
+      color: indicatorColor,
+      visible: showPageDashes,
+      style: indicatorStyle,
+    });
+    pageDashes.set(currentView);
   }
 
   body.add_child(container);
