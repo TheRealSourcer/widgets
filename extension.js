@@ -2673,6 +2673,14 @@ class WidgetController {
           track_hover: true,
         });
 
+        // The hover ring takes the accent color (system or user-custom) —
+        // a transparent border keeps the layout from jittering on hover.
+        const itemAccent = this._gnomeTheme().accent;
+        item.connectObject('notify::hover', () => {
+          item.set_style(item.hover
+            ? `border: 1px solid ${itemAccent};`
+            : 'border: 1px solid transparent;');
+        }, this);
         item.connectObject('clicked', () => {
           this._setWidgetSize(view.widget, sizeKey);
           sizeMenu.hide();
