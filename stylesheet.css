@@ -65,38 +65,31 @@
     border-color: rgba(255, 123, 123, 0.35);
 }
 
+/* The size picker copies the stock shell context menu look (GNOME 51
+ * popup-menu-content): #36363a panel, 20px radius, soft hover rows. */
 .widget-layer .widget-size-menu {
-    border-radius: 12px;
-    background-color: rgba(0, 0, 0, 0.72);
-    padding: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-radius: 20px;
+    background-color: #36363a;
+    border: 1px solid #424247;
+    padding: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     pointer-events: auto;
 }
 
 .widget-layer .widget-size-menu-item {
-    padding: 6px 12px;
-    border-radius: 8px;
+    padding: 9px 12px;
+    border-radius: 12px;
     color: #ffffff;
     font-size: 13px;
-    font-weight: 500;
-    min-width: 44px;
-    text-align: center;
+    font-weight: normal;
+    background-color: transparent;
+    text-align: left;
     cursor: pointer;
     pointer-events: auto;
 }
 
 .widget-layer .widget-size-menu-item:hover {
-    background-color: rgba(255, 255, 255, 0.12);
-}
-
-.widget-layer .widget-size-menu-item.active {
-    color: #54a2f0;
-    font-weight: 700;
-}
-
-.widget-size-menu-item.active {
-    color: #54a2f0;
-    font-weight: 700;
+    background-color: rgba(255, 255, 255, 0.08);
 }
 
 .widget-layer .widget-edit-pin {

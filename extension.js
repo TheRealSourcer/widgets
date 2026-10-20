@@ -2703,8 +2703,13 @@ class WidgetController {
 
         const activeIndex = orderedSizes(supportedSizes).indexOf(view.widget.size);
 
+        // Context-menu marking: the current size carries a DOT ornament —
+        // here a leading dot glyph instead of the old colored label.
+        sizeItems.forEach((item, i) => {
+          item.set_label(sizeLabel(orderedSizes(supportedSizes)[i]));
+        });
         if (activeIndex >= 0) {
-          sizeItems[activeIndex].add_style_pseudo_class('active');
+          sizeItems[activeIndex].set_label(`● ${sizeLabel(orderedSizes(supportedSizes)[activeIndex])}`);
         };
 
         sizeButton.ensure_style();
