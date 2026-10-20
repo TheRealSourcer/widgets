@@ -5,6 +5,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 import Gdk from 'gi://Gdk';
+import cairo from 'gi://cairo';
 
 import {ExtensionPreferences, gettext as _}
     from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
@@ -2396,9 +2397,28 @@ export default class WidgetsPrefs extends ExtensionPreferences {
 
     _createAppearancePage(settings) {
         const page = new Adw.PreferencesPage();
+
+        // Layout: [style cards] → [Glass params] → [Solid params] → [common]
+        // (colors / accent / opacity / reset). The glass/solid groups are
+        // toggled by the selected card; the common group is always shown.
+        const styleGroup = new Adw.PreferencesGroup({
+            title: _('Widget Style'),
+            margin_top: 12,
+        });
+
+        const glassGroup = new Adw.PreferencesGroup({
+            title: _('Glass'),
+            description: _('Live blurred wallpaper backdrop, refraction and highlights.'),
+        });
+
+        const solidGroup = new Adw.PreferencesGroup({
+            title: _('Solid'),
+            description: _('Classic opaque background with a border.'),
+        });
+
         const group = new Adw.PreferencesGroup({
             title: _('Widget Styling'),
-            description: _('Customize the appearance of all widgets.'),
+            description: _('Shared options for both styles.'),
             margin_top: 12,
         });
 
@@ -2419,7 +2439,7 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 settings.set_int('style-border-radius', radiusRow.get_value());
             }, 150);
         });
-        group.add(radiusRow);
+        solidGroup.add(radiusRow);
 
         // Border Width
         const borderWidthRow = new Adw.SpinRow({
@@ -2438,7 +2458,7 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 settings.set_int('style-border-width', borderWidthRow.get_value());
             }, 150);
         });
-        group.add(borderWidthRow);
+        solidGroup.add(borderWidthRow);
 
         // Background Color
         const bgColorRow = this._createColorRow(
@@ -2483,21 +2503,168 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             accentColorRow.sensitive = customAccentRow.get_active();
         });
 
-        // Style mode: Glass (liquid-glass backdrop) or Solid (classic opaque).
-        const styleModeRow = new Adw.ComboRow({
-            title: _('Widget Style'),
-            subtitle: _('Glass uses a live blurred wallpaper backdrop; Solid uses an opaque background'),
-            model: Gtk.StringList.new([_('Glass'), _('Solid')]),
-        });
-        styleModeRow.set_selected(settings.get_int('style-mode') === 0 ? 0 : 1);
+        // Style mode: two preview cards side by side (Glass | Solid) instead
+        // of a dropdown — the selected one is outlined with the accent color,
+        // and the settings section switches to that style.
+        const cardCss = new Gtk.CssProvider();
+        cardCss.load_from_string(`
+            .dw-style-card {
+                padding: 8px;
+                border-radius: 14px;
+                border: 2px solid transparent;
+            }
+            .dw-style-card:checked {
+                border-color: @accent_bg_color;
+                background-color: color-mix(in srgb, @accent_bg_color 12%, transparent);
+            }
+        `);
 
-        const appearanceRow = new Adw.ComboRow({
-            title: _('Appearance'),
-            subtitle: _('Colour palette for widget content and the glass tint'),
-            model: Gtk.StringList.new([_('Dark'), _('Light'), _('Follow System')]),
+        const drawStylePreview = (cr, width, height, kind) => {
+            const R = (x, y, w, h, r) => {
+                cr.newPath();
+                cr.arc(x + r, y + r, r, Math.PI, 1.5 * Math.PI);
+                cr.arc(x + w - r, y + r, r, 1.5 * Math.PI, 2 * Math.PI);
+                cr.arc(x + w - r, y + h - r, r, 0, 0.5 * Math.PI);
+                cr.arc(x + r, y + h - r + 0, r, 0.5 * Math.PI, Math.PI);
+                cr.closePath();
+            };
+
+            // Wallpaper backdrop (only visible behind the glass pane).
+            R(0, 0, width, height, 8);
+            cr.clip();
+            cr.setSourceRGB(0.30, 0.49, 0.78);
+            cr.rectangle(0, 0, width, height);
+            cr.fill();
+            cr.setSourceRGBA(0.96, 0.83, 0.45, 0.55);
+            cr.arc(width * 0.72, height * 0.30, height * 0.42, 0, 2 * Math.PI);
+            cr.fill();
+            cr.setSourceRGBA(0.20, 0.55, 0.60, 0.45);
+            cr.arc(width * 0.22, height * 0.75, height * 0.38, 0, 2 * Math.PI);
+            cr.fill();
+
+            const paneX = 12;
+            const paneY = 12;
+            const paneW = width - 24;
+            const paneH = height - 24;
+
+            R(paneX, paneY, paneW, paneH, 6);
+
+            if (kind === 'glass') {
+                cr.setSourceRGBA(1, 1, 1, 0.28);
+                cr.fillPreserve();
+                cr.setSourceRGBA(1, 1, 1, 0.65);
+                cr.setLineWidth(1.5);
+                cr.stroke();
+                cr.setSourceRGBA(1, 1, 1, 0.75);
+            } else {
+                cr.setSourceRGB(0.14, 0.14, 0.14);
+                cr.fillPreserve();
+                cr.setSourceRGBA(1, 1, 1, 0.20);
+                cr.setLineWidth(1.5);
+                cr.stroke();
+                cr.setSourceRGBA(1, 1, 1, 0.85);
+            };
+
+            // Mock content: title bar, shorter artist bar, time dot.
+            const cx = paneX + paneW * 0.55;
+            R(cx, paneY + 6, paneW * 0.38, 5, 2.5);
+            cr.fill();
+            R(cx, paneY + 15, paneW * 0.26, 4, 2);
+            cr.fill();
+            R(paneX + 6, paneY + paneH - 10, paneW * 0.5, 4, 2);
+            cr.fill();
+            cr.setSourceRGBA(1, 1, 1, kind === 'glass' ? 0.55 : 0.35);
+            cr.arc(paneX + paneW - 9, paneY + 9, 3.5, 0, 2 * Math.PI);
+            cr.fill();
+            cr.resetClip();
+        };
+
+        const makeStyleCard = (kind, title, subtitle) => {
+            const card = new Gtk.ToggleButton({
+                css_classes: ['card', 'dw-style-card'],
+                hexpand: true,
+            });
+            card.get_style_context().add_provider(cardCss, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
+
+            const box = new Gtk.Box({
+                orientation: Gtk.Orientation.VERTICAL,
+                spacing: 6,
+                margin_start: 6,
+                margin_end: 6,
+                margin_top: 4,
+                margin_bottom: 4,
+            });
+
+            const preview = new Gtk.DrawingArea({
+                height_request: 56,
+            });
+            preview.set_draw_func((_widget, cr, width, height) => {
+                drawStylePreview(cr, width, height, kind);
+            });
+            box.append(preview);
+
+            const nameLabel = new Gtk.Label({
+                use_markup: true,
+                label: `<b>${title}</b>`,
+            });
+            box.append(nameLabel);
+
+            const subLabel = new Gtk.Label({
+                label: subtitle,
+                wrap: true,
+                wrap_mode: 1, // WORD
+                justify: 2,   // CENTER
+                css_classes: ['dim-label'],
+            });
+            box.append(subLabel);
+
+            card.child = box;
+            return card;
+        };
+
+        const glassCard = makeStyleCard('glass', _('Glass'),
+            _('Blurred wallpaper backdrop, refraction, specular highlights'));
+        const solidCard = makeStyleCard('solid', _('Solid'),
+            _('Opaque background, classic desktop look'));
+        solidCard.group = glassCard;
+
+        const syncStyleVisibility = () => {
+            const glass = settings.get_int('style-mode') === 0;
+            glassCard.active = glass;
+            solidCard.active = !glass;
+            glassGroup.visible = glass;
+            solidGroup.visible = !glass;
+        };
+        syncStyleVisibility();
+
+        glassCard.connect('toggled', () => {
+            if (glassCard.active && settings.get_int('style-mode') !== 0) {
+                settings.set_int('style-mode', 0);
+            };
         });
-        const appearance = settings.get_int('appearance');
-        appearanceRow.set_selected(appearance >= 0 && appearance <= 2 ? appearance : 2);
+        solidCard.connect('toggled', () => {
+            if (solidCard.active && settings.get_int('style-mode') !== 1) {
+                settings.set_int('style-mode', 1);
+            };
+        });
+        // Reset Style (and any external change) re-syncs the cards too.
+        settings.connect('changed::style-mode', syncStyleVisibility);
+
+        const cardsRow = new Adw.PreferencesRow({
+            activatable: false,
+        });
+        cardsRow.child = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 12,
+            homogeneous: true,
+            margin_start: 12,
+            margin_end: 12,
+            margin_top: 8,
+            margin_bottom: 8,
+        });
+        cardsRow.child.append(glassCard);
+        cardsRow.child.append(solidCard);
+        styleGroup.add(cardsRow);
 
         // Signal the shell while a slider is being dragged so it can defer
         // widget re-renders until the handle is actually released.
@@ -2519,7 +2686,6 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         // liquidglass-widgets extension: value scale + right-aligned value
         // label instead of the +/- SpinRows. All values stay ints in the
         // schema; the title/subtitle carries any ×10/×100 scale.
-        const glassRows = [];
         const addGlassSlider = (title, subtitle, key, lower, upper, format) => {
             const adjustment = new Gtk.Adjustment({
                 lower,
@@ -2572,7 +2738,6 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 value.label = format(settings.get_int(key));
             });
 
-            glassRows.push(row);
             group.add(row);
             return row;
         };
@@ -2614,22 +2779,8 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             'spec-strength-pct', 0, 100,
             v => `${v}%`);
 
-        const updateGlassSensitivity = () => {
-            const glass = styleModeRow.get_selected() === 0;
-            for (const row of glassRows)
-                row.sensitive = glass;
-        };
-        updateGlassSensitivity();
-
-        styleModeRow.connect('notify::selected', () => {
-            settings.set_int('style-mode', styleModeRow.get_selected() === 0 ? 0 : 1);
-            updateGlassSensitivity();
-        });
-        appearanceRow.connect('notify::selected', () => {
-            settings.set_int('appearance', appearanceRow.get_selected());
-        });
-        group.add(styleModeRow);
-        group.add(appearanceRow);
+        glassGroup.visible = settings.get_int('style-mode') === 0;
+        solidGroup.visible = !glassGroup.visible;
 
         // GPU warning: always visible above the glass controls.
         // Must be a PreferencesRow: plain widgets are added to a separate
@@ -2639,7 +2790,8 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             title: _('⚠ Warning: Glass Style increases GPU usage'),
             subtitle: _('Glass widgets render a blurred wallpaper backdrop and a shader every frame, which raises GPU load. If the desktop becomes slow or your GPU heats up, switch to Solid style.'),
         });
-        group.add(glassGpuWarningRow);
+        // Glass-specific: moved into the Glass group so it hides with it.
+        glassGroup.add(glassGpuWarningRow);
 
         // Shadow
         const shadowRow = new Adw.ActionRow({
@@ -2668,7 +2820,7 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 }
             }, 150);
         });
-        group.add(shadowSizeRow);
+        solidGroup.add(shadowSizeRow);
 
         const shadowColorButton = this._createColorButton(
             shadowColorFrom(settings.get_string('style-shadow')),
@@ -2682,7 +2834,7 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         shadowRow.add_suffix(shadowColorButton);
         shadowRow._colorButton = shadowColorButton;
         shadowRow._fallbackColor = DEFAULT_SHADOW_COLOR;
-        group.add(shadowRow);
+        solidGroup.add(shadowRow);
 
         // Widget opacity
         const opacityRow = new Adw.ActionRow({
@@ -2749,6 +2901,9 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             settings.set_int('chroma-strength-pct', 30);
             settings.set_int('tint-alpha-pct', 10);
             settings.set_int('spec-strength-pct', 70);
+            // Glass sliders sync themselves via changed:: and the style cards
+            // follow changed::style-mode; the classic SpinRows below still
+            // need an explicit reset.
 
             // Reset UI controls
             radiusRow.set_value(16);
@@ -2757,19 +2912,6 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             opacityScale.set_value(1.0);
             customAccentRow.set_active(false);
             accentColorRow.sensitive = false;
-            styleModeRow.set_selected(0);
-            appearanceRow.set_selected(2);
-            blurRow.set_value(6);
-            // roundnessRow removed
-            refractThicknessRow.set_value(35);
-            refractIORRow.set_value(170);
-            refractScaleRow.set_value(65);
-            chromaRow.set_value(30);
-            tintAlphaRow.set_value(10);
-            specRow.set_value(70);
-            updateGlassSensitivity();
-
-            // Reset color buttons back to their fallbacks (skips writing via _resetting flag)
             for (const colorRow of [bgColorRow, borderColorRow, accentColorRow, shadowRow]) {
                 const rgba = new Gdk.RGBA();
                 rgba.parse(colorRow._fallbackColor);
@@ -2780,6 +2922,9 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(resetStyleRow);
 
+        page.add(styleGroup);
+        page.add(glassGroup);
+        page.add(solidGroup);
         page.add(group);
         return page;
     }
