@@ -851,6 +851,8 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         if (!state.editing) return;
         state.editing = false;
         const submitted = usernameEntry.get_text().trim().replace(/^@/, '');
+        // TEMP PROBE: why plain Enter appears to do nothing.
+        log(`DW-GITHUB-EDIT: endEdit commit=${commit} submitted="${submitted}" username="${username}"`);
         usernameEntry.hide();
         usernameApplyButton.hide();
 
@@ -904,11 +906,29 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
 
     usernameEntry.clutter_text.connect('key-press-event', (_actor, event) => {
         const sym = event.get_key_symbol();
+        // TEMP PROBE: symbol + modifier instrumentation for the plain-Enter bug.
+        log(`DW-GITHUB-KEY: text key-press sym=0x${sym.toString(16)} mods=${event.get_state()}`);
         // KEY_ISO_Enter: some keyboard layouts/XKB options emit it for the
         // plain Enter key (Shift+Enter then produced KEY_Return, which is why
         // "Shift+Enter applied but plain Enter did nothing").
         if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter || sym === Clutter.KEY_ISO_Enter) { endEdit(true); return Clutter.EVENT_STOP; }
         if (sym === Clutter.KEY_Escape) { endEdit(false); return Clutter.EVENT_STOP; }
+        return Clutter.EVENT_PROPAGATE;
+    });
+
+    // TEMP PROBES: intermediate levels between the stage and the text —
+    // St.Entry consumes Return at the entry level on some shells; these logs
+    // show exactly which level swallows the key and with which symbol.
+    usernameEntry.connect('key-press-event', (_actor, event) => {
+        log(`DW-GITHUB-KEY: entry key-press sym=0x${event.get_key_symbol().toString(16)} mods=${event.get_state()}`);
+        return Clutter.EVENT_PROPAGATE;
+    });
+    usernameEntry.clutter_text.connect('activate', () => {
+        log('DW-GITHUB-KEY: text activate signal');
+        return Clutter.EVENT_PROPAGATE;
+    });
+    usernameEntry.connect('activated', () => {
+        log('DW-GITHUB-KEY: entry activated signal');
         return Clutter.EVENT_PROPAGATE;
     });
     // Clicking the checkmark moves stage focus off the entry BEFORE the
