@@ -230,7 +230,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		const column = new St.BoxLayout({
 			orientation: Clutter.Orientation.VERTICAL,
 			x_align: Clutter.ActorAlign.CENTER,
-			style: `spacing: ${px(4)}px;`,
+			style: `spacing: ${px(10)}px;`,
 		});
 		column.add_child(plusRow);
 		column.add_child(label);
