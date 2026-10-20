@@ -308,16 +308,22 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		style: `spacing: ${px(4)}px;`,
 	});
 
+	// All three digit columns share ONE fixed slot width (the widest
+	// caption, 'Centiseconds'): with every column the same width the
+	// palette gaps to both colons come out equal, instead of each group
+	// spacing by (columnWidth - inkWidth) / 2.
+	const digitSlot = px(150);
+
 	const minutesLabel = new St.Label({
 		text: '00',
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-size: ${px(64)}px; font-weight: 700;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
 	});
 
 	const minutesCaption = new St.Label({
 		text: _('Minutes'),
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600;`,
+		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600; width: ${digitSlot}px;`,
 	});
 
 	minutesBox.add_child(minutesLabel);
@@ -340,13 +346,13 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const secondsLabel = new St.Label({
 		text: '00',
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-size: ${px(64)}px; font-weight: 700;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
 	});
 
 	const secondsCaption = new St.Label({
 		text: _('Seconds'),
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600;`,
+		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600; width: ${digitSlot}px;`,
 	});
 
 	secondsBox.add_child(secondsLabel);
@@ -369,13 +375,13 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const centisecondsLabel = new St.Label({
 		text: '00',
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-size: ${px(64)}px; font-weight: 700;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
 	});
 
 	const centisecondsCaption = new St.Label({
 		text: _('Centiseconds'),
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(23)}px; font-weight: 600;`,
+		style: `color: ${mutedColor}; font-size: ${px(23)}px; font-weight: 600; width: ${digitSlot}px;`,
 	});
 
 	centisecondsBox.add_child(centisecondsLabel);
