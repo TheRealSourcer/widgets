@@ -4,11 +4,13 @@
  */
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { attachBounce } from '../../lib/buttonBounce.js';
+import { widgetResourcePath } from '../../paths.js';
 import { parseCssColor } from '../../utils/ported.js';
 import {
 	elapsedSinceWall,
@@ -43,6 +45,41 @@ function textOnAccentColor(accent) {
 	const { r, g, b } = parseCssColor(accent);
 	const lum = 0.299 * r + 0.587 * g + 0.114 * b;
 	return lum > 0.55 ? 'rgba(30,30,30,0.92)' : 'rgba(255,255,255,0.92)';
+}
+
+// Control glyphs come from the shared music icon set (icons/widgets_settings/
+// music/dw-<name>.svg, with -black/-white variants for painting on light or
+// dark surfaces). Same files, same look as the music widget's buttons.
+function controlIcon(iconName, suffix = '') {
+	const file = widgetResourcePath('music', `dw-${iconName}${suffix}.svg`);
+
+	return file && Gio.File.new_for_path(file).query_exists(null)
+		? Gio.FileIcon.new(Gio.File.new_for_path(file))
+		: null;
+}
+
+function iconOnAccentSuffix(accent) {
+	// Same luminance rule as textOnAccentColor: a light accent surface takes
+	// the black glyph, a dark one the white glyph.
+	const { r, g, b } = parseCssColor(accent);
+	const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+	return lum > 0.55 ? '-black' : '-white';
+}
+
+// Bundled dw glyph with the symbolic icon as a fallback so the button never
+// paints empty if the SVG file is missing.
+function dwControlIcon(iconName, suffix, size, fallbackName, fallbackColor) {
+	const icon = new St.Icon({ icon_size: size });
+	const gicon = controlIcon(iconName, suffix);
+
+	if (gicon) {
+		icon.gicon = gicon;
+	} else {
+		icon.icon_name = fallbackName;
+		icon.style = `color: ${fallbackColor};`;
+	};
+
+	return icon;
 }
 
 function renderMediumTimer({body, theme, sizeForWidget, widget}) {
@@ -243,11 +280,8 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const startBtn = new St.Button({
 		reactive: true,
 		can_focus: true,
-		child: new St.Icon({
-			icon_name: 'media-playback-start-symbolic',
-			icon_size: px(40),
-			style: `color: ${accentTextColor};`,
-		}),
+		child: dwControlIcon('play', iconOnAccentSuffix(accentHex), px(40),
+			'media-playback-start-symbolic', accentTextColor),
 		style: `padding: ${px(18)}px; border-radius: 999px; background-color: ${accentHex};`,
 	});
 	setupRightBox.add_child(startBtn);
@@ -310,11 +344,8 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const pauseBtn = new St.Button({
 		reactive: true,
 		can_focus: true,
-		child: new St.Icon({
-			icon_name: 'media-playback-pause-symbolic',
-			icon_size: px(38),
-			style: `color: ${accentTextColor};`,
-		}),
+		child: dwControlIcon('pause', iconOnAccentSuffix(accentHex), px(38),
+			'media-playback-pause-symbolic', accentTextColor),
 		style: `padding: ${px(20)}px; border-radius: 999px; background-color: ${accentHex}; border: ${px(3)}px solid rgba(255, 255, 255, 0.2);`,
 	});
 	runningRightBox.add_child(pauseBtn);
@@ -322,11 +353,8 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const stopBtn = new St.Button({
 		reactive: true,
 		can_focus: true,
-		child: new St.Icon({
-			icon_name: 'media-playback-stop-symbolic',
-			icon_size: px(38),
-			style: `color: ${textColor};`,
-		}),
+		child: dwControlIcon('stop', theme?.dark ? '-white' : '-black', px(38),
+			'media-playback-stop-symbolic', textColor),
 		style: `padding: ${px(18)}px; border-radius: 999px; background-color: rgba(255, 255, 255, 0.12); border: ${px(3)}px solid rgba(255, 255, 255, 0.3);`,
 	});
 	runningRightBox.add_child(stopBtn);
