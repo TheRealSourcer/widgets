@@ -190,6 +190,7 @@ class SystemMonitor {
     this.lastData = {
       cpu: 0,
       ram: 0,
+      ramUsed: 0,
       gpu: 0,
       cpuTemp: 0,
       gpuTemp: 0,
@@ -312,6 +313,9 @@ class SystemMonitor {
       const total = parseInt(totalMatch[1], 10);
       const avail = parseInt(availMatch[1], 10);
       if (total > 0) {
+        // Absolute used memory for the tile's corner label: meminfo reports
+        // kB, widgets want bytes.
+        this.lastData.ramUsed = (total - avail) * 1024;
         return 1.0 - (avail / total);
       }
     }
@@ -495,6 +499,16 @@ function formatBytes(bytes) {
   return [(bytes / Math.pow(k, i)).toFixed(1), sizes[i]];
 }
 
+// Storage-flavoured sibling of formatBytes for memory amounts (no rate
+// suffix): "5.9 GB". Used by the RAM tile's corner label.
+function formatMem(bytes) {
+  if (!bytes || bytes <= 0) return null;
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+}
+
 function hexToRgb(color) {
   const str = String(color ?? '').trim();
   const hex = str.replace('#', '');
@@ -625,9 +639,9 @@ function createSparkTile(theme, label, value, unit, accentColor, samples, maxVal
   headerRow.add_child(headerSpacer);
 
   let extraLabel = null;
-  const needsTemp = (label === 'CPU' || label === 'GPU');
+  const needsCorner = (label === 'CPU' || label === 'GPU' || label === 'RAM');
 
-  if (needsTemp || extraInfo) {
+  if (needsCorner || extraInfo) {
     extraLabel = new St.Label({
       text: extraInfo || '',
       visible: !!extraInfo,
@@ -827,6 +841,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         extraInfo = `${Math.round(monitor.lastData.cpuTemp)}°C`;
       } else if (config.label === 'GPU' && monitor.lastData.gpuTemp > 0) {
         extraInfo = `${Math.round(monitor.lastData.gpuTemp)}°C`;
+      } else if (config.label === 'RAM') {
+        extraInfo = formatMem(monitor.lastData.ramUsed);
       }
       
       const result = createSparkTile(theme, config.label, '0', config.unit, accentColor, samples, config.maxValue, extraInfo, config.key);
@@ -872,6 +888,14 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         } else if (config.label === 'GPU' && data.gpuTemp > 0) {
           extraLabel.set_text(`${Math.round(data.gpuTemp)}°C`);
           extraLabel.show();
+        } else if (config.label === 'RAM') {
+          const usedMem = formatMem(data.ramUsed);
+          if (usedMem) {
+            extraLabel.set_text(usedMem);
+            extraLabel.show();
+          } else {
+            extraLabel.hide();
+          }
         }
       }
       
@@ -990,6 +1014,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
           extraInfo = `${Math.round(monitor.lastData.cpuTemp)}°C`;
         } else if (config.label === 'GPU' && monitor.lastData.gpuTemp > 0) {
           extraInfo = `${Math.round(monitor.lastData.gpuTemp)}°C`;
+        } else if (config.label === 'RAM') {
+          extraInfo = formatMem(monitor.lastData.ramUsed);
         }
         
         const result = createSparkTile(theme, config.label, '0', config.unit, accentColor, samples, config.maxValue, extraInfo, config.key);
@@ -1035,6 +1061,14 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
           } else if (config.label === 'GPU' && data.gpuTemp > 0) {
             tile.extraLabel.set_text(`${Math.round(data.gpuTemp)}°C`);
             tile.extraLabel.show();
+          } else if (config.label === 'RAM') {
+            const usedMem = formatMem(data.ramUsed);
+            if (usedMem) {
+              tile.extraLabel.set_text(usedMem);
+              tile.extraLabel.show();
+            } else {
+              tile.extraLabel.hide();
+            }
           }
         }
         
@@ -1125,7 +1159,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
 
     const cpuExtraInfo = monitor.lastData.cpuTemp > 0 ? `${Math.round(monitor.lastData.cpuTemp)}°C` : null;
     const cpuTile = createSparkTile(theme, 'CPU', '0', '%', accentColor, monitor.lastData.cpuSamples, 1.0, cpuExtraInfo, 'cpu');
-    const ramTile = createSparkTile(theme, 'RAM', '0', '%', accentColor, monitor.lastData.ramSamples, 1.0, null, 'ram');
+    const ramTile = createSparkTile(theme, 'RAM', '0', '%', accentColor, monitor.lastData.ramSamples, 1.0, formatMem(monitor.lastData.ramUsed), 'ram');
     const downTile = createSparkTile(theme, 'Download', '0', 'KB/s', accentColor, monitor.lastData.netDownSamples, 10, null, 'networkDown');
     const upTile = createSparkTile(theme, 'Upload', '0', 'KB/s', accentColor, monitor.lastData.netUpSamples, 10, null, 'networkUp');
 
@@ -1143,6 +1177,16 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     const onData = (data) => {
       cpuTile.valueLabel.set_text(String(Math.round(data.cpu * 100)));
       ramTile.valueLabel.set_text(String(Math.round(data.ram * 100)));
+
+      if (ramTile.extraLabel) {
+        const usedMem = formatMem(data.ramUsed);
+        if (usedMem) {
+          ramTile.extraLabel.set_text(usedMem);
+          ramTile.extraLabel.show();
+        } else {
+          ramTile.extraLabel.hide();
+        }
+      }
 
       if (cpuTile.extraLabel && data.cpuTemp > 0) {
         cpuTile.extraLabel.set_text(`${Math.round(data.cpuTemp)}°C`);
