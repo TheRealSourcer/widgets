@@ -21,6 +21,10 @@ export const supportedSizes = ['small', 'medium', 'large', 'portrait', 'mini', '
 const SECONDARY_OPACITY = 0.55;
 const MAX_TITLE_LENGTH = 50;
 
+// Default sample shown in fresh notes, and its task-flavored predecessor.
+const OLD_NOTE_CONTENT_SAMPLE = '- [ ] Task 1\n- [x] Task 2\n\n**Click edit to start**';
+const NOTE_CONTENT_SAMPLE = 'Write anything here — plans, ideas, links.\n\n*Markdown is supported*: **bold**, *italic* and # headers.\n\nClick the edit button (top right) to change this note.';
+
 const MARKDOWN_RULES = [
     [/\*\*(.*?)\*\*/g, '<b>$1</b>'],
     [/\*(.*?)\*/g, '<i>$1</i>'],
@@ -52,7 +56,7 @@ export function render({ body, widget, theme, settings }) {
     let contentFontSize = settings?.get_int('notes-content-font-size') ?? 18;
     
     let noteTitle = _('Quick Notes');
-    let noteContent = _('- [ ] Task 1\n- [x] Task 2\n\n**Click edit to start**');
+    let noteContent = _(NOTE_CONTENT_SAMPLE);
     let isEditing = false;
     const state = { saveTimerId: null, settingsHandlers: [] };
 
@@ -397,6 +401,13 @@ export function render({ body, widget, theme, settings }) {
             }
             if (savedData.notes !== undefined) {
                 noteContent = savedData.notes;
+                // One-time swap: saved notes that still hold the old
+                // task-flavored sample never got edited by the user, so
+                // replace that text with the notes-flavored default.
+                if (noteContent === _(OLD_NOTE_CONTENT_SAMPLE) || noteContent === OLD_NOTE_CONTENT_SAMPLE) {
+                    noteContent = _(NOTE_CONTENT_SAMPLE);
+                    saveJsonToFile(dataFilePath, { title: noteTitle, notes: noteContent });
+                };
             }
             if (!isEditing) {
                 showViewer();
