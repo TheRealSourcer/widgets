@@ -39,6 +39,34 @@ function variantValue(props, name, fallback = null) {
 	return props[name] ? props[name].deep_unpack() : fallback;
 };
 
+// Storage-independent color helper for the accent accent pass-through.
+function hexToRgb(color) {
+	const str = String(color ?? '').trim();
+	const hex = str.replace('#', '');
+
+	if (/^([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) {
+		const expanded = hex.length === 3
+			? hex.split('').map(ch => ch + ch).join('')
+			: hex;
+		return {
+			r: parseInt(expanded.slice(0, 2), 16) / 255,
+			g: parseInt(expanded.slice(2, 4), 16) / 255,
+			b: parseInt(expanded.slice(4, 6), 16) / 255,
+		};
+	}
+
+	const match = str.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+	if (match) {
+		return {
+			r: Number(match[1]) / 255,
+			g: Number(match[2]) / 255,
+			b: Number(match[3]) / 255,
+		};
+	}
+
+	return { r: 0.34, g: 0.89, b: 0.54 };
+}
+
 function batteryColor(percentage) {
 	if (percentage <= 20) {
 		return [0.93, 0.21, 0.25];
@@ -356,10 +384,17 @@ export function refreshBatteryDevices() {
 
 const BatteryRing = GObject.registerClass(
 	class BatteryRing extends St.DrawingArea {
-		_init(device, theme) {
+		_init(device, theme, useAccent) {
 			super._init({style_class: 'widget-battery-ring'});
 			this._percentage = device?.percentage ?? null;
-			this._ringColor = batteryColor(this._percentage);
+			if (useAccent && theme?.accent) {
+				// Accent pass-through: system accent or the user's custom
+				// accent color (the theme object already resolves it).
+				const rgb = hexToRgb(theme.accent);
+				this._ringColor = [rgb.r, rgb.g, rgb.b];
+			} else {
+				this._ringColor = batteryColor(this._percentage);
+			};
 			this._trackColor = theme?.dark ? [1, 1, 1, 0.16] : [0, 0, 0, 0.11];
 		};
 
@@ -426,7 +461,7 @@ function batteryPlan(width, height, iconRatio, count) {
 	};
 };
 
-function createSlot(device, theme, createLabel, plan, showPercent) {
+function createSlot(device, theme, createLabel, plan, showPercent, useAccent) {
 	const slot = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
 		style_class: 'widget-battery-slot',
@@ -435,7 +470,7 @@ function createSlot(device, theme, createLabel, plan, showPercent) {
 		style: 'spacing: 6px;',
 	}));
 	const gaugeWidget = new St.Widget({style_class: 'widget-battery-gauge'});
-	const ring = new BatteryRing(device, theme);
+	const ring = new BatteryRing(device, theme, useAccent);
 	const icon = new St.Icon({
 		icon_name: iconForDevice(device),
 		style_class: 'widget-battery-icon',
@@ -467,6 +502,7 @@ function createSlot(device, theme, createLabel, plan, showPercent) {
 export function render({body, createLabel, theme, sizeForWidget, widget, settings}) {
 	const slotLimit = Math.max(1, Math.min(8, Number(settings?.get_int('battery-slot-count') ?? SLOT_COUNT_DEFAULT)));
 	const showPercent = settings?.get_boolean('battery-show-percent') !== false;
+	const useAccent = settings?.get_boolean('battery-use-accent-color') ?? false;
 	const devices = getCachedBatteryDevices().slice(0, slotLimit);
 	refreshBatteryDevices();
 	const iconKey = String(settings?.get_string('battery-icon-size') ?? 'medium');
@@ -482,7 +518,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	}));
 
 	for (let index = 0; index < devices.length; index++) {
-		tray.add_child(createSlot(devices[index], theme, createLabel, plan, showPercent));
+		tray.add_child(createSlot(devices[index], theme, createLabel, plan, showPercent, useAccent));
 	};
 
 	if (devices.length > 0) {

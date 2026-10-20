@@ -1247,7 +1247,19 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             settings.set_boolean('battery-show-percent', showPercentRow.get_active());
         });
 
+        // Accent pass-through for the charge rings (system or the custom
+        // accent color from the Appearance page).
+        const useAccentRow = new Adw.SwitchRow({
+            title: _('Use accent color'),
+            subtitle: _('Charge rings use the accent color instead of the red/orange/green scale'),
+        });
+        useAccentRow.set_active(settings.get_boolean('battery-use-accent-color'));
+        useAccentRow.connect('notify::active', () => {
+            settings.set_boolean('battery-use-accent-color', useAccentRow.get_active());
+        });
+
         page.add(group);
+        group.add(useAccentRow);
         return page;
     }
 

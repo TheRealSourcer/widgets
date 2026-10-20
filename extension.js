@@ -511,6 +511,7 @@ class WidgetController {
       'changed::battery-icon-size', () => this._scheduleAppearance('refresh'),
       'changed::battery-slot-count', () => this._scheduleAppearance('refresh'),
       'changed::battery-show-percent', () => this._scheduleAppearance('refresh'),
+      'changed::battery-use-accent-color', () => this._scheduleAppearance('refresh'),
       'changed::arrange-widgets', () => this._onArrangeRequested(),
       'changed::edit-mode-binding', () => this._registerEditModeBinding(),
       'changed::calendar-weekday-format', () => this._refreshCalendarWeekdays(),

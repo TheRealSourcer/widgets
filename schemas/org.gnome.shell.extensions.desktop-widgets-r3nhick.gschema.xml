@@ -36,6 +36,11 @@
       <summary>Show battery percentage</summary>
       <description>Show the charge percentage below each battery ring.</description>
     </key>
+    <key name="battery-use-accent-color" type="b">
+      <default>false</default>
+      <summary>Use accent color for battery rings</summary>
+      <description>When enabled, the charge rings use the accent color (system or custom) instead of the semantic red/orange/green scale.</description>
+    </key>
     <key name="screentime-retention-days" type="i">
       <default>30</default>
       <summary>Screen Time retention (days)</summary>
