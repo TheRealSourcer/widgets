@@ -122,9 +122,9 @@ function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, 
   const row = new St.BoxLayout(boxLayoutProps({
     x_expand: true,
     x_align: Clutter.ActorAlign.CENTER,
-    // 4px above the pane's inner bottom edge: inside the 16px inset strip,
-    // clear of the tile above and of the pane's rounded border below.
-    style: `spacing: 5px; margin-bottom: 4px;`,
+    // 7px above the pane's inner bottom edge: nestled in the 16px inset
+    // strip, snug below the tile and clear of the pane's rounded border.
+    style: `spacing: 5px; margin-bottom: 7px;`,
   }));
   dashes.forEach(dash => row.add_child(dash));
 
