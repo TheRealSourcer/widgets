@@ -345,6 +345,41 @@ export function render({ body, widget, theme, settings }) {
         }
     });
 
+    // Plain Enter on GNOME 51 arrives as Clutter.Text 'activate' (proven by
+    // the github/todo entries), StEntry keeps no signal of its own. The
+    // title commits and the cursor moves into the note body — the natural
+    // edit flow; Escape rolls the title back and moves focus down too.
+    const commitTitleToBody = () => {
+        if (!isEditing) {
+            return;
+        };
+
+        noteTitle = titleEntry.get_text();
+        scheduleSave();
+        if (global.stage.get_key_focus() === titleEntry.clutter_text) {
+            global.stage.set_key_focus(textEditor);
+        }
+    };
+
+    titleEntry.clutter_text.connect('activate', () => commitTitleToBody());
+
+    titleEntry.clutter_text.connect('key-press-event', (_actor, event) => {
+        const sym = event.get_key_symbol();
+
+        if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {
+            commitTitleToBody();
+            return Clutter.EVENT_STOP;
+        }
+
+        if (sym === Clutter.KEY_Escape) {
+            titleEntry.set_text(noteTitle);
+            commitTitleToBody();
+            return Clutter.EVENT_STOP;
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+    });
+
     editButton.connect('clicked', () => {
         if (isEditing) {
             noteTitle = titleEntry.get_text();
