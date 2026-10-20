@@ -4,6 +4,13 @@ import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { bounceButton } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
+import {
+	elapsedSinceWall,
+	loadWidgetStateAsync,
+	saveWidgetState,
+	saveWidgetStateSync,
+	widgetStatePath,
+} from '../../lib/widgetState.js';
 
 export const type = 'pomodoro';
 export const label = 'Pomodoro';
@@ -137,6 +144,64 @@ function createPomodoroTimer(settings, onChange) {
 	return {state, startTimer, stopTimer, resetCurrentPhase, advanceToNextPhase, switchToPhase};
 };
 
+/*
+ * The controller above keeps the whole session in plain closures, so a
+ * theme or style switch (every widget gets rebuilt) used to reset a
+ * running pomodoro. The per-instance JSON file survives those rebuilds —
+ * and the wall-clock stamp even carries a running phase across a
+ * GNOME relogin.
+ */
+function openPomodoroState({body, widget, settings, timer, extraRepaint}) {
+	const statePath = widgetStatePath('pomodoro', widget);
+
+	const snapshot = () => ({
+		phase: timer.state.phase,
+		secondsRemaining: timer.state.secondsRemaining,
+		completedSessions: timer.state.completedSessions,
+		running: timer.state.isRunning,
+		wall: Date.now(),
+	});
+
+	const persist = () => saveWidgetState(statePath, snapshot());
+	// Synchronous flush right before the widget is torn down.
+	const flush = () => saveWidgetStateSync(statePath, snapshot());
+
+	loadWidgetStateAsync(statePath, body, (saved) => {
+		const state = timer.state;
+		const hadPhase = typeof saved?.phase === 'string' && PHASE_CONFIG[saved.phase];
+
+		if (hadPhase) {
+			state.phase = saved.phase;
+		}
+		if (typeof saved?.completedSessions === 'number') {
+			state.completedSessions = Math.max(0, Math.round(saved.completedSessions));
+		}
+		const savedRemaining = typeof saved?.secondsRemaining === 'number' ? saved.secondsRemaining : 0;
+
+		if (savedRemaining > 0) {
+			// A running phase keeps counting down from wall-clock truth.
+			state.secondsRemaining = saved.running
+				? Math.max(0, Math.round(savedRemaining - elapsedSinceWall(saved.wall) / 1000))
+				: Math.round(savedRemaining);
+		} else {
+			state.secondsRemaining = getPhaseDurationSeconds(settings, hadPhase ? saved.phase : state.phase);
+		}
+		if (saved?.running && !state.isRunning) {
+			if (state.secondsRemaining <= 0) {
+				// The phase ticked past zero while nobody was looking —
+				// let the controller do its normal advance rather than
+				// holding a dead 00:00 phase.
+				timer.advanceToNextPhase();
+			} else {
+				timer.startTimer();
+			}
+		}
+		extraRepaint?.();
+	});
+
+	return {persist, flush};
+};
+
 // Accent can arrive as hex (#f5c211) or as a css rgb() string, depending on
 // whether it comes from the GNOME interface schema or from the widget's own
 // "custom accent color" setting. parseCssColor understands both.
@@ -209,8 +274,19 @@ function renderSmallTimer({body, theme, sizeForWidget, widget, settings}) {
 	const playIconSize = Math.max(24, Math.round(32 * scale));
 	const secIconSize = Math.max(22, Math.round(28 * scale));
 
-	const timer = createPomodoroTimer(settings, () => updateDisplay());
+	let dispatchSave = () => {};
+	const timer = createPomodoroTimer(settings, () => {
+		updateDisplay();
+		// Save piggybacks on the controller's per-second repaint cadence,
+		// so the wall stamp never gets stale by more than a second.
+		dispatchSave();
+	});
 	const {state} = timer;
+
+	const pomodoroState = openPomodoroState({body, widget, settings, timer,
+		extraRepaint: () => updateDisplay(),
+	});
+	dispatchSave = pomodoroState.persist;
 
 	// Both layers live in a BinLayout and both must expand: BinLayout gives a
 	// non-expanding child only its *current* width (0 before the first
@@ -346,6 +422,8 @@ function renderSmallTimer({body, theme, sizeForWidget, widget, settings}) {
 		} else {
 			timer.startTimer();
 		};
+		// Neither start nor stop goes through onChange.
+		pomodoroState.persist();
 		syncPlayPauseIcon();
 		return Clutter.EVENT_STOP;
 	});
@@ -375,6 +453,8 @@ function renderSmallTimer({body, theme, sizeForWidget, widget, settings}) {
 			GLib.Source.remove(state.timerId);
 			state.timerId = null;
 		};
+		// Exact snapshot for in-process rebuilds and logout teardowns.
+		pomodoroState.flush();
 	});
 
 	updateDisplay();
@@ -391,11 +471,23 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 	const scale = Math.min(contentW / 360, contentH / 146);
 	const px = (v) => Math.max(1, Math.round(v * scale));
 
+	let dispatchSave = () => {};
 	const timer = createPomodoroTimer(settings, () => {
 		updateDisplay();
 		refreshControlStyles();
+		// Save piggybacks on the controller's per-second repaint cadence,
+		// so the wall stamp never gets stale by more than a second.
+		dispatchSave();
 	});
 	const state = timer.state;
+
+	const pomodoroState = openPomodoroState({body, widget, settings, timer,
+		extraRepaint: () => {
+			updateDisplay();
+			refreshControlStyles();
+		},
+	});
+	dispatchSave = pomodoroState.persist;
 
 	const mainBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.HORIZONTAL,
@@ -587,6 +679,8 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 		} else {
 			timer.startTimer();
 		};
+		// Neither start nor stop goes through onChange.
+		pomodoroState.persist();
 		updateDisplay();
 		refreshControlStyles();
 		return Clutter.EVENT_STOP;
@@ -608,6 +702,8 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 			GLib.Source.remove(state.timerId);
 			state.timerId = null;
 		};
+		// Exact snapshot for in-process rebuilds and logout teardowns.
+		pomodoroState.flush();
 	});
 
 	updateDisplay();

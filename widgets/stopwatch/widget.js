@@ -4,6 +4,13 @@ import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { bounceButton } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
+import {
+	elapsedSinceWall,
+	loadWidgetStateAsync,
+	saveWidgetState,
+	saveWidgetStateSync,
+	widgetStatePath,
+} from '../../lib/widgetState.js';
 
 export const type = 'stopwatch';
 export const label = 'Stopwatch';
@@ -22,6 +29,32 @@ function formatTime(totalCentiseconds) {
 		minutes: minutes.toString().padStart(2, '0'),
 		seconds: seconds.toString().padStart(2, '0'),
 		centiseconds: centiseconds.toString().padStart(2, '0'),
+	};
+}
+
+/*
+ * The whole clock lives in render-closure variables, so a theme or style
+ * switch (every widget gets rebuilt) used to wipe a running stopwatch.
+ * The per-instance JSON file survives those rebuilds — and the wall-clock
+ * stamp even carries a running time across a GNOME relogin.
+ */
+function openStopwatchState({body, widget, isRunning, getCentiseconds, onRestore}) {
+	const statePath = widgetStatePath('stopwatch', widget);
+
+	const snapshot = () => ({
+		centiseconds: getCentiseconds(),
+		running: isRunning(),
+		wall: Date.now(),
+	});
+
+	loadWidgetStateAsync(statePath, body, onRestore);
+
+	return {
+		// Called on control actions and, while running, about once a
+		// second so the wall stamp stays fresh for surprise teardowns.
+		persist: () => saveWidgetState(statePath, snapshot()),
+		// Synchronous flush right before the widget is torn down.
+		flush: () => saveWidgetStateSync(statePath, snapshot()),
 	};
 }
 
@@ -50,6 +83,28 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 	let centiseconds = 0;
 	let isRunning = false;
 	let timerId = null;
+	let tickCount = 0;
+
+	const state = openStopwatchState({body, widget,
+		isRunning: () => isRunning,
+		getCentiseconds: () => centiseconds,
+		onRestore: (saved) => {
+			if (typeof saved?.centiseconds === 'number' && saved.centiseconds > 0) {
+				centiseconds = saved.centiseconds;
+			}
+			if (saved?.running) {
+				// Add every wall-clock millisecond that passed since the
+				// save, so the run continues exactly where it was.
+				centiseconds += Math.round(elapsedSinceWall(saved.wall) / 10);
+				updateDisplay();
+				if (!isRunning) {
+					startTimer();
+				}
+			} else {
+				updateDisplay();
+			}
+		},
+	});
 
 	const mainBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
@@ -129,8 +184,13 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 		timerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_INTERVAL_MS, () => {
 			centiseconds++;
 			updateDisplay();
+			// Keep the wall stamp fresh (≤ ~1s stale) for surprise teardowns.
+			if (++tickCount % 100 === 0) {
+				state.persist();
+			}
 			return GLib.SOURCE_CONTINUE;
 		});
+		state.persist();
 		pauseBtn.child.icon_name = 'media-playback-pause-symbolic';
 	};
 
@@ -141,6 +201,7 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 			GLib.Source.remove(timerId);
 			timerId = null;
 		}
+		state.persist();
 		pauseBtn.child.icon_name = 'media-playback-start-symbolic';
 	};
 
@@ -148,6 +209,7 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 		stopTimer();
 		centiseconds = 0;
 		updateDisplay();
+		state.persist();
 	};
 
 	pauseBtn.connect('button-press-event', (_actor, event) => {
@@ -177,6 +239,8 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 			GLib.Source.remove(timerId);
 			timerId = null;
 		}
+		// Exact snapshot for in-process rebuilds and logout marathons.
+		state.flush();
 	});
 
 	updateDisplay();
@@ -196,6 +260,28 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	let centiseconds = 0;
 	let isRunning = false;
 	let timerId = null;
+	let tickCount = 0;
+
+	const state = openStopwatchState({body, widget,
+		isRunning: () => isRunning,
+		getCentiseconds: () => centiseconds,
+		onRestore: (saved) => {
+			if (typeof saved?.centiseconds === 'number' && saved.centiseconds > 0) {
+				centiseconds = saved.centiseconds;
+			}
+			if (saved?.running) {
+				// Add every wall-clock millisecond that passed since the
+				// save, so the run continues exactly where it was.
+				centiseconds += Math.round(elapsedSinceWall(saved.wall) / 10);
+				updateDisplay();
+				if (!isRunning) {
+					startTimer();
+				}
+			} else {
+				updateDisplay();
+			}
+		},
+	});
 
 	const mainBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
@@ -350,8 +436,13 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		timerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_INTERVAL_MS, () => {
 			centiseconds++;
 			updateDisplay();
+			// Keep the wall stamp fresh (≤ ~1s stale) for surprise teardowns.
+			if (++tickCount % 100 === 0) {
+				state.persist();
+			}
 			return GLib.SOURCE_CONTINUE;
 		});
+		state.persist();
 		pauseBtn.child.text = _('Pause');
 		pauseBtn.style = `font-size: ${px(19)}px; padding: ${px(12)}px ${px(32)}px; border-radius: ${px(12)}px; background-color: ${accentHex}; color: ${accentTextColor}; font-weight: 600;`;
 	};
@@ -363,6 +454,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			GLib.Source.remove(timerId);
 			timerId = null;
 		}
+		state.persist();
 		pauseBtn.child.text = _('Start');
 		pauseBtn.style = `font-size: ${px(19)}px; padding: ${px(12)}px ${px(32)}px; border-radius: ${px(12)}px; background-color: ${accentHex}; color: ${accentTextColor}; font-weight: 600;`;
 	};
@@ -371,6 +463,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		stopTimer();
 		centiseconds = 0;
 		updateDisplay();
+		state.persist();
 	};
 
 	pauseBtn.connect('button-press-event', (_actor, event) => {
@@ -400,6 +493,8 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			GLib.Source.remove(timerId);
 			timerId = null;
 		}
+		// Exact snapshot for in-process rebuilds and logout marathons.
+		state.flush();
 	});
 
 	updateDisplay();

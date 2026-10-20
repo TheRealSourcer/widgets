@@ -10,6 +10,13 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { attachBounce } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
+import {
+	elapsedSinceWall,
+	loadWidgetStateAsync,
+	saveWidgetState,
+	saveWidgetStateSync,
+	widgetStatePath,
+} from '../../lib/widgetState.js';
 
 export const type = 'timer';
 export const label = 'Timer';
@@ -53,6 +60,44 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	let remainingSeconds = 0;
 	let isRunning = false;
 	let timerId = null;
+	let tickCount = 0;
+
+	/*
+	 * The countdown lives in render-closure variables, so a theme or style
+	 * switch (every widget gets rebuilt) used to wipe a running timer.
+	 * The per-instance JSON file survives those rebuilds — and the
+	 * wall-clock stamp even carries a running countdown across a
+	 * GNOME relogin.
+	 */
+	const statePath = widgetStatePath('timer', widget);
+
+	const snapshot = () => ({
+		seconds: remainingSeconds,
+		totalSeconds,
+		running: isRunning,
+		wall: Date.now(),
+	});
+
+	const saveState = () => saveWidgetState(statePath, snapshot());
+	const flushState = () => saveWidgetStateSync(statePath, snapshot());
+
+	loadWidgetStateAsync(statePath, body, (saved) => {
+		const savedSeconds = typeof saved?.seconds === 'number' ? saved.seconds : 0;
+		if (savedSeconds <= 0) {
+			return;
+		}
+		// A running countdown keeps ticking from wall-clock truth.
+		remainingSeconds = saved.running
+			? Math.max(0, savedSeconds - elapsedSinceWall(saved.wall) / 1000)
+			: savedSeconds;
+		totalSeconds = typeof saved?.totalSeconds === 'number' && saved.totalSeconds > 0
+			? saved.totalSeconds
+			: remainingSeconds;
+		updateDisplay();
+		if (saved.running && remainingSeconds > 0 && !isRunning) {
+			startTimer();
+		}
+	});
 
 	const container = new St.Widget({
 		x_expand: true,
@@ -410,6 +455,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			totalSeconds = Math.max(0, Math.min(5999, seconds));
 			remainingSeconds = totalSeconds;
 			updateDisplay();
+			saveState();
 		}
 	};
 
@@ -423,6 +469,10 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			const now = GLib.get_monotonic_time() / 1000;
 			remainingSeconds = Math.max(0, (targetEndTime - now) / 1000);
 			updateDisplay();
+			// Keep the wall stamp fresh (≤ ~1s stale) for surprise teardowns.
+			if (++tickCount % 10 === 0) {
+				saveState();
+			}
 			if (remainingSeconds <= 0) {
 				stopTimerInternal();
 				Main.notify(_('Timer'), _('Timer finished!'));
@@ -430,6 +480,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			}
 			return GLib.SOURCE_CONTINUE;
 		});
+		saveState();
 		updateDisplay();
 	};
 
@@ -441,6 +492,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			timerId = null;
 		}
 		updateDisplay();
+		saveState();
 	};
 
 	const stopTimerInternal = () => {
@@ -448,6 +500,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		remainingSeconds = 0;
 		totalSeconds = 0;
 		updateDisplay();
+		saveState();
 	};
 
 	// Minutes controls
@@ -483,6 +536,8 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			GLib.Source.remove(timerId);
 			timerId = null;
 		}
+		// Exact snapshot for in-process rebuilds and logout teardowns.
+		flushState();
 	});
 
 	updateDisplay();
