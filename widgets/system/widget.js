@@ -5,6 +5,7 @@ import Gio from 'gi://Gio';
 
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
+import { widgetResourcePath } from '../../paths.js';
 
 export const type = 'system';
 export const label = 'System Monitor';
@@ -31,6 +32,54 @@ const METRIC_NETWORK_UP = 4;
 const VIEW_CPU_RAM = 0;
 const VIEW_GPU_RAM = 1;
 const VIEW_NETWORK = 2;
+
+/*
+ * Header icons are bundled Lucide SVGs (lucide.dev — cpu, memory-stick,
+ * gpu, arrow-down, arrow-up), kept in icons/widgets_settings/system/.
+ * St renders FileIcons verbatim, so the muted tone is baked into the SVG
+ * stroke on disk in a per-(icon, tone) cache file.
+ */
+const LUCIDE_ICONS = {
+  cpu: 'cpu',
+  ram: 'memory-stick',
+  gpu: 'gpu',
+  networkDown: 'arrow-down',
+  networkUp: 'arrow-up',
+};
+
+function lucideIcon(theme, metricKey) {
+  const name = LUCIDE_ICONS[metricKey];
+  const color = String(theme?.muted ?? '#c0bfbc').trim();
+  const file = widgetResourcePath('system', `${name}.svg`);
+
+  if (!name || !file || !Gio.File.new_for_path(file).query_exists(null)) {
+    return null;
+  };
+
+  const id = `${name}-${color.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  const cachePath = GLib.build_filenamev([
+    GLib.get_user_cache_dir(), 'desktop-widgets', 'system-icons', `${id}.svg`,
+  ]);
+
+  try {
+    if (!Gio.File.new_for_path(cachePath).query_exists(null)) {
+      const [ok, contents] = Gio.File.new_for_path(file).load_contents(null);
+
+      if (ok) {
+        const svg = new TextDecoder().decode(contents)
+          .replace(/stroke="[^"]*"/g, `stroke="${color}"`);
+
+        GLib.mkdir_with_parents(GLib.path_get_dirname(cachePath), 0o755);
+        Gio.File.new_for_path(cachePath).replace_contents(svg, null, false, Gio.FileCreateFlags.NONE, null);
+      };
+    };
+
+    return Gio.FileIcon.new(Gio.File.new_for_path(cachePath));
+  } catch (_error) {
+    // Fall back to the classic symbolic icon rather than nothing.
+    return null;
+  };
+};
 
 class SystemMonitor {
   constructor() {
@@ -413,7 +462,7 @@ function drawSparkline(ctx, width, height, samples, maxValue, color, lineAlpha) 
   ctx.fill();
 }
 
-function createSparkTile(theme, label, value, unit, accentColor, samples, maxValue, extraInfo = null) {
+function createSparkTile(theme, label, value, unit, accentColor, samples, maxValue, extraInfo = null, metricKey = null) {
   const tile = new St.BoxLayout(boxLayoutProps({
     vertical: true,
     x_expand: false,
@@ -432,19 +481,18 @@ function createSparkTile(theme, label, value, unit, accentColor, samples, maxVal
     style: `spacing: 6px;`,
   }));
 
-  const iconMap = {
-    'CPU': 'system-run-symbolic',
-    'RAM': 'drive-harddisk-symbolic',
-    'GPU': 'video-display-symbolic',
-    'Download': 'network-receive-symbolic',
-    'Upload': 'network-transmit-symbolic',
-  };
+  const lucideGIcon = lucideIcon(theme, metricKey);
 
-  const icon = new St.Icon({
-    icon_name: iconMap[label] || 'computer-symbolic',
-    icon_size: 14,
-    style: `color: ${theme.muted};`,
-  });
+  const icon = lucideGIcon
+    ? new St.Icon({
+        gicon: lucideGIcon,
+        style: `icon-size: 14px; color: ${theme.muted};`,
+      })
+    : new St.Icon({
+        icon_name: 'computer-symbolic',
+        icon_size: 14,
+        style: `color: ${theme.muted};`,
+      });
 
   const nameLabel = new St.Label({
     text: label,
@@ -550,6 +598,7 @@ export function render({body, theme, widget, sizeForWidget}) {
   // tile width (tiles are x_expand:false on purpose).
   let layoutMode = null; // 'medium' | 'large'
   let layoutRows = [];   // row actors whose tiles get sized by layoutTiles()
+  let dashWrap = null;   // small (1x1) only: page-dash overlay over the pages
 
   const layoutTiles = () => {
     if (!layoutMode || layoutRows.length === 0) return;
@@ -614,6 +663,44 @@ export function render({body, theme, widget, sizeForWidget}) {
     let tile, valueLabel, unitLabel, sparkArea, extraLabel;
     let scrollBox;
 
+    // Page dashes over the bottom edge, one per metric (5): the active
+    // metric lights up in the accent color, the rest stay muted —
+    // the same idea as the calendar 1x1 page dots.
+    const dashRow = new St.BoxLayout(boxLayoutProps({
+      x_expand: true,
+      x_align: Clutter.ActorAlign.CENTER,
+      style: `spacing: 5px; margin-bottom: 3px;`,
+    }));
+    const dashes = metricConfigs.map(() => new St.Widget({
+      width: 10,
+      height: 3,
+      opacity: 72,
+      reactive: false,
+      style: `border-radius: 999px; background-color: ${theme.muted};`,
+    }));
+    dashes.forEach(dash => dashRow.add_child(dash));
+
+    // y-expanding filler above the row pins it to the very bottom of the
+    // overlay (BinLayout gives children the shared rect).
+    dashWrap = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      x_expand: true,
+      y_expand: true,
+    }));
+    dashWrap.add_child(new St.Widget({y_expand: true, reactive: false}));
+    dashWrap.add_child(dashRow);
+
+    const refreshDashes = () => {
+      dashes.forEach((dash, index) => {
+        dash.style = `border-radius: 999px; background-color: ${index === currentMetric ? accentColor : theme.muted};`;
+        dash.ease({
+          opacity: index === currentMetric ? 255 : 72,
+          duration: 120,
+          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
+      });
+    };
+
     const rebuild = (enterX = 0) => {
       container.remove_all_children();
       
@@ -632,7 +719,7 @@ export function render({body, theme, widget, sizeForWidget}) {
         extraInfo = `${Math.round(monitor.lastData.gpuTemp)}°C`;
       }
       
-      const result = createSparkTile(theme, config.label, '0', config.unit, accentColor, samples, config.maxValue, extraInfo);
+      const result = createSparkTile(theme, config.label, '0', config.unit, accentColor, samples, config.maxValue, extraInfo, config.key);
       tile = result.tile;
       valueLabel = result.valueLabel;
       unitLabel = result.unitLabel;
@@ -723,6 +810,7 @@ export function render({body, theme, widget, sizeForWidget}) {
         } else {
           currentMetric = (currentMetric + 1) % 5;
         }
+        refreshDashes();
         
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
           rebuild(-exitX);
@@ -737,6 +825,7 @@ export function render({body, theme, widget, sizeForWidget}) {
 
     rebuild();
     unsubscribe = monitor.subscribe(onData);
+    refreshDashes();
 
   } else if (size === 'medium') {
     layoutMode = 'medium';
@@ -780,7 +869,7 @@ export function render({body, theme, widget, sizeForWidget}) {
           extraInfo = `${Math.round(monitor.lastData.gpuTemp)}°C`;
         }
         
-        const result = createSparkTile(theme, config.label, '0', config.unit, accentColor, samples, config.maxValue, extraInfo);
+        const result = createSparkTile(theme, config.label, '0', config.unit, accentColor, samples, config.maxValue, extraInfo, config.key);
         tiles.push(result);
         currentRow.add_child(result.tile);
         
@@ -908,10 +997,10 @@ export function render({body, theme, widget, sizeForWidget}) {
     }));
 
     const cpuExtraInfo = monitor.lastData.cpuTemp > 0 ? `${Math.round(monitor.lastData.cpuTemp)}°C` : null;
-    const cpuTile = createSparkTile(theme, 'CPU', '0', '%', accentColor, monitor.lastData.cpuSamples, 1.0, cpuExtraInfo);
-    const ramTile = createSparkTile(theme, 'RAM', '0', '%', accentColor, monitor.lastData.ramSamples, 1.0);
-    const downTile = createSparkTile(theme, 'Download', '0', 'KB/s', accentColor, monitor.lastData.netDownSamples, 10);
-    const upTile = createSparkTile(theme, 'Upload', '0', 'KB/s', accentColor, monitor.lastData.netUpSamples, 10);
+    const cpuTile = createSparkTile(theme, 'CPU', '0', '%', accentColor, monitor.lastData.cpuSamples, 1.0, cpuExtraInfo, 'cpu');
+    const ramTile = createSparkTile(theme, 'RAM', '0', '%', accentColor, monitor.lastData.ramSamples, 1.0, null, 'ram');
+    const downTile = createSparkTile(theme, 'Download', '0', 'KB/s', accentColor, monitor.lastData.netDownSamples, 10, null, 'networkDown');
+    const upTile = createSparkTile(theme, 'Upload', '0', 'KB/s', accentColor, monitor.lastData.netUpSamples, 10, null, 'networkUp');
 
     topRow.add_child(cpuTile.tile);
     topRow.add_child(ramTile.tile);
@@ -950,7 +1039,21 @@ export function render({body, theme, widget, sizeForWidget}) {
     unsubscribe = monitor.subscribe(onData);
   }
 
-  body.add_child(container);
+  // Small (1x1): BinLayout stacks the pages and the dash overlay in the
+  // same rect — the dashes paint above and are not reactive, so the
+  // container keeps the swipe handling untouched.
+  if (dashWrap) {
+    const pageStack = new St.Widget({
+      layout_manager: new Clutter.BinLayout(),
+      x_expand: true,
+      y_expand: true,
+    });
+    pageStack.add_child(container);
+    pageStack.add_child(dashWrap);
+    body.add_child(pageStack);
+  } else {
+    body.add_child(container);
+  }
 
   body.connect('destroy', () => {
     // Cancel all active ease animations to prevent ghost content
