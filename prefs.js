@@ -2917,32 +2917,35 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             activatable: true,
         });
         resetStyleRow.connect('activated', () => {
-            // Temporarily block color change notifications to prevent writing fallback colors
+            // The reset only touches the CURRENT style's parameters — the
+            // chosen style itself stays as-is (a Solid reset must not flip
+            // to Glass).
             this._resetting = true;
 
-            // Reset settings to defaults (empty = use theme)
-            settings.set_int('style-border-radius', 16);
-            settings.set_int('style-border-width', 1);
-            settings.set_int('style-shadow-size', 24);
+            const isGlass = settings.get_int('style-mode') === 0;
+
+            // Common settings.
             settings.set_double('style-widget-opacity', 1.0);
             settings.set_string('style-background', '');
             settings.set_string('style-border-color', '');
-            settings.set_string('style-shadow', '');
             settings.set_boolean('style-use-custom-accent', false);
             settings.set_string('style-accent-color', '');
-            settings.set_int('style-mode', 0);
             settings.set_int('appearance', 2);
-            settings.set_int('blur-radius-px', 6);
-            // roundness-x10 removed - uses fixed 6.1
-            settings.set_int('refract-thickness', 35);
-            settings.set_int('refract-ior-x100', 170);
-            settings.set_int('refract-scale', 65);
-            settings.set_int('chroma-strength-pct', 30);
-            settings.set_int('tint-alpha-pct', 10);
-            settings.set_int('spec-strength-pct', 70);
-            // Glass sliders sync themselves via changed:: and the style cards
-            // follow changed::style-mode; the classic SpinRows below still
-            // need an explicit reset.
+
+            if (isGlass) {
+                settings.set_int('blur-radius-px', 6);
+                settings.set_int('refract-thickness', 35);
+                settings.set_int('refract-ior-x100', 170);
+                settings.set_int('refract-scale', 65);
+                settings.set_int('chroma-strength-pct', 30);
+                settings.set_int('tint-alpha-pct', 10);
+                settings.set_int('spec-strength-pct', 70);
+            } else {
+                settings.set_int('style-border-radius', 16);
+                settings.set_int('style-border-width', 1);
+                settings.set_int('style-shadow-size', 24);
+                settings.set_string('style-shadow', '');
+            }
 
             // Reset UI controls
             radiusRow.set_value(16);
@@ -2965,6 +2968,9 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         page.add(glassGroup);
         page.add(solidGroup);
         page.add(group);
+        // Re-assert the section visibility after the groups are parented, so
+        // Solid never flashes (or sticks with) the Glass settings.
+        syncStyleVisibility();
         return page;
     }
 
