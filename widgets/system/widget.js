@@ -486,11 +486,13 @@ function createSparkTile(theme, label, value, unit, accentColor, samples, maxVal
   const icon = lucideGIcon
     ? new St.Icon({
         gicon: lucideGIcon,
-        style: `icon-size: 14px; color: ${theme.muted};`,
+        icon_size: 14,
+        y_align: Clutter.ActorAlign.CENTER,
       })
     : new St.Icon({
         icon_name: 'computer-symbolic',
         icon_size: 14,
+        y_align: Clutter.ActorAlign.CENTER,
         style: `color: ${theme.muted};`,
       });
 
@@ -669,7 +671,9 @@ export function render({body, theme, widget, sizeForWidget}) {
     const dashRow = new St.BoxLayout(boxLayoutProps({
       x_expand: true,
       x_align: Clutter.ActorAlign.CENTER,
-      style: `spacing: 5px; margin-bottom: 3px;`,
+      // Flush against the bottom (the body clip cuts anything below), so
+      // the dashes hug the pane edge like the calendar 1x1 page dots.
+      style: `spacing: 5px; margin-bottom: 1px;`,
     }));
     const dashes = metricConfigs.map(() => new St.Widget({
       width: 10,
