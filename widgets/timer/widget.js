@@ -208,16 +208,18 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		plusRow.add_child(plus10Btn);
 		plusRow.add_child(plus1Btn);
 
-		// Fixed slot width == the rows' width, so the digits always center
-		// over their pairs for any two-digit value. font-family is pinned:
-		// inherited theme fonts (Cantarell etc.) have wider/proportional ink
-		// that drifted off center; Ubuntu digits measure exactly 80px, so a
-		// symmetric 4px padding centers the ink at the exact slot midpoint.
+		// Fixed slot == the rows' width, and the height is the digits' INK
+		// height: measured Ubuntu Bold 72px paints an 54px-tall ink inside a
+		// 73px font box (1px above, 18px below), so the box is forced to 54
+		// and the residual 1px offset is cancelled with a paint-only nudge.
+		// font-family is pinned (inherited theme fonts drift off center) and
+		// a symmetric 4px horizontal padding centers the 80px ink in the slot.
 		const label = new St.Label({
 			text: '00',
 			x_align: Clutter.ActorAlign.CENTER,
-			style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(72)}px; font-weight: 700; padding: ${px(4)}px ${px(4)}px; width: ${px(88)}px;`,
+			style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(72)}px; font-weight: 700; padding: 0 ${px(4)}px; width: ${px(88)}px; height: ${px(54)}px;`,
 		});
+		label.translation_y = -px(1);
 
 		const minusRow = new St.BoxLayout({ style: `spacing: ${px(4)}px;` });
 		const minus10Btn = makeRowButton('−', true);
@@ -228,7 +230,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		const column = new St.BoxLayout({
 			orientation: Clutter.Orientation.VERTICAL,
 			x_align: Clutter.ActorAlign.CENTER,
-			style: `spacing: ${px(6)}px;`,
+			style: `spacing: ${px(4)}px;`,
 		});
 		column.add_child(plusRow);
 		column.add_child(label);
