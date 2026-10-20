@@ -634,7 +634,7 @@ function createSparkTile(theme, label, value, unit, accentColor, samples, maxVal
       style: `
         color: ${theme.muted};
         font-size: 16px;
-        font-weight: 500;
+        font-weight: 600;
       `,
     });
     headerRow.add_child(extraLabel);
