@@ -207,7 +207,7 @@ export function render({ body, widget, theme, sizeForWidget }) {
             reactive: true,
             can_focus: true,
             style: task.done
-                ? `background-color: ${accentHex}; border-radius: 9999px; width: ${cSize}px; height: ${cSize}px;`
+                ? `background-color: ${accentHex}; border: 1.5px solid ${accentHex}; border-radius: 9999px; width: ${cSize}px; height: ${cSize}px;`
                 : `border: 1.5px solid ${cssColorToRgba(textColor, 0.35)}; border-radius: 9999px; width: ${cSize}px; height: ${cSize}px;`,
             y_align: Clutter.ActorAlign.START,
         });
