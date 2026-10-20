@@ -2658,9 +2658,21 @@ sizeMenu = new PopupMenu.PopupMenu(sizeButton, 0.25, St.Side.TOP);
 Main.uiGroup.add_child(sizeMenu.actor);
 sizeMenu.actor.hide();
 
+// A manager gives the menu the stock dismissal: a press anywhere outside
+// the menu (that isn't the picker button) closes it.
+const sizeMenuManager = view.sizeMenuManager ?? new PopupMenu.PopupMenuManager(view.actor);
+sizeMenuManager.addMenu(sizeMenu);
+view.sizeMenuManager = sizeMenuManager;
+
 let sizeMenuDestroyed = false;
+let lastAutoClose = 0;
 sizeMenu.actor.connect('destroy', () => {
   sizeMenuDestroyed = true;
+});
+sizeMenu.connect('open-state-changed', (_menu, isOpen) => {
+  if (!isOpen) {
+    lastAutoClose = Date.now();
+  };
 });
 
 const sizeMenuItems = new Map();
@@ -2688,7 +2700,13 @@ sizeButton.connectObject('clicked', () => {
     return;
   };
 
-  //DOT ornament marks the current size — the PCM behavior.
+  // The manager's own dismissal ran for this same press: reopening here
+  // would fight it — treat the press as the close.
+  if (Date.now() - lastAutoClose < 300) {
+    return;
+  };
+
+  // Dot ornament marks the current size — the PCM behavior.
   for (const [sizeKey, menuItem] of sizeMenuItems) {
     menuItem.setOrnament(view.widget.size === sizeKey
       ? PopupMenu.Ornament.DOT
