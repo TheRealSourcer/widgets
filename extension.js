@@ -3199,23 +3199,6 @@ sizeButton.connectObject('destroy', () => {
     return false;
   };
 
-  _menuStagePosition(menu, stageX, stageY) {
-    menu.ensure_style();
-    const [, menuWidth] = menu.get_preferred_width(-1);
-    const [, menuHeight] = menu.get_preferred_height(-1);
-    const monitor = monitorAtStage(effectiveMonitors(), stageX, stageY);
-    const margin = 8;
-
-    if (!monitor) {
-      return [stageX, stageY];
-    };
-
-    const x = Math.max(monitor.x + margin, Math.min(stageX, monitor.x + monitor.width - menuWidth - margin));
-    const y = Math.max(monitor.y + margin, Math.min(stageY, monitor.y + monitor.height - menuHeight - margin));
-
-    return [x, y];
-  };
-
   _showContextMenu(view, event) {
     view.sizeMenu?.close();
     this._hideContextMenus();
