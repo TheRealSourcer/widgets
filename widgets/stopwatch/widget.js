@@ -308,22 +308,26 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		style: `spacing: ${px(4)}px;`,
 	});
 
-	// All three digit columns share ONE fixed slot width (the widest
-	// caption, 'Centiseconds'): with every column the same width the
-	// palette gaps to both colons come out equal, instead of each group
-	// spacing by (columnWidth - inkWidth) / 2.
-	const digitSlot = px(150);
+	// All three digit columns share ONE fixed slot width; the ink is
+	// centered INSIDE every slot with exact symmetric padding (slot minus
+	// measured ink, halved) — paint alignment semantics can't drift it.
+	// Slot 149 keeps the whole row within the 540-unit design canvas.
+	const digitSlot = px(149);
+	// Measured at 64px bold Ubuntu: digits ink 69, captions ink 75 / 83 / 150.
+	const digitPad = px(40);
+	const minutesCaptionPad = px(37);
+	const secondsCaptionPad = px(33);
 
 	const minutesLabel = new St.Label({
 		text: '00',
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${digitPad}px;`,
 	});
 
 	const minutesCaption = new St.Label({
 		text: _('Minutes'),
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600; width: ${digitSlot}px;`,
+		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${minutesCaptionPad}px;`,
 	});
 
 	minutesBox.add_child(minutesLabel);
@@ -346,13 +350,13 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const secondsLabel = new St.Label({
 		text: '00',
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${digitPad}px;`,
 	});
 
 	const secondsCaption = new St.Label({
 		text: _('Seconds'),
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600; width: ${digitSlot}px;`,
+		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${secondsCaptionPad}px;`,
 	});
 
 	secondsBox.add_child(secondsLabel);
@@ -375,13 +379,13 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const centisecondsLabel = new St.Label({
 		text: '00',
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${digitPad}px;`,
 	});
 
 	const centisecondsCaption = new St.Label({
 		text: _('Centiseconds'),
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(23)}px; font-weight: 600; width: ${digitSlot}px;`,
+		style: `color: ${mutedColor}; font-size: ${px(23)}px; font-weight: 600; width: ${digitSlot}px; padding: 0;`,
 	});
 
 	centisecondsBox.add_child(centisecondsLabel);
