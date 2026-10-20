@@ -351,16 +351,28 @@ export function render({ body, widget, theme, settings }) {
     // other time").
     const bodyDouble = doubleClickListener();
     global.stage.connectObject('captured-event', (_stage, event) => {
-        if (isEditing || event.type() !== Clutter.EventType.BUTTON_PRESS || event.get_button() !== 1) {
+        if (event.type() !== Clutter.EventType.BUTTON_PRESS) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        const src = event.get_source();
+        if (!src || event.get_button() !== 1) {
+            log(`DW-NOTES-CLICK: stage press src=${src?.constructor?.name ?? 'null'} btn=${event.get_button()}`);
             return Clutter.EVENT_PROPAGATE;
         }
 
         // Only presses that land on the viewer text count.
-        let a = event.get_source();
+        let a = src;
         while (a && a !== displayLabel) {
             a = a.get_parent();
         }
-        if (!a || !bodyDouble(event)) {
+        if (!a) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        const dbl = bodyDouble(event);
+        log(`DW-NOTES-CLICK: stage text press dbl=${dbl} src=${src.constructor.name} editing=${isEditing}`);
+        if (isEditing || !dbl) {
             return Clutter.EVENT_PROPAGATE;
         }
 
@@ -379,6 +391,13 @@ export function render({ body, widget, theme, settings }) {
         // The double-click never reaches the text: no word selection.
         return Clutter.EVENT_STOP;
     }, body);
+
+    // TEMP probe: counts presses reaching the viewer text directly —
+    // compares against the stage-captured path when built-in selection wins.
+    displayLabel.connect('button-press-event', (_actor, event) => {
+        log(`DW-NOTES-CLICK: direct press btn=${event.get_button()}`);
+        return Clutter.EVENT_PROPAGATE;
+    });
 
     scrollContent.add_child(viewerContainer);
     scrollContent.add_child(editorContainer);
