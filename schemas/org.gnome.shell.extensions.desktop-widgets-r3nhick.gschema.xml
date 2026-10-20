@@ -76,6 +76,11 @@
       <summary>Calendar time format</summary>
       <description>Time format for events in the Calendar widget. Allowed values: 24 or 12.</description>
     </key>
+    <key name="calendar-show-page-dots" type="b">
+      <default>true</default>
+      <summary>Show calendar page dots</summary>
+      <description>Show the two page-indicator dots at the bottom of the 1x1 calendar (calendar/events swipe pages).</description>
+    </key>
     <key name="weather-use-accent-color" type="b">
       <default>true</default>
       <summary>Use accent color for weather</summary>

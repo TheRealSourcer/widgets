@@ -1421,6 +1421,16 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(accentRow);
 
+        const pageDotsRow = new Adw.SwitchRow({
+            title: _('Show page dots'),
+            subtitle: _('Two page-indicator dots at the bottom of the 1x1 calendar'),
+        });
+        pageDotsRow.set_active(settings.get_boolean('calendar-show-page-dots'));
+        pageDotsRow.connect('notify::active', () => {
+            settings.set_boolean('calendar-show-page-dots', pageDotsRow.get_active());
+        });
+        group.add(pageDotsRow);
+
         page.add(group);
         return page;
     }

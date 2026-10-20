@@ -874,6 +874,8 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	let viewContainer = null;
 	let currentEventBox = null;
 	const animatingActors = new Set();
+	// The 1x1 page-indicator dots are toggleable (prefs → Calendar Widget).
+	const showPageDots = settings?.get_boolean('calendar-show-page-dots') ?? true;
 
 	const container = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
@@ -919,9 +921,15 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	container.x_align = Clutter.ActorAlign.FILL;
 	container.y_align = Clutter.ActorAlign.FILL;
 	pageStack.add_child(container);
-	pageStack.add_child(dotsWrap); // dots paint above the pages
+	if (showPageDots) {
+		pageStack.add_child(dotsWrap); // dots paint above the pages
+	};
 
 	const refreshDots = () => {
+		if (!dotsWrap.get_parent()) {
+			return;
+		};
+
 		dots.forEach((dot, index) => {
 			dot.ease({
 				opacity: index === currentView ? 255 : 90,
