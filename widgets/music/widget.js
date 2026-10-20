@@ -632,7 +632,6 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 
 	card.update = function ({title, artist, artUrl, playing, position, length, canControl, canPrev, canNext, canPlay, canPause, loop = 'None', canSeek = false, seekPreview = false, loopSupported = true, forcePrev = false, forceNext = false}) {
 		const hasTrack = Boolean(title && title.length > 0);
-		const control = canControl !== false || canPlay || canPause || canPrev || canNext || canSeek;
 		const gifPath = !hasTrack
 			? emptyGifPath(this._settings?.get_string('music-empty-gif'))
 			: null;
@@ -677,16 +676,27 @@ card.artist.text = _('Play something to get going');
 			card.slider.setPosition?.(hasTrack ? position : 0);
 		};
 
+		// Inactive widget guard: players like VLC/Amberol keep Can* = true
+		// advertised over MPRIS even while stopped, so the old gate left every
+		// button "clickable but dead" on the empty card. Real control requires
+		// content: a track loaded or playback actually running.
+		const trackGate = hasTrack || playing;
+		const control = (canControl !== false || canPlay || canPause || canPrev || canNext || canSeek) && trackGate;
+
+		// Fully inactive (no track, not playing) dims the row harder than the
+		// in-session "capability off" state.
+		const dimmed = control ? 100 : 45;
+
 		const loopOk = loopSupported !== false;
 
 		card.btnLoop.button.reactive = control && loopOk;
-		card.btnLoop.button.opacity = loopOk ? (control ? 255 : 100) : 30;
+		card.btnLoop.button.opacity = !loopOk ? 30 : (control ? 255 : 45);
 		card.btnPrev.button.reactive = control && (!!canPrev || forcePrev);
-		card.btnPrev.button.opacity = control && (canPrev || forcePrev) ? 255 : 100;
+		card.btnPrev.button.opacity = control && (canPrev || forcePrev) ? 255 : dimmed;
 		card.btnPlay.button.reactive = control && (playing ? !!canPause : !!canPlay);
-		card.btnPlay.button.opacity = control && (playing ? canPause : canPlay) ? 255 : 100;
+		card.btnPlay.button.opacity = control && (playing ? canPause : canPlay) ? 255 : dimmed;
 		card.btnNext.button.reactive = control && (!!canNext || forceNext);
-		card.btnNext.button.opacity = control && (canNext || forceNext) ? 255 : 100;
+		card.btnNext.button.opacity = control && (canNext || forceNext) ? 255 : dimmed;
 
 		const seekable = control && (length > 0 || playing) && (canSeek || canPlay || canPause);
 		card.slider.setEnabled?.(seekable);
