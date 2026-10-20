@@ -150,69 +150,74 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	});
 	setupBox.add_child(centerBox);
 
-	// Minutes column with horizontal button pairs
-	const minutesBox = new St.BoxLayout({
-		orientation: Clutter.Orientation.VERTICAL,
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: ${px(6)}px;`,
-	});
+	// Stepper columns. BoxLayout ignores cross-axis child alignment in
+	// GNOME 51, so BoxLayout columns made the digit labels drift off their
+	// +/- rows. Hand-measured fixed geometry keeps the digits exactly
+	// centered over both button pairs instead.
+	const buildStepper = () => {
+		const makeRowButton = (text, big) => new St.Button({
+			reactive: true,
+			can_focus: true,
+			child: new St.Label({ text, style: `color: ${textColor};` }),
+			style: `font-size: ${px(big ? 20 : 16)}px; width: ${px(big ? 40 : 36)}px; height: ${px(big ? 36 : 32)}px; ` +
+				`background-color: rgba(255, 255, 255, ${big ? 0.1 : 0.08}); border-radius: ${px(big ? 10 : 8)}px; font-weight: 700;`,
+		});
 
-	// Top buttons for minutes: [+][+]
-	const minutesPlusBox = new St.BoxLayout({
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: ${px(4)}px;`,
-	});
+		const plusRow = new St.BoxLayout({ style: `spacing: ${px(4)}px;` });
+		const plus10Btn = makeRowButton('+', true);
+		const plus1Btn = makeRowButton('+', false);
+		plusRow.add_child(plus10Btn);
+		plusRow.add_child(plus1Btn);
 
-	const minutesPlus10Btn = new St.Button({
-		reactive: true,
-		can_focus: true,
-		child: new St.Label({ text: '+', style: `color: ${textColor};` }),
-		style: `font-size: ${px(20)}px; width: ${px(40)}px; height: ${px(36)}px; background-color: rgba(255, 255, 255, 0.1); border-radius: ${px(10)}px; font-weight: 700;`,
-	});
-	minutesPlusBox.add_child(minutesPlus10Btn);
+		// Ubuntu digits are tabular (verified: '09' == '58' == '00'), so every
+		// two-digit value keeps one constant width and the slot holds steady
+		// without a min-width stabiliser.
+		const label = new St.Label({
+			text: '00',
+			style: `color: ${textColor}; font-size: ${px(72)}px; font-weight: 700; line-height: 0.9; padding: ${px(4)}px 0;`,
+		});
 
-	const minutesPlus1Btn = new St.Button({
-		reactive: true,
-		can_focus: true,
-		child: new St.Label({ text: '+', style: `color: ${textColor};` }),
-		style: `font-size: ${px(16)}px; width: ${px(36)}px; height: ${px(32)}px; background-color: rgba(255, 255, 255, 0.08); border-radius: ${px(8)}px; font-weight: 700;`,
-	});
-	minutesPlusBox.add_child(minutesPlus1Btn);
+		const minusRow = new St.BoxLayout({ style: `spacing: ${px(4)}px;` });
+		const minus10Btn = makeRowButton('−', true);
+		const minus1Btn = makeRowButton('−', false);
+		minusRow.add_child(minus10Btn);
+		minusRow.add_child(minus1Btn);
 
-	minutesBox.add_child(minutesPlusBox);
+		const column = new St.Widget();
+		column.add_child(plusRow);
+		column.add_child(label);
+		column.add_child(minusRow);
 
-	// Minutes digits (fixed width to prevent shifting)
-	const minutesLabel = new St.Label({
-		text: '00',
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-size: ${px(72)}px; font-weight: 700; line-height: 0.9; padding: ${px(4)}px 0; min-width: ${px(100)}px;`,
-	});
-	minutesBox.add_child(minutesLabel);
+		// Hand-placed geometry: measure the digits block and center both rows
+		// around it. Manual x/y is the only reliable alignment here.
+		const [rowW] = plusRow.get_preferred_width(-1);
+		const [, rowH] = plusRow.get_preferred_height(rowW);
+		const [digW] = label.get_preferred_width(-1);
+		const [, digH] = label.get_preferred_height(digW);
+		const spacing = px(6);
+		const width = Math.max(rowW, digW);
+		const rowX = Math.round((width - rowW) / 2);
+		const digY = rowH + spacing;
+		const minusY = digY + digH + spacing;
+		plusRow.set_size(rowW, rowH);
+		plusRow.set_position(rowX, 0);
+		label.set_size(digW, digH);
+		label.set_position(Math.round((width - digW) / 2), digY);
+		minusRow.set_size(rowW, rowH);
+		minusRow.set_position(rowX, minusY);
+		column.set_size(width, minusY + rowH);
 
-	// Bottom buttons for minutes: [-][-]
-	const minutesMinusBox = new St.BoxLayout({
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: ${px(4)}px;`,
-	});
+		return { column, plus10Btn, plus1Btn, minus10Btn, minus1Btn, label };
+	};
 
-	const minutesMinus10Btn = new St.Button({
-		reactive: true,
-		can_focus: true,
-		child: new St.Label({ text: '−', style: `color: ${textColor};` }),
-		style: `font-size: ${px(20)}px; width: ${px(40)}px; height: ${px(36)}px; background-color: rgba(255, 255, 255, 0.1); border-radius: ${px(10)}px; font-weight: 700;`,
-	});
-	minutesMinusBox.add_child(minutesMinus10Btn);
-
-	const minutesMinus1Btn = new St.Button({
-		reactive: true,
-		can_focus: true,
-		child: new St.Label({ text: '−', style: `color: ${textColor};` }),
-		style: `font-size: ${px(16)}px; width: ${px(36)}px; height: ${px(32)}px; background-color: rgba(255, 255, 255, 0.08); border-radius: ${px(8)}px; font-weight: 700;`,
-	});
-	minutesMinusBox.add_child(minutesMinus1Btn);
-
-	minutesBox.add_child(minutesMinusBox);
-
+	const {
+		column: minutesBox,
+		plus10Btn: minutesPlus10Btn,
+		plus1Btn: minutesPlus1Btn,
+		minus10Btn: minutesMinus10Btn,
+		minus1Btn: minutesMinus1Btn,
+		label: minutesLabel,
+	} = buildStepper();
 	centerBox.add_child(minutesBox);
 
 	// Colon
@@ -223,69 +228,14 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	});
 	centerBox.add_child(colonLabel);
 
-	// Seconds column with horizontal button pairs
-	const secondsBox = new St.BoxLayout({
-		orientation: Clutter.Orientation.VERTICAL,
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: ${px(6)}px;`,
-	});
-
-	// Top buttons for seconds: [+][+]
-	const secondsPlusBox = new St.BoxLayout({
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: ${px(4)}px;`,
-	});
-
-	const secondsPlus10Btn = new St.Button({
-		reactive: true,
-		can_focus: true,
-		child: new St.Label({ text: '+', style: `color: ${textColor};` }),
-		style: `font-size: ${px(20)}px; width: ${px(40)}px; height: ${px(36)}px; background-color: rgba(255, 255, 255, 0.1); border-radius: ${px(10)}px; font-weight: 700;`,
-	});
-	secondsPlusBox.add_child(secondsPlus10Btn);
-
-	const secondsPlus1Btn = new St.Button({
-		reactive: true,
-		can_focus: true,
-		child: new St.Label({ text: '+', style: `color: ${textColor};` }),
-		style: `font-size: ${px(16)}px; width: ${px(36)}px; height: ${px(32)}px; background-color: rgba(255, 255, 255, 0.08); border-radius: ${px(8)}px; font-weight: 700;`,
-	});
-	secondsPlusBox.add_child(secondsPlus1Btn);
-
-	secondsBox.add_child(secondsPlusBox);
-
-	// Seconds digits (fixed width to prevent shifting)
-	const secondsLabel = new St.Label({
-		text: '00',
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-size: ${px(72)}px; font-weight: 700; line-height: 0.9; padding: ${px(4)}px 0; min-width: ${px(100)}px;`,
-	});
-	secondsBox.add_child(secondsLabel);
-
-	// Bottom buttons for seconds: [-][-]
-	const secondsMinusBox = new St.BoxLayout({
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: ${px(4)}px;`,
-	});
-
-	const secondsMinus10Btn = new St.Button({
-		reactive: true,
-		can_focus: true,
-		child: new St.Label({ text: '−', style: `color: ${textColor};` }),
-		style: `font-size: ${px(20)}px; width: ${px(40)}px; height: ${px(36)}px; background-color: rgba(255, 255, 255, 0.1); border-radius: ${px(10)}px; font-weight: 700;`,
-	});
-	secondsMinusBox.add_child(secondsMinus10Btn);
-
-	const secondsMinus1Btn = new St.Button({
-		reactive: true,
-		can_focus: true,
-		child: new St.Label({ text: '−', style: `color: ${textColor};` }),
-		style: `font-size: ${px(16)}px; width: ${px(36)}px; height: ${px(32)}px; background-color: rgba(255, 255, 255, 0.08); border-radius: ${px(8)}px; font-weight: 700;`,
-	});
-	secondsMinusBox.add_child(secondsMinus1Btn);
-
-	secondsBox.add_child(secondsMinusBox);
-
+	const {
+		column: secondsBox,
+		plus10Btn: secondsPlus10Btn,
+		plus1Btn: secondsPlus1Btn,
+		minus10Btn: secondsMinus10Btn,
+		minus1Btn: secondsMinus1Btn,
+		label: secondsLabel,
+	} = buildStepper();
 	centerBox.add_child(secondsBox);
 
 	// Right: Play button (in setup view)
