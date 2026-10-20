@@ -310,6 +310,10 @@ export function render({ body, widget, theme, sizeForWidget }) {
     });
     attachBounce(addButton);
 
+    // Enter on GNOME 51 may arrive as Clutter.Text 'activate' (see github
+    // widget); the key-press fallback remains for other key variants.
+    taskEntry.clutter_text.connect('activate', () => commitTask());
+
     taskEntry.clutter_text.connect('key-press-event', (_actor, event) => {
         const sym = event.get_key_symbol();
         if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {

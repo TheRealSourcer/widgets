@@ -902,6 +902,12 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         return Clutter.EVENT_STOP;
     });
 
+    // Plain-Enter commit: on GNOME 51 the Return key arrives as the
+    // Clutter.Text 'activate' signal (journal-proofed: activate fired while
+    // no key-press reached the text). The key-press fallback below stays for
+    // KP_Enter/ISO_Enter variants; endEdit is re-entrant (guard on editing).
+    usernameEntry.clutter_text.connect('activate', () => endEdit(true));
+
     usernameEntry.clutter_text.connect('key-press-event', (_actor, event) => {
         const sym = event.get_key_symbol();
         if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) { endEdit(true); return Clutter.EVENT_STOP; }
