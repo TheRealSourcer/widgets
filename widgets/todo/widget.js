@@ -346,10 +346,19 @@ export function render({ body, widget, theme, sizeForWidget }) {
         };
         taskList.destroy_all_children();
         if (tasks.length === 0) {
+            // Vertically center the empty hint inside the right column:
+            // equal expanding spacers above and below squeeze the label to
+            // the middle of the viewport (a label alone would hug the top).
+            taskList.add_child(new St.Widget({
+                y_expand: true,
+            }));
             taskList.add_child(new St.Label({
                 text: _('No tasks yet'),
                 x_align: Clutter.ActorAlign.CENTER,
-                style: `font-size: ${px(TASK_TEXT_FONT_SIZE)}px; color: ${textColor}; opacity: 0.5;`,
+                style: `font-size: ${px(TASK_TEXT_FONT_SIZE)}px; font-weight: 600; color: ${textColor}; opacity: 0.5;`,
+            }));
+            taskList.add_child(new St.Widget({
+                y_expand: true,
             }));
             return;
         }
