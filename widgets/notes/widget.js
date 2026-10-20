@@ -338,6 +338,25 @@ export function render({ body, widget, theme, settings }) {
         }
     });
 
+    // Plain Enter on GNOME 51 never reaches key-press handlers of editable
+    // text actors and does not insert the newline either — it arrives as the
+    // Clutter.Text 'activate' signal (same channel as github/todo). Insert
+    // the newline where the cursor sits; Shift+Enter keeps the default path.
+    // The shell-engine risks no double insertion (its default handler does
+    // not place a newline before emitting activate); if a relogin test ever
+    // shows doubled newlines, a pre-insert snapshot probe comes first.
+    textEditor.connect('activate', () => {
+        if (!isEditing) {
+            return;
+        };
+
+        const text = textEditor.get_text() ?? '';
+        const cursor = Math.min(Math.max(0, textEditor.get_cursor_position()), text.length);
+
+        textEditor.set_text(text.slice(0, cursor) + '\n' + text.slice(cursor));
+        textEditor.set_cursor_position(cursor + 1);
+    });
+
     titleEntry.clutter_text.connect('text-changed', () => {
         if (isEditing) {
             noteTitle = titleEntry.get_text();
