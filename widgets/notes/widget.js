@@ -249,6 +249,27 @@ export function render({ body, widget, theme, settings }) {
             });
             return Clutter.EVENT_STOP;
         }
+
+        // Shift+Enter = line break inside the note. Plain Enter commits and
+        // closes the editor (the classic path also fires on some shells).
+        if (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) {
+            if (modifiers & Clutter.ModifierType.SHIFT_MASK) {
+                if (isEditing) {
+                    const text = textEditor.get_text() ?? '';
+                    const cursor = Math.min(Math.max(0, textEditor.get_cursor_position()), text.length);
+
+                    textEditor.set_text(text.slice(0, cursor) + '\n' + text.slice(cursor));
+                    textEditor.set_cursor_position(cursor + 1);
+                }
+                return Clutter.EVENT_STOP;
+            }
+
+            if (isEditing) {
+                commitEdit();
+            }
+            return Clutter.EVENT_STOP;
+        }
+
         return Clutter.EVENT_PROPAGATE;
     });
 
@@ -320,6 +341,16 @@ export function render({ body, widget, theme, settings }) {
         isEditing = true;
     };
 
+    // Shared finish-editing path: pull both fields, switch back to the viewer
+    // and write the file (the edit button, plain Enter in the body and the
+    // destroy flush all land here).
+    const commitEdit = () => {
+        noteTitle = titleEntry.get_text();
+        noteContent = textEditor.get_text();
+        showViewer();
+        saveJsonToFile(dataFilePath, { title: noteTitle, notes: noteContent });
+    };
+
     const scheduleSave = () => {
         if (state.saveTimerId) {
             GLib.source_remove(state.saveTimerId);
@@ -339,22 +370,15 @@ export function render({ body, widget, theme, settings }) {
     });
 
     // Plain Enter on GNOME 51 never reaches key-press handlers of editable
-    // text actors and does not insert the newline either — it arrives as the
-    // Clutter.Text 'activate' signal (same channel as github/todo). Insert
-    // the newline where the cursor sits; Shift+Enter keeps the default path.
-    // The shell-engine risks no double insertion (its default handler does
-    // not place a newline before emitting activate); if a relogin test ever
-    // shows doubled newlines, a pre-insert snapshot probe comes first.
+    // text actors — it arrives as the Clutter.Text 'activate' signal (same
+    // channel as github/todo). Commit and close the editor from here; the
+    // line break itself lives on Shift+Enter (see the key-press handler).
     textEditor.connect('activate', () => {
         if (!isEditing) {
             return;
         };
 
-        const text = textEditor.get_text() ?? '';
-        const cursor = Math.min(Math.max(0, textEditor.get_cursor_position()), text.length);
-
-        textEditor.set_text(text.slice(0, cursor) + '\n' + text.slice(cursor));
-        textEditor.set_cursor_position(cursor + 1);
+        commitEdit();
     });
 
     titleEntry.clutter_text.connect('text-changed', () => {
@@ -401,10 +425,7 @@ export function render({ body, widget, theme, settings }) {
 
     editButton.connect('clicked', () => {
         if (isEditing) {
-            noteTitle = titleEntry.get_text();
-            noteContent = textEditor.get_text();
-            showViewer();
-            saveJsonToFile(dataFilePath, { title: noteTitle, notes: noteContent });
+            commitEdit();
         } else {
             showEditor();
         }
