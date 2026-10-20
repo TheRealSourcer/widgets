@@ -3337,6 +3337,10 @@ class WidgetController {
         sizeForWidget: this._sizeFor.bind(this),
         settings: this._layoutSettings,
         events: this._eventsClient,
+        // The pane wrapper (plain fixed layout, unpadded/unclipped) —
+        // widgets that need absolute overlays (system monitor page dashes)
+        // pin them here, escaping the pane's padding and the body clip.
+        paneRoot: this._views.get(widget.id)?.actor ?? null,
         onPhotoChange: path => this._setWidgetPhoto(widget, body, path),
       suppressAppClick: () => {
         this._suppressAppClickUntil = Date.now() + 400;
