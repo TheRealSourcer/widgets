@@ -255,11 +255,18 @@ export function render({ body, widget, theme, settings }) {
         if (keyval === Clutter.KEY_Return || keyval === Clutter.KEY_KP_Enter) {
             if (modifiers & Clutter.ModifierType.SHIFT_MASK) {
                 if (isEditing) {
-                    const text = textEditor.get_text() ?? '';
-                    const cursor = Math.min(Math.max(0, textEditor.get_cursor_position()), text.length);
+                    // insert_unichar equals typing the character: the engine
+                    // moves the cursor itself and keeps selection bookkeeping
+                    // coherent. The previous set_text()+set_cursor_position()
+                    // dance left a stale selection bound highlighting chunks
+                    // of the note after the break.
+                    textEditor.insert_unichar('\n');
 
-                    textEditor.set_text(text.slice(0, cursor) + '\n' + text.slice(cursor));
-                    textEditor.set_cursor_position(cursor + 1);
+                    const at = textEditor.get_cursor_position();
+                    textEditor.select_region(at, at);
+
+                    // TEMP probe: verify no stale/doubled inserts remain.
+                    log(`DW-NOTES-KEY: shift-enter at=${at} len=${textEditor.get_text().length}`);
                 }
                 return Clutter.EVENT_STOP;
             }
