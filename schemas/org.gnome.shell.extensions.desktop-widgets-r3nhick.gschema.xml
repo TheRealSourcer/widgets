@@ -81,6 +81,11 @@
       <summary>Show calendar page dots</summary>
       <description>Show the two page-indicator dots at the bottom of the 1x1 calendar (calendar/events swipe pages).</description>
     </key>
+    <key name="page-indicator-style" type="i">
+      <default>1</default>
+      <summary>Page indicator shape</summary>
+      <description>Shape of the swipe-page markers (calendar 1x1 and system monitor): 0 = round dots, 1 = dashes.</description>
+    </key>
     <key name="weather-use-accent-color" type="b">
       <default>true</default>
       <summary>Use accent color for weather</summary>

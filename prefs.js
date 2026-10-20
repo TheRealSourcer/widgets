@@ -607,6 +607,25 @@ export default class WidgetsPrefs extends ExtensionPreferences {
 
         widgetsGroup.add(themeExpanderRow);
 
+        // Page indicator shape for the swiping widgets (calendar 1x1, system
+        // monitor): round dots or dashes — the same segmented pill look as
+        // the theme switchers.
+        const indicatorSwitcher = makeThemeSwitcher(
+            [['dot', _('Dot')], ['dash', _('Dash')]],
+            () => (settings.get_int('page-indicator-style') === 0 ? 'dot' : 'dash'),
+            (wants) => {
+                settings.set_int('page-indicator-style', wants === 'dash' ? 1 : 0);
+            }
+        );
+        settings.connect('changed::page-indicator-style', () => indicatorSwitcher.syncTo());
+
+        const indicatorRow = new Adw.ActionRow({
+            title: _('Page indicator'),
+            subtitle: _('Swipe-page markers in the calendar and system monitor'),
+        });
+        indicatorRow.add_suffix(indicatorSwitcher);
+        widgetsGroup.add(indicatorRow);
+
         // Update theme rows from settings (switcher pills and visibility).
         const updateGeneralDropdown = () => {
             themeGeneralSwitcher.syncTo();

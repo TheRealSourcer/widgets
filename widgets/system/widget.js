@@ -88,7 +88,11 @@ function lucideIcon(theme, metricKey) {
  * (and the body clip) and sit right against the pane's bottom edge while
  * the tile itself keeps its regular position.
  */
-function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, mutedColor}) {
+function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, mutedColor, style = 'dash'}) {
+  // Round dots (calendar's classic look) or dashes, per page-indicator-style.
+  const dashWidth = style === 'dot' ? 5 : 10;
+  const dashHeight = style === 'dot' ? 5 : 3;
+
   // Re-render fills a fresh body but reuses the same wrapper — an old
   // overlay has to go first, or dashes pile up.
   let child = paneRoot?.get_first_child?.();
@@ -111,8 +115,8 @@ function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, 
   const dashes = [];
   for (let i = 0; i < count; i++) {
     dashes.push(new St.Widget({
-      width: 10,
-      height: 3,
+      width: dashWidth,
+      height: dashHeight,
       opacity: 72,
       reactive: false,
       style: `border-radius: 999px; background-color: ${mutedColor};`,
@@ -122,9 +126,9 @@ function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, 
   const row = new St.BoxLayout(boxLayoutProps({
     x_expand: true,
     x_align: Clutter.ActorAlign.CENTER,
-    // 7px above the pane's inner bottom edge: nestled in the 16px inset
+    // 8px above the pane's inner bottom edge: nestled in the 16px inset
     // strip, snug below the tile and clear of the pane's rounded border.
-    style: `spacing: 5px; margin-bottom: 7px;`,
+    style: `spacing: 5px; margin-bottom: 8px;`,
   }));
   dashes.forEach(dash => row.add_child(dash));
 
@@ -670,7 +674,7 @@ function createSparkTile(theme, label, value, unit, accentColor, samples, maxVal
   return { tile, valueLabel, unitLabel, sparkArea, extraLabel };
 }
 
-export function render({body, theme, widget, sizeForWidget, paneRoot}) {
+export function render({body, theme, widget, sizeForWidget, paneRoot, settings}) {
   monitor = getSystemMonitor();
   const size = widget?.size || defaultSize;
   const [width, height] = sizeForWidget(widget);
@@ -678,6 +682,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot}) {
 
   let currentMetric = METRIC_CPU;
   let currentView = VIEW_CPU_RAM;
+  // Round dots or dashes — the global page-indicator-style setting.
+  const indicatorStyle = (settings?.get_int('page-indicator-style') ?? 1) === 1 ? 'dash' : 'dot';
   let unsubscribe = null;
   const animatingActors = new Set();
 
@@ -769,6 +775,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot}) {
       count: metricConfigs.length,
       accentColor,
       mutedColor: theme.muted,
+      style: indicatorStyle,
     });
     const refreshDashes = () => pageDashes.set(currentMetric);
 
@@ -926,6 +933,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot}) {
       count: viewConfigs.length,
       accentColor,
       mutedColor: theme.muted,
+      style: indicatorStyle,
     });
     const refreshDashes = () => pageDashes.set(currentView);
 

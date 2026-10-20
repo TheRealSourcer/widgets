@@ -894,9 +894,12 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	}));
 	// Keep the row fully inside the body: the clip area cuts children at
 	// its allocation, so flush (0px) is the lowest clean position.
+	// Page indicators: round dots (calendar's classic look) or dashes —
+	// per the global page-indicator-style setting (prefs → General).
+	const dashStyle = (settings?.get_int('page-indicator-style') ?? 0) === 1;
 	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
-		width: 5,
-		height: 5,
+		width: dashStyle ? 10 : 5,
+		height: dashStyle ? 3 : 5,
 		opacity: 90,
 		style: `border-radius: 999px; background-color: ${text};`,
 	}));
