@@ -2626,8 +2626,7 @@ class WidgetController {
       this._pinStyleIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
         this._pinStyleIdleId = 0;
         if (pinButton && !isActorDestroyed(pinButton)) {
-          const accent = this._gnomeTheme().accent;
-          pinButton.set_style(`background-color: ${accent}; color: #ffffff; border-color: ${accent};`);
+          pinButton.set_style('background-color: #5b9de0; color: #ffffff; border-color: #5b9de0;');
         }
         return GLib.SOURCE_REMOVE;
       });
