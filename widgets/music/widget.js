@@ -690,14 +690,6 @@ card.artist.text = _('Play something to get going');
 		// in-session "capability off" state.
 		const dimmed = control ? 100 : 45;
 
-		// TEMP probe: journal line only on a state transition — shows whether
-		// update() runs on pause clicks and which icon it resolves to.
-		const probeSig = `${playing}|${hasTrack}|${canPlay}|${canPause}|${control}`;
-		if (card._dwProbeSig !== probeSig) {
-			card._dwProbeSig = probeSig;
-			log(`DW-MUSIC-U: playing=${playing} hasTrack=${hasTrack} canPlay=${canPlay} canPause=${canPause} control=${control} icon=${playing ? 'pause' : 'play'}`);
-		};
-
 		const loopOk = loopSupported !== false;
 
 		// Buttons stay reactive: the disabled look is carried by the dimmed
