@@ -626,6 +626,39 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         indicatorRow.add_suffix(indicatorSwitcher);
         widgetsGroup.add(indicatorRow);
 
+        // Marker color: white / black / accent — same for both widgets.
+        const indicatorColorSwitcher = makeThemeSwitcher(
+            [['white', _('White')], ['black', _('Black')], ['accent', _('Accent')]],
+            () => {
+                const value = settings.get_string('page-indicator-color');
+                return ['white', 'black'].includes(value) ? value : 'accent';
+            },
+            (wants) => {
+                if (settings.get_string('page-indicator-color') !== wants) {
+                    settings.set_string('page-indicator-color', wants);
+                }
+            }
+        );
+        settings.connect('changed::page-indicator-color', () => indicatorColorSwitcher.syncTo());
+
+        const indicatorColorRow = new Adw.ActionRow({
+            title: _('Indicator color'),
+        });
+        indicatorColorRow.add_suffix(indicatorColorSwitcher);
+        widgetsGroup.add(indicatorColorRow);
+
+        // System monitor dashes can be turned off entirely (the calendar
+        // keeps its own "Show page dots" switch on the Calendar page).
+        const systemDashesRow = new Adw.SwitchRow({
+            title: _('System monitor dashes'),
+            subtitle: _('Swipe-page dashes at the bottom of the system monitor'),
+        });
+        systemDashesRow.set_active(settings.get_boolean('system-show-page-dashes'));
+        systemDashesRow.connect('notify::active', () => {
+            settings.set_boolean('system-show-page-dashes', systemDashesRow.get_active());
+        });
+        widgetsGroup.add(systemDashesRow);
+
         // Update theme rows from settings (switcher pills and visibility).
         const updateGeneralDropdown = () => {
             themeGeneralSwitcher.syncTo();

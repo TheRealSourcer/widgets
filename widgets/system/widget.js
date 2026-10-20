@@ -88,13 +88,14 @@ function lucideIcon(theme, metricKey) {
  * (and the body clip) and sit right against the pane's bottom edge while
  * the tile itself keeps its regular position.
  */
-function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, mutedColor, style = 'dash'}) {
+function attachPageDashes({paneRoot, sizeForWidget, widget, count, color, visible = true, style = 'dash'}) {
   // Round dots (calendar's classic look) or dashes, per page-indicator-style.
   const dashWidth = style === 'dot' ? 5 : 10;
   const dashHeight = style === 'dot' ? 5 : 3;
 
   // Re-render fills a fresh body but reuses the same wrapper — an old
-  // overlay has to go first, or dashes pile up.
+  // overlay has to go first, or dashes pile up. Runs even when the dashes
+  // are disabled, so a stale strip never survives a re-render.
   let child = paneRoot?.get_first_child?.();
 
   while (child) {
@@ -107,7 +108,7 @@ function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, 
     child = next;
   };
 
-  if (!paneRoot) {
+  if (!paneRoot || !visible || count <= 0) {
     return {set: () => {}};
   };
 
@@ -119,7 +120,7 @@ function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, 
       height: dashHeight,
       opacity: 72,
       reactive: false,
-      style: `border-radius: 999px; background-color: ${mutedColor};`,
+      style: `border-radius: 999px; background-color: ${color};`,
     }));
   };
 
@@ -169,7 +170,7 @@ function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, 
   return {
     set(activeIndex) {
       dashes.forEach((dash, index) => {
-        dash.style = `border-radius: 999px; background-color: ${index === activeIndex ? accentColor : mutedColor};`;
+        dash.style = `border-radius: 999px; background-color: ${color};`;
         dash.ease({
           opacity: index === activeIndex ? 255 : 72,
           duration: 120,
@@ -684,6 +685,14 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
   let currentView = VIEW_CPU_RAM;
   // Round dots or dashes — the global page-indicator-style setting.
   const indicatorStyle = (settings?.get_int('page-indicator-style') ?? 1) === 1 ? 'dash' : 'dot';
+  // Marker color: explicit white/black, or the widget's accent color.
+  const indicatorColorValue = String(settings?.get_string('page-indicator-color') ?? 'accent');
+  const indicatorColor = indicatorColorValue === 'white'
+    ? '#ffffff'
+    : indicatorColorValue === 'black'
+      ? '#000000'
+      : accentColor;
+  const showPageDashes = settings?.get_boolean('system-show-page-dashes') ?? true;
   let unsubscribe = null;
   const animatingActors = new Set();
 
@@ -773,8 +782,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     const pageDashes = attachPageDashes({
       paneRoot, sizeForWidget, widget,
       count: metricConfigs.length,
-      accentColor,
-      mutedColor: theme.muted,
+      color: indicatorColor,
+      visible: showPageDashes,
       style: indicatorStyle,
     });
     const refreshDashes = () => pageDashes.set(currentMetric);
@@ -931,8 +940,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     const pageDashes = attachPageDashes({
       paneRoot, sizeForWidget, widget,
       count: viewConfigs.length,
-      accentColor,
-      mutedColor: theme.muted,
+      color: indicatorColor,
+      visible: showPageDashes,
       style: indicatorStyle,
     });
     const refreshDashes = () => pageDashes.set(currentView);

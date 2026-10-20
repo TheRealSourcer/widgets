@@ -516,6 +516,9 @@ class WidgetController {
       'changed::calendar-weekday-format', () => this._refreshCalendarWeekdays(),
       'changed::calendar-use-accent-color', () => this._refreshCalendarWeekdays(),
       'changed::calendar-show-page-dots', () => this._scheduleAppearance('refresh'),
+      'changed::page-indicator-style', () => this._scheduleAppearance('refresh'),
+      'changed::page-indicator-color', () => this._scheduleAppearance('refresh'),
+      'changed::system-show-page-dashes', () => this._scheduleAppearance('refresh'),
       // Re-render the weather cards in place so the temperature flips between
       // accent and neutral text color the moment the toggle flips.
       'changed::weather-use-accent-color', () => this._refreshWeatherViews(),
