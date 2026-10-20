@@ -2089,7 +2089,7 @@ class WidgetController {
     widget.size = sizeKey;
     widget.data = {...(widget.data ?? {}), sizeManual: true};
     this._syncWidgetSizeClass(widget);
-    this._views.get(widget.id)?.sizeMenu?.hide();
+    this._views.get(widget.id)?.sizeMenu?.close();
     this._clampWidget(widget);
     this._resolveLayout(widget, true, true);
     this._animateWidget(widget, true);
@@ -2651,95 +2651,58 @@ class WidgetController {
 
       this._layer.add_child(sizeButton);
 
-      sizeMenu = new St.BoxLayout(boxLayoutProps({
-        vertical: true,
-        style_class: 'widget-size-menu',
-        reactive: true,
-      }));
-      this._layer.add_child(sizeMenu);
-      sizeMenu.hide();
+// The size picker is a real shell PopupMenu — identical to the
+// right-click context menu look: popup panel with the arrow, native
+// row hover highlight and a DOT ornament on the current size.
+sizeMenu = new PopupMenu.PopupMenu(sizeButton, 0.25, St.Side.TOP);
+Main.uiGroup.add_child(sizeMenu.actor);
+sizeMenu.actor.hide();
 
-      let sizeMenuDestroyed = false;
-      sizeMenu.connect('destroy', () => {
-        sizeMenuDestroyed = true;
-      });
+let sizeMenuDestroyed = false;
+sizeMenu.actor.connect('destroy', () => {
+  sizeMenuDestroyed = true;
+});
 
-      const sizeItems = orderedSizes(supportedSizes).map(sizeKey => {
-        const item = new St.Button({
-          style_class: 'widget-size-menu-item',
-          label: sizeLabel(sizeKey),
-          reactive: true,
-          can_focus: true,
-          track_hover: true,
-        });
+const sizeMenuItems = new Map();
+for (const sizeKey of orderedSizes(supportedSizes)) {
+  const menuItem = new PopupMenu.PopupMenuItem(sizeLabel(sizeKey));
+  menuItem.connectObject('activate', () => {
+    this._setWidgetSize(view.widget, sizeKey);
+  }, this);
+  sizeMenu.addMenuItem(menuItem);
+  sizeMenuItems.set(sizeKey, menuItem);
+};
 
-        // The hover ring takes the accent color (system or user-custom) —
-        // a transparent border keeps the layout from jittering on hover.
-        const itemAccent = this._gnomeTheme().accent;
-        item.connectObject('notify::hover', () => {
-          item.set_style(item.hover
-            ? `border: 1px solid ${itemAccent};`
-            : 'border: 1px solid transparent;');
-        }, this);
-        item.connectObject('clicked', () => {
-          this._setWidgetSize(view.widget, sizeKey);
-          sizeMenu.hide();
-        }, this);
+sizeButton.connectObject('clicked', () => {
+  this._hideContextMenus();
 
-        sizeMenu.add_child(item);
-        return item;
-      });
+  // Only one menu open at a time.
+  for (const otherView of this._views.values()) {
+    if (otherView.sizeMenu && otherView.sizeMenu !== sizeMenu && otherView.sizeMenu.isOpen) {
+      otherView.sizeMenu.close();
+    };
+  };
 
-      sizeButton.connectObject('clicked', () => {
-        this._hideContextMenus();
+  if (sizeMenu.isOpen) {
+    sizeMenu.close();
+    return;
+  };
 
-        // Hide other widgets' size menus so only one is open at a time.
-        for (const otherView of this._views.values()) {
-          if (otherView.sizeMenu && otherView.sizeMenu !== sizeMenu) {
-            otherView.sizeMenu.hide();
-          };
-        };
+  //DOT ornament marks the current size — the PCM behavior.
+  for (const [sizeKey, menuItem] of sizeMenuItems) {
+    menuItem.setOrnament(view.widget.size === sizeKey
+      ? PopupMenu.Ornament.DOT
+      : PopupMenu.Ornament.NONE);
+  };
 
-        if (sizeMenu.visible) {
-          sizeMenu.hide();
-          return;
-        };
+  sizeMenu.open();
+}, this);
 
-        const {x, y} = this._sizeButtonPosition(view.widget, sizeButton);
-
-        sizeItems.forEach(item => item.remove_style_pseudo_class('active'));
-
-        const activeIndex = orderedSizes(supportedSizes).indexOf(view.widget.size);
-
-        // Context-menu marking: the current size carries a DOT ornament —
-        // here a leading dot glyph instead of the old colored label.
-        sizeItems.forEach((item, i) => {
-          item.set_label(sizeLabel(orderedSizes(supportedSizes)[i]));
-        });
-        if (activeIndex >= 0) {
-          sizeItems[activeIndex].set_label(`● ${sizeLabel(orderedSizes(supportedSizes)[activeIndex])}`);
-        };
-
-        sizeButton.ensure_style();
-        const [, buttonHeight] = sizeButton.get_preferred_height(-1);
-
-        const layerX = this._layerX ?? 0;
-        const layerY = this._layerY ?? 0;
-        const [menuX, menuY] = this._menuStagePosition(
-          sizeMenu,
-          layerX + x,
-          layerY + y + buttonHeight + 6);
-
-        sizeMenu.set_position(menuX - layerX, menuY - layerY);
-        sizeMenu.show();
-        raiseActor(sizeMenu);
-      }, this);
-
-      sizeButton.connectObject('destroy', () => {
-        if (!sizeMenuDestroyed) {
-          sizeMenu.destroy();
-        };
-      }, this);
+sizeButton.connectObject('destroy', () => {
+  if (!sizeMenuDestroyed && sizeMenu) {
+    sizeMenu.destroy();
+  };
+}, this);
     };
 
     let photoButton = null;
@@ -3082,7 +3045,7 @@ class WidgetController {
       };
 
       this._cancelActiveDrag();
-      view.sizeMenu?.hide();
+      view.sizeMenu?.close();
       view.contextMenu?.close();
 
       const [stageX, stageY] = event.get_coords();
@@ -3254,7 +3217,7 @@ class WidgetController {
   };
 
   _showContextMenu(view, event) {
-    view.sizeMenu?.hide();
+    view.sizeMenu?.close();
     this._hideContextMenus();
 
     // Menus are disposable; the manager persists per view (it has no

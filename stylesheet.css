@@ -65,32 +65,8 @@
     border-color: rgba(255, 123, 123, 0.35);
 }
 
-/* The size picker copies the stock shell context menu look (GNOME 51
- * popup-menu-content): #36363a panel, 20px radius, soft hover rows. */
-.widget-layer .widget-size-menu {
-    border-radius: 20px;
-    background-color: #36363a;
-    border: 1px solid #424247;
-    padding: 6px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    pointer-events: auto;
-}
-
-.widget-layer .widget-size-menu-item {
-    padding: 9px 12px;
-    border-radius: 12px;
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: normal;
-    background-color: transparent;
-    text-align: left;
-    cursor: pointer;
-    pointer-events: auto;
-}
-
-.widget-layer .widget-size-menu-item:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-}
+/* The edit-mode size picker is a stock shell PopupMenu (styled by the
+ * shell theme itself), so the extension ships no custom classes for it. */
 
 .widget-layer .widget-edit-pin {
     min-width: 26px;
