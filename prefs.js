@@ -291,6 +291,12 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         pomodoroPage.set_icon_name('alarm-symbolic');
         this._addSidebarPage(pomodoroPage);
 
+        // System Monitor page
+        const systemMonitorPage = this._createSystemMonitorPage(settings);
+        systemMonitorPage.set_title(_('System Monitor Widget'));
+        systemMonitorPage.set_icon_name('computer-symbolic');
+        this._addSidebarPage(systemMonitorPage);
+
         // Lava page
         const lavaPage = this._createLavaPage(settings);
         lavaPage.set_title(_('Lava Lamp Widget'));
@@ -625,39 +631,6 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         indicatorRow.add_suffix(indicatorSwitcher);
         widgetsGroup.add(indicatorRow);
-
-        // Marker color: white / black / accent — same for both widgets.
-        const indicatorColorSwitcher = makeThemeSwitcher(
-            [['white', _('White')], ['black', _('Black')], ['accent', _('Accent')]],
-            () => {
-                const value = settings.get_string('page-indicator-color');
-                return ['white', 'black'].includes(value) ? value : 'accent';
-            },
-            (wants) => {
-                if (settings.get_string('page-indicator-color') !== wants) {
-                    settings.set_string('page-indicator-color', wants);
-                }
-            }
-        );
-        settings.connect('changed::page-indicator-color', () => indicatorColorSwitcher.syncTo());
-
-        const indicatorColorRow = new Adw.ActionRow({
-            title: _('Indicator color'),
-        });
-        indicatorColorRow.add_suffix(indicatorColorSwitcher);
-        widgetsGroup.add(indicatorColorRow);
-
-        // System monitor dashes can be turned off entirely (the calendar
-        // keeps its own "Show page dots" switch on the Calendar page).
-        const systemDashesRow = new Adw.SwitchRow({
-            title: _('System monitor dashes'),
-            subtitle: _('Swipe-page dashes at the bottom of the system monitor'),
-        });
-        systemDashesRow.set_active(settings.get_boolean('system-show-page-dashes'));
-        systemDashesRow.connect('notify::active', () => {
-            settings.set_boolean('system-show-page-dashes', systemDashesRow.get_active());
-        });
-        widgetsGroup.add(systemDashesRow);
 
         // Update theme rows from settings (switcher pills and visibility).
         const updateGeneralDropdown = () => {
@@ -1486,6 +1459,18 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(pageDotsRow);
 
+        // Page indicator color: accent when on, neutral theme text when off
+        // (white on the dark theme, black on the light one).
+        const pageIndicatorAccentRow = new Adw.SwitchRow({
+            title: _('Use accent color for page indicator'),
+            subtitle: _('Accent color for the page markers. When off, they follow the theme text color.'),
+        });
+        pageIndicatorAccentRow.set_active(settings.get_boolean('calendar-page-indicator-accent'));
+        pageIndicatorAccentRow.connect('notify::active', () => {
+            settings.set_boolean('calendar-page-indicator-accent', pageIndicatorAccentRow.get_active());
+        });
+        group.add(pageIndicatorAccentRow);
+
         page.add(group);
         return page;
     }
@@ -1745,6 +1730,41 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         sessionsRow.connect('notify::value', () => {
             settings.set_int('pomodoro-sessions-before-long-break', sessionsRow.get_value());
         });
+
+        page.add(group);
+        return page;
+    }
+
+    _createSystemMonitorPage(settings) {
+        const page = new Adw.PreferencesPage();
+        const group = new Adw.PreferencesGroup({
+            title: _('System Monitor Widget'),
+            description: _('Preferences for the CPU, RAM, GPU and network widget.'),
+            margin_top: 12,
+        });
+
+        // Swipe-page dashes at the bottom of the 1x1 and 2x1 sizes.
+        const pageDashesRow = new Adw.SwitchRow({
+            title: _('Show page dashes'),
+            subtitle: _('Swipe-page dashes at the bottom of the system monitor'),
+        });
+        pageDashesRow.set_active(settings.get_boolean('system-show-page-dashes'));
+        pageDashesRow.connect('notify::active', () => {
+            settings.set_boolean('system-show-page-dashes', pageDashesRow.get_active());
+        });
+        group.add(pageDashesRow);
+
+        // Page dash color: accent when on, neutral theme text when off
+        // (white on the dark theme, black on the light one).
+        const pageIndicatorAccentRow = new Adw.SwitchRow({
+            title: _('Use accent color for page indicator'),
+            subtitle: _('Accent color for the page dashes. When off, they follow the theme text color.'),
+        });
+        pageIndicatorAccentRow.set_active(settings.get_boolean('system-page-indicator-accent'));
+        pageIndicatorAccentRow.connect('notify::active', () => {
+            settings.set_boolean('system-page-indicator-accent', pageIndicatorAccentRow.get_active());
+        });
+        group.add(pageIndicatorAccentRow);
 
         page.add(group);
         return page;

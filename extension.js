@@ -517,8 +517,9 @@ class WidgetController {
       'changed::calendar-use-accent-color', () => this._refreshCalendarWeekdays(),
       'changed::calendar-show-page-dots', () => this._scheduleAppearance('refresh'),
       'changed::page-indicator-style', () => this._scheduleAppearance('refresh'),
-      'changed::page-indicator-color', () => this._scheduleAppearance('refresh'),
+      'changed::calendar-page-indicator-accent', () => this._scheduleAppearance('refresh'),
       'changed::system-show-page-dashes', () => this._scheduleAppearance('refresh'),
+      'changed::system-page-indicator-accent', () => this._scheduleAppearance('refresh'),
       // Re-render the weather cards in place so the temperature flips between
       // accent and neutral text color the moment the toggle flips.
       'changed::weather-use-accent-color', () => this._refreshWeatherViews(),
@@ -2135,7 +2136,7 @@ class WidgetController {
     this._refreshWeather(false);
 
     for (const [id, view] of this._views) {
-      if (!['battery', 'calendar', 'digitalclock', 'photos', 'weather', 'github'].includes(view.widget.type)) {
+      if (!['battery', 'calendar', 'digitalclock', 'photos', 'weather', 'github', 'system'].includes(view.widget.type)) {
         continue;
       };
 

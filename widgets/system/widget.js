@@ -685,13 +685,11 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
   let currentView = VIEW_CPU_RAM;
   // Round dots or dashes — the global page-indicator-style setting.
   const indicatorStyle = (settings?.get_int('page-indicator-style') ?? 1) === 1 ? 'dash' : 'dot';
-  // Marker color: explicit white/black, or the widget's accent color.
-  const indicatorColorValue = String(settings?.get_string('page-indicator-color') ?? 'accent');
-  const indicatorColor = indicatorColorValue === 'white'
-    ? '#ffffff'
-    : indicatorColorValue === 'black'
-      ? '#000000'
-      : accentColor;
+  // Page dash color: the accent when the System Monitor Widget switch is
+  // on, otherwise the neutral theme text (white on dark, black on light).
+  const indicatorColor = settings?.get_boolean('system-page-indicator-accent') ?? true
+    ? accentColor
+    : theme.text;
   const showPageDashes = settings?.get_boolean('system-show-page-dashes') ?? true;
   let unsubscribe = null;
   const animatingActors = new Set();

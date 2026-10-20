@@ -896,14 +896,12 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	// its allocation, so flush (0px) is the lowest clean position.
 	// Page indicators: round dots (calendar's classic look) or dashes —
 	// per the global page-indicator-style setting (prefs → General); the
-	// color follows the same setting group (white / black / accent).
+	// color is the accent when the Calendar Widget switch is on, otherwise
+	// the neutral theme text (white on dark, black on light).
 	const dashStyle = (settings?.get_int('page-indicator-style') ?? 0) === 1;
-	const indicatorColorValue = String(settings?.get_string('page-indicator-color') ?? 'accent');
-	const indicatorColor = indicatorColorValue === 'white'
-		? '#ffffff'
-		: indicatorColorValue === 'black'
-			? '#000000'
-			: (theme?.accent ?? text);
+	const indicatorColor = settings?.get_boolean('calendar-page-indicator-accent') ?? true
+		? (theme?.accent ?? text)
+		: text;
 	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
 		width: dashStyle ? 10 : 5,
 		height: dashStyle ? 3 : 5,
