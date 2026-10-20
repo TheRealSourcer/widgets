@@ -495,124 +495,120 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             }
         });
 
-        // Widget theme dropdown
-        const themeGeneralModel = new Gtk.StringList();
-        themeGeneralModel.append(_('Custom'));
-        themeGeneralModel.append(_('Dark'));
-        themeGeneralModel.append(_('Light'));
+        // Theme switchers are segmented pills (the Focus/Break look): a
+        // linked box of toggle buttons where the active segment carries the
+        // accent fill. Adw.ToggleGroup renders flat inside action rows, so
+        // the manual linked-toggles pill is used instead.
+        const makeThemeSwitcher = (items, getActiveName, onActivate) => {
+            const box = new Gtk.Box({
+                orientation: Gtk.Orientation.HORIZONTAL,
+                css_classes: ['linked'],
+                valign: Gtk.Align.CENTER,
+            });
 
-        const themeGeneralDropdown = new Gtk.DropDown({
-            model: themeGeneralModel,
-            valign: Gtk.Align.CENTER,
-        });
+            const buttons = [];
+            const sync = () => {
+                const active = getActiveName();
+                for (const [btn, name] of buttons) {
+                    const shouldBe = name === active;
+                    if (btn.active !== shouldBe) {
+                        btn.set_active(shouldBe);
+                    }
+                }
+            };
+
+            for (const [name, label] of items) {
+                const btn = new Gtk.ToggleButton({ label });
+                btn.connect('toggled', () => {
+                    if (!btn.active) {
+                        return;
+                    }
+                    if (getActiveName() !== name) {
+                        onActivate(name);
+                    }
+                    sync();
+                });
+                buttons.push([btn, name]);
+                box.append(btn);
+            }
+
+            sync();
+            box.syncTo = sync;
+            return box;
+        };
+
+        // Widget theme switcher (Custom | Dark | Light)
+        const themeGeneralSwitcher = makeThemeSwitcher(
+            [['custom', _('Custom')], ['dark', _('Dark')], ['light', _('Light')]],
+            () => {
+                if (settings.get_boolean('use-custom-widget-theme') && settings.get_boolean('use-same-theme-for-both')) {
+                    return settings.get_string('widget-theme-unified') === 'dark' ? 'dark' : 'light';
+                }
+                return 'custom';
+            },
+            (wants) => {
+                if (wants === 'custom') {
+                    settings.set_boolean('use-same-theme-for-both', false);
+                } else {
+                    settings.set_boolean('use-same-theme-for-both', true);
+                    if (settings.get_string('widget-theme-unified') !== wants) {
+                        settings.set_string('widget-theme-unified', wants);
+                    }
+                }
+            }
+        );
 
         const themeGeneralRow = new Adw.ActionRow({
             title: _('Widget theme'),
             subtitle: _('Theme for widgets'),
-            activatable_widget: themeGeneralDropdown,
         });
-        themeGeneralRow.add_suffix(themeGeneralDropdown);
+        themeGeneralRow.add_suffix(themeGeneralSwitcher);
         themeExpanderRow.add_row(themeGeneralRow);
 
         // Theme for light system mode
-        const themeLightModel = new Gtk.StringList();
-        themeLightModel.append(_('Dark'));
-        themeLightModel.append(_('Light'));
-
-        const themeLightDropdown = new Gtk.DropDown({
-            model: themeLightModel,
-            valign: Gtk.Align.CENTER,
-        });
+        const themeLightSwitcher = makeThemeSwitcher(
+            [['dark', _('Dark')], ['light', _('Light')]],
+            () => (settings.get_string('widget-theme-for-light') === 'light' ? 'light' : 'dark'),
+            (wants) => {
+                if (settings.get_string('widget-theme-for-light') !== wants) {
+                    settings.set_string('widget-theme-for-light', wants);
+                }
+            }
+        );
 
         const themeLightRow = new Adw.ActionRow({
             title: _('For light system theme'),
-            activatable_widget: themeLightDropdown,
         });
-        themeLightRow.add_suffix(themeLightDropdown);
+        themeLightRow.add_suffix(themeLightSwitcher);
         themeExpanderRow.add_row(themeLightRow);
 
         // Theme for dark system mode
-        const themeDarkModel = new Gtk.StringList();
-        themeDarkModel.append(_('Dark'));
-        themeDarkModel.append(_('Light'));
-
-        const themeDarkDropdown = new Gtk.DropDown({
-            model: themeDarkModel,
-            valign: Gtk.Align.CENTER,
-        });
+        const themeDarkSwitcher = makeThemeSwitcher(
+            [['dark', _('Dark')], ['light', _('Light')]],
+            () => (settings.get_string('widget-theme-for-dark') === 'light' ? 'light' : 'dark'),
+            (wants) => {
+                if (settings.get_string('widget-theme-for-dark') !== wants) {
+                    settings.set_string('widget-theme-for-dark', wants);
+                }
+            }
+        );
 
         const themeDarkRow = new Adw.ActionRow({
             title: _('For dark system theme'),
-            activatable_widget: themeDarkDropdown,
         });
-        themeDarkRow.add_suffix(themeDarkDropdown);
+        themeDarkRow.add_suffix(themeDarkSwitcher);
         themeExpanderRow.add_row(themeDarkRow);
 
         widgetsGroup.add(themeExpanderRow);
 
-        // Update general dropdown based on settings
+        // Update theme rows from settings (switcher pills and visibility).
         const updateGeneralDropdown = () => {
-            const customEnabled = settings.get_boolean('use-custom-widget-theme');
-            
-            if (customEnabled) {
-                const sameForBoth = settings.get_boolean('use-same-theme-for-both');
-                if (sameForBoth) {
-                    const theme = settings.get_string('widget-theme-unified');
-                    themeGeneralDropdown.set_selected(theme === 'dark' ? 1 : theme === 'light' ? 2 : 0);
-                } else {
-                    themeGeneralDropdown.set_selected(0); // General
-                }
-            } else {
-                themeGeneralDropdown.set_selected(0); // General
-            }
+            themeGeneralSwitcher.syncTo();
         };
 
-        themeGeneralDropdown.connect('notify::selected', () => {
-            const selected = themeGeneralDropdown.get_selected();
-            const customEnabled = settings.get_boolean('use-custom-widget-theme');
-            
-            if (!customEnabled) return;
-            
-            if (selected === 0) { // General
-                settings.set_boolean('use-same-theme-for-both', false);
-            } else {
-                settings.set_boolean('use-same-theme-for-both', true);
-                const theme = selected === 1 ? 'dark' : 'light';
-                if (settings.get_string('widget-theme-unified') !== theme) {
-                    settings.set_string('widget-theme-unified', theme);
-                }
-            }
-        });
+        settings.connect('changed::widget-theme-for-light', () => themeLightSwitcher.syncTo());
 
-        themeLightDropdown.set_selected(settings.get_string('widget-theme-for-light') === 'light' ? 1 : 0);
-        themeLightDropdown.connect('notify::selected', () => {
-            const value = themeLightDropdown.get_selected() === 1 ? 'light' : 'dark';
-            if (settings.get_string('widget-theme-for-light') !== value) {
-                settings.set_string('widget-theme-for-light', value);
-            }
-        });
-        settings.connect('changed::widget-theme-for-light', () => {
-            const value = settings.get_string('widget-theme-for-light');
-            const selected = value === 'light' ? 1 : 0;
-            if (themeLightDropdown.get_selected() !== selected) {
-                themeLightDropdown.set_selected(selected);
-            }
-        });
-
-        themeDarkDropdown.set_selected(settings.get_string('widget-theme-for-dark') === 'light' ? 1 : 0);
-        themeDarkDropdown.connect('notify::selected', () => {
-            const value = themeDarkDropdown.get_selected() === 1 ? 'light' : 'dark';
-            if (settings.get_string('widget-theme-for-dark') !== value) {
-                settings.set_string('widget-theme-for-dark', value);
-            }
-        });
-        settings.connect('changed::widget-theme-for-dark', () => {
-            const value = settings.get_string('widget-theme-for-dark');
-            const selected = value === 'light' ? 1 : 0;
-            if (themeDarkDropdown.get_selected() !== selected) {
-                themeDarkDropdown.set_selected(selected);
-            }
-        });
+        settings.connect('changed::widget-theme-for-dark', () => themeDarkSwitcher.syncTo());
 
         // Update visibility of theme rows based on settings
         const updateThemeRowsVisibility = () => {
