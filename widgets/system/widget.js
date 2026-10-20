@@ -612,7 +612,7 @@ function createSparkTile(theme, label, value, unit, accentColor, samples, maxVal
     style: `
       color: ${theme.muted};
       font-size: 13px;
-      font-weight: 400;
+      font-weight: 600;
     `,
   });
 
