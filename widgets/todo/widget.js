@@ -77,6 +77,10 @@ export function render({ body, widget, theme, sizeForWidget }) {
     let tasks = DEFAULT_TASKS.map(t => ({ ...t, text: defaultTaskText(t.text) }));
     let tasksLoaded = false;
     const state = { entryVisible: false };
+    // Completion transitions queued by the checkbox and consumed by
+    // buildTaskRow on the row that the rebuild creates (the clicked row is
+    // destroyed in the same frame, so animations must target the new one).
+    const animQueue = new Map(); // task object → 'toDone' | 'toUndone'
 
     const [refW, refH] = sizeForWidget(widget);
     const contentW = Math.max(1, refW - 34);
@@ -190,6 +194,8 @@ export function render({ body, widget, theme, sizeForWidget }) {
     function buildTaskRow(task) {
         const fontSize = px(isMini ? TASK_TEXT_FONT_SIZE_MINI : TASK_TEXT_FONT_SIZE);
         const cSize = px(isMini ? CHECKBOX_SIZE_MINI : CHECKBOX_SIZE);
+        const anim = animQueue.get(task) ?? null;
+        if (anim) animQueue.delete(task);
 
         const row = new St.BoxLayout({
             orientation: Clutter.Orientation.HORIZONTAL,
@@ -220,16 +226,20 @@ export function render({ body, widget, theme, sizeForWidget }) {
         const textLabel = new St.Label({
             x_expand: true,
             y_align: Clutter.ActorAlign.START,
-            style: `font-size: ${fontSize}px; color: ${textColor}; opacity: ${task.done ? 0.5 : 1.0};`,
+            style: `font-size: ${fontSize}px; color: ${textColor};`,
         });
         textLabel.clutter_text.use_markup = true;
         textLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         textLabel.clutter_text.line_wrap = true;
         textLabel.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
         textLabel.clutter_text.set_markup(labelText);
+        textLabel.opacity = task.done ? 128 : 255;
 
         checkbox.connect('clicked', () => {
             if (isActorDestroyed(body)) return;
+            // Transition plays on the rebuilt row: this one is destroyed in
+            // the same frame, animations started here would never run.
+            animQueue.set(task, task.done ? 'toUndone' : 'toDone');
             task.done = !task.done;
             save();
             renderTasks();
@@ -261,12 +271,79 @@ export function render({ body, widget, theme, sizeForWidget }) {
         // Press feedback on the checkbox and the delete (trash) button.
         attachBounce(checkbox);
         attachBounce(deleteButton);
+
+        // Completion transition — livening up the checked state: the row
+        // gives a soft squash, the checkbox fills in, the tick springs and
+        // the text settles into the muted done look (or lights back up).
+        if (anim) {
+            row.set_pivot_point(0.5, 0.5);
+            row.remove_transition('scale-y');
+            row.scale_y = 0.93;
+            row.ease({
+                scale_y: 1,
+                duration: 260,
+                mode: Clutter.AnimationMode.EASE_OUT_BACK,
+            });
+
+            checkbox.set_pivot_point(0.5, 0.5);
+            checkbox.opacity = 110;
+            checkbox.ease({
+                opacity: 255,
+                duration: 180,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+
+            if (anim === 'toDone') {
+                textLabel.opacity = 255;
+                textLabel.ease({
+                    opacity: 128,
+                    duration: 240,
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                });
+
+                const tick = checkbox.child;
+                if (tick) {
+                    tick.set_pivot_point(0.5, 0.5);
+                    tick.scale_x = 0.3;
+                    tick.scale_y = 0.3;
+                    tick.ease({
+                        scale_x: 1,
+                        scale_y: 1,
+                        duration: 300,
+                        mode: Clutter.AnimationMode.EASE_OUT_BACK,
+                    });
+                };
+            } else {
+                textLabel.opacity = 128;
+                textLabel.ease({
+                    opacity: 255,
+                    duration: 200,
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                });
+            };
+        };
+
         return row;
     }
 
     function renderTasks() {
         if (isActorDestroyed(body)) return;
-        countLabel.text = String(tasks.filter(t => !t.done).length);
+        const nextCount = String(tasks.filter(t => !t.done).length);
+        if (nextCount !== countLabel.text) {
+            countLabel.text = nextCount;
+            // Springy pulse so the remaining counter also feels alive.
+            countLabel.set_pivot_point(0.5, 0.5);
+            countLabel.remove_transition('scale-x');
+            countLabel.remove_transition('scale-y');
+            countLabel.scale_x = 0.8;
+            countLabel.scale_y = 0.8;
+            countLabel.ease({
+                scale_x: 1,
+                scale_y: 1,
+                duration: 260,
+                mode: Clutter.AnimationMode.EASE_OUT_BACK,
+            });
+        };
         taskList.destroy_all_children();
         if (tasks.length === 0) {
             taskList.add_child(new St.Label({
