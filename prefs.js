@@ -2509,11 +2509,9 @@ export default class WidgetsPrefs extends ExtensionPreferences {
     _createAppearancePage(settings) {
         const page = new Adw.PreferencesPage();
 
-        // Layout: [Glass params] → [Solid params] → [common]
-        // (colors / accent / opacity / reset) → [style cards]. The glass/solid
-        // groups are toggled by the selected card; the common group is always
-        // shown. The style cards sit at the very bottom so the parameter
-        // groups don't jump under the pointer when visibility flips.
+        // Layout: [style cards] → [Widget Styling] → [Glass params] →
+        // [Solid params]. The glass/solid groups are toggled by the selected
+        // card and sit at the bottom of the page, below the shared styling.
         const styleGroup = new Adw.PreferencesGroup({
             title: _('Widget Style'),
             margin_top: 12,
@@ -3042,11 +3040,12 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(resetStyleRow);
 
+        // Shared options on top; the Glass | Solid parameter groups (toggled
+        // by the cards) come last, at the bottom of the page.
+        page.add(styleGroup);
+        page.add(group);
         page.add(glassGroup);
         page.add(solidGroup);
-        page.add(group);
-        // The Glass | Solid style cards live at the very bottom of the page.
-        page.add(styleGroup);
         // Re-assert the section visibility after the groups are parented, so
         // Solid never flashes (or sticks with) the Glass settings.
         syncStyleVisibility();
