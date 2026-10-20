@@ -2515,60 +2515,104 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             scale.add_controller(click);
         };
 
-        // Helper for the integer glass sliders. All values are stored as ints
-        // in the schema; the title carries any ×10/×100 scale.
+        // Helper for the integer glass parameters — slider rows like in the
+        // liquidglass-widgets extension: value scale + right-aligned value
+        // label instead of the +/- SpinRows. All values stay ints in the
+        // schema; the title/subtitle carries any ×10/×100 scale.
         const glassRows = [];
-        const addGlassSpin = (title, subtitle, key, lower, upper) => {
-            const row = new Adw.SpinRow({
-                title,
-                subtitle,
-                adjustment: new Gtk.Adjustment({
-                    lower,
-                    upper,
-                    step_increment: 1,
-                    page_increment: 10,
-                }),
+        const addGlassSlider = (title, subtitle, key, lower, upper, format) => {
+            const adjustment = new Gtk.Adjustment({
+                lower,
+                upper,
+                step_increment: 1,
+                page_increment: 10,
             });
-            row.set_value(settings.get_int(key));
-            row.connect('notify::value', () => {
+            adjustment.value = settings.get_int(key);
+
+            const scale = new Gtk.Scale({
+                adjustment,
+                draw_value: false,
+                hexpand: true,
+                valign: Gtk.Align.CENTER,
+                width_request: 220,
+            });
+            // Signal the shell while a slider is being dragged so it can defer
+            // widget re-renders until the handle is actually released (same as
+            // widget opacity below). No Double writes here: the glass keys are
+            // ints and the debounced set below is the only writer.
+            const drag = new Gtk.GestureClick();
+            drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE);
+            drag.connect('pressed', () => settings.set_boolean('drag-active', true));
+            drag.connect('released', () => settings.set_boolean('drag-active', false));
+            drag.connect('stopped', () => settings.set_boolean('drag-active', false));
+            scale.add_controller(drag);
+
+            const value = new Gtk.Label({
+                width_chars: 7,
+                xalign: 1,
+                css_classes: ['dim-label', 'numeric'],
+            });
+            value.label = format(Math.round(adjustment.value));
+
+            const row = new Adw.ActionRow({title, subtitle});
+            row.add_suffix(scale);
+            row.add_suffix(value);
+
+            scale.connect('value-changed', () => {
+                const v = Math.round(scale.get_value());
+                value.label = format(v);
                 this._debounce(key, () => {
-                    settings.set_int(key, Math.round(row.get_value()));
+                    settings.set_int(key, v);
                 }, 120);
             });
+
+            // External changes (Reset Style) move the slider back.
+            settings.connect(`changed::${key}`, () => {
+                adjustment.value = settings.get_int(key);
+                value.label = format(settings.get_int(key));
+            });
+
             glassRows.push(row);
             group.add(row);
             return row;
         };
 
-        const blurRow = addGlassSpin(
+        const blurRow = addGlassSlider(
             _('Blur Radius'),
             _('Background blur radius in pixels (0–60)'),
-            'blur-radius-px', 0, 60);
+            'blur-radius-px', 0, 60,
+            v => `${v} px`);
         // Roundness removed - now uses fixed squircle shape (6.1) with border-radius
-        const refractThicknessRow = addGlassSpin(
+        const refractThicknessRow = addGlassSlider(
             _('Refraction Thickness'),
             _('Width of the refracting edge band in pixels (0 disables refraction)'),
-            'refract-thickness', 0, 100);
-        const refractIORRow = addGlassSpin(
+            'refract-thickness', 0, 100,
+            v => `${v} px`);
+        const refractIORRow = addGlassSlider(
             _('Refraction IOR (×100)'),
             _('Index of refraction: 100 = no bending, 170 ≈ glass'),
-            'refract-ior-x100', 100, 300);
-        const refractScaleRow = addGlassSpin(
+            'refract-ior-x100', 100, 300,
+            v => (v / 100).toFixed(2));
+        const refractScaleRow = addGlassSlider(
             _('Refraction Scale'),
             _('How far the edge displaces the wallpaper (0–200)'),
-            'refract-scale', 0, 200);
-        const chromaRow = addGlassSpin(
+            'refract-scale', 0, 200,
+            v => `${v} px`);
+        const chromaRow = addGlassSlider(
             _('Chromatic Aberration (%)'),
             _('Rainbow fringing along the refracting edge (0–100)'),
-            'chroma-strength-pct', 0, 100);
-        const tintAlphaRow = addGlassSpin(
+            'chroma-strength-pct', 0, 100,
+            v => `${v}%`);
+        const tintAlphaRow = addGlassSlider(
             _('Tint Opacity (%)'),
             _('How strongly the glass tint colours the backdrop (0–100)'),
-            'tint-alpha-pct', 0, 100);
-        const specRow = addGlassSpin(
+            'tint-alpha-pct', 0, 100,
+            v => `${v}%`);
+        const specRow = addGlassSlider(
             _('Specular Highlights (%)'),
             _('Strength of the glossy edge and cursor highlights (0–100)'),
-            'spec-strength-pct', 0, 100);
+            'spec-strength-pct', 0, 100,
+            v => `${v}%`);
 
         const updateGlassSensitivity = () => {
             const glass = styleModeRow.get_selected() === 0;
