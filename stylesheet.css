@@ -32,72 +32,28 @@
 /* Edit-mode icon buttons use the stock shell panel palette (GNOME 51
  * popup-menu-content: solid #36363a with a #424247 border) so they sit
  * consistently next to the size menu and the context menu. */
+/* Geometry + focus only: the background/border colors of the edit-mode
+ * icon buttons come from _styleEditButtons() inline (glass vs solid
+ * palettes), so no color rules live here. */
 .widget-layer .icon-button {
     width: 26px;
     height: 26px;
     padding: 0;
     border-radius: 13px;
-    border: 1px solid #424247;
+    border-width: 1px;
+    border-style: solid;
     color: #ffffff;
-    background-color: #36363a;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     transition: background-color 120ms ease-out, border-color 120ms ease-out, box-shadow 120ms ease-out;
     pointer-events: auto;
-}
-
-.widget-layer .icon-button:hover {
-    background-color: #424247;
-    border-color: #4d4d52;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-}
-
-.widget-layer .icon-button:active {
-    background-color: #505055;
 }
 
 .widget-layer .icon-button:focus {
     box-shadow: 0 0 0 2px rgba(88, 161, 235, 0.9);
 }
 
-.widget-layer .widget-edit-remove {
-    color: rgba(255, 123, 123, 0.92);
-}
-
-.widget-layer .widget-edit-remove:hover {
-    background-color: rgba(230, 45, 66, 0.24);
-    border-color: rgba(255, 123, 123, 0.35);
-}
-
 /* The edit-mode size picker is a stock shell PopupMenu (styled by the
  * shell theme itself), so the extension ships no custom classes for it. */
-
-.widget-layer .widget-edit-pin {
-    min-width: 26px;
-    min-height: 26px;
-    padding: 0;
-    border-radius: 13px;
-    color: #ffffff;
-    background-color: rgba(24, 26, 32, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-    pointer-events: auto;
-}
-
-.widget-layer .widget-edit-pin:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.widget-layer .widget-edit-pin:active,
-.widget-layer .widget-edit-pin.pinned {
-    background-color: #5b9de0;
-    color: #ffffff;
-    border-color: #5b9de0;
-}
-
-.widget-layer .widget-edit-pin:active:hover,
-.widget-layer .widget-edit-pin.pinned:hover {
-    background-color: #6baae5;
-}
 
 .widget-context-menu {
     min-width: 160px;
