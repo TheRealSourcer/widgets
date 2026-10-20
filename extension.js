@@ -2056,7 +2056,6 @@ class WidgetController {
     };
 
     const [prevW, prevH] = this._sizeFor(widget);
-    log(`DW-RESIZE: onSizeChange ${widget.type}: ${widget.size} -> ${sizeKey} (was ${prevW}x${prevH}px)`);
     widget.size = sizeKey;
     this._clampWidget(widget);
     this._resolveLayout(widget, true, true);
@@ -2069,7 +2068,6 @@ class WidgetController {
     };
 
     const [prevW, prevH] = this._sizeFor(widget);
-    log(`DW-RESIZE: setWidgetSize ${widget.type}: ${widget.size} -> ${sizeKey} (was ${prevW}x${prevH}px)`);
     widget.size = sizeKey;
     widget.data = {...(widget.data ?? {}), sizeManual: true};
     this._views.get(widget.id)?.sizeMenu?.hide();
@@ -2090,8 +2088,6 @@ class WidgetController {
 
       const [wrapperW, wrapperH] = view.actor?.get_size() ?? [0, 0];
       const [boxW, boxH] = view.box?.get_size() ?? [0, 0];
-      const [glW, glH] = view.glass?.get_size() ?? [0, 0];
-      log(`DW-RESIZE: post-ease re-fill ${widget.type}; wrapper=${wrapperW}x${wrapperH} box-before=${boxW}x${boxH} glass-before=${glW}x${glH}`);
 
       // Force-sync children to the settled wrapper size (notify hooks miss).
       if (view.box && wrapperW > 0 && wrapperH > 0) {
@@ -3473,7 +3469,6 @@ class WidgetController {
     const [curW, curH] = view.actor.get_size();
     const duration = 200;
     const mode = Clutter.AnimationMode.EASE_OUT_CUBIC;
-    log(`DW-RESIZE: animate ${widget.type}: actor now ${curW}x${curH} -> easing to ${width}x${height} @${widget.x},${widget.y}`);
 
     // The frame, the styled content box and the glass pane tween together so
     // nothing snaps at the end of the animation; the body keeps reflowing
