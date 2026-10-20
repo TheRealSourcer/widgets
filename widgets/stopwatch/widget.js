@@ -308,15 +308,18 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		style: `spacing: ${px(4)}px;`,
 	});
 
-	// All three digit columns share ONE fixed slot width; the ink is
-	// centered INSIDE every slot with exact symmetric padding (slot minus
-	// measured ink, halved) — paint alignment semantics can't drift it.
-	// Slot 149 keeps the whole row within the 540-unit design canvas.
-	const digitSlot = px(149);
-	// Measured at 64px bold Ubuntu: digits ink 69, captions ink 75 / 83 / 150.
-	const digitPad = px(40);
-	const minutesCaptionPad = px(37);
-	const secondsCaptionPad = px(33);
+	// All three digit columns share ONE fixed slot; the ink is centered
+	// INSIDE every slot with exact symmetric padding (slot minus measured
+	// ink, halved) — paint alignment semantics can't drift it. Slot 123
+	// keeps the whole row inside the 540-unit design canvas with air to
+	// spare for the target look.
+	const digitSlot = px(123);
+	// Measured at 64px bold Ubuntu: digits ink 69.
+	const digitPad = px(27);
+	// Captions at 14px 600 (target look): inks 55 / 60 / 95.
+	const minutesCaptionPad = px(34);
+	const secondsCaptionPad = px(31);
+	const centisecondsCaptionPad = px(14);
 
 	const minutesLabel = new St.Label({
 		text: '00',
@@ -327,18 +330,40 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const minutesCaption = new St.Label({
 		text: _('Minutes'),
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${minutesCaptionPad}px;`,
+		style: `color: ${mutedColor}; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${minutesCaptionPad}px;`,
 	});
 
 	minutesBox.add_child(minutesLabel);
 	minutesBox.add_child(minutesCaption);
 
-	// Separator :
-	const separator1 = new St.Label({
-		text: ':',
-		y_align: Clutter.ActorAlign.START,
-		style: `color: ${textColor}; font-size: ${px(64)}px; font-weight: 700; margin-top: ${px(-8)}px;`,
-	});
+	// Two-dot colon separators drawn in canvas, in the reference digital
+	// clock's style: fat round dots instead of the thin font glyph. Geometry
+	// from the target look: dot radius 5 units, centers 18 units apart, the
+	// stack leaning toward the digit baseline (center at +33 of the ~49-tall
+	// ink row). Drawn from the row top, unaffected by cross-axis rules.
+	const buildColon = () => {
+		const area = new St.DrawingArea({
+			width: px(16),
+			height: px(50),
+		});
+		area.connect('repaint', (canvas) => {
+			const ctx = canvas.get_context();
+			const rgb = parseCssColor(textColor) ?? {r: 1, g: 1, b: 1, a: 1};
+			ctx.setSourceRGBA(rgb.r, rgb.g, rgb.b, 1);
+			const [w] = canvas.get_surface_size();
+			const cx = Math.round(w / 2);
+			const cy = Math.round(px(33));
+			const r = px(5);
+			for (const dy of [-px(9), px(9)]) {
+				ctx.arc(cx, cy + dy, r, 0, 2 * Math.PI);
+				ctx.fill();
+			};
+			ctx.$dispose();
+		});
+		return area;
+	};
+
+	const separator1 = buildColon();
 
 	// Seconds
 	const secondsBox = new St.BoxLayout({
@@ -356,18 +381,14 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const secondsCaption = new St.Label({
 		text: _('Seconds'),
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(20)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${secondsCaptionPad}px;`,
+		style: `color: ${mutedColor}; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${secondsCaptionPad}px;`,
 	});
 
 	secondsBox.add_child(secondsLabel);
 	secondsBox.add_child(secondsCaption);
 
-	// Separator :
-	const separator2 = new St.Label({
-		text: ':',
-		y_align: Clutter.ActorAlign.START,
-		style: `color: ${textColor}; font-size: ${px(64)}px; font-weight: 700; margin-top: ${px(-8)}px;`,
-	});
+	// Separator (two-dot canvas, same builder)
+	const separator2 = buildColon();
 
 	// Centiseconds
 	const centisecondsBox = new St.BoxLayout({
@@ -385,7 +406,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const centisecondsCaption = new St.Label({
 		text: _('Centiseconds'),
 		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(23)}px; font-weight: 600; width: ${digitSlot}px; padding: 0;`,
+		style: `color: ${mutedColor}; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${centisecondsCaptionPad}px;`,
 	});
 
 	centisecondsBox.add_child(centisecondsLabel);
