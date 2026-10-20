@@ -2061,19 +2061,15 @@ class WidgetController {
     widget.size = sizeKey;
     widget.data = {...(widget.data ?? {}), sizeManual: true};
     this._views.get(widget.id)?.sizeMenu?.hide();
-    const [newW, newH] = this._sizeFor(widget);
-    log(`DW-RESIZE: new target ${newW}x${newH}px, re-rendering body now`);
-    this._safeFillWidgetBody(widget, this._views.get(widget.id)?.body);
     this._clampWidget(widget);
     this._resolveLayout(widget, true, true);
     this._animateWidget(widget, true);
     this._saveWidgets();
 
-    // The body was re-rendered before the wrapper eased to the new size, so
-    // some inner allocations keep the old frame. Re-render once the ease has
-    // landed — the theme-switch path re-renders at the settled size and that
-    // is exactly what makes everything fall into place.
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 160, () => {
+    // The old body stays put during the ease (clip_to_allocation makes it
+    // reflow smoothly with the box). Re-render once the ease has fully
+    // settled so fonts and internals land on final allocations.
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 260, () => {
       const view = this._views.get(widget.id);
 
       if (!view || !view.body) {
@@ -3418,16 +3414,39 @@ class WidgetController {
     };
 
     const [curW, curH] = view.actor.get_size();
+    const duration = 200;
+    const mode = Clutter.AnimationMode.EASE_OUT_CUBIC;
     log(`DW-RESIZE: animate ${widget.type}: actor now ${curW}x${curH} -> easing to ${width}x${height} @${widget.x},${widget.y}`);
 
+    // The frame, the styled content box and the glass pane tween together so
+    // nothing snaps at the end of the animation; the body keeps reflowing
+    // inside the box (clip_to_allocation) instead of popping.
     view.actor.ease({
       x: widget.x,
       y: widget.y,
       width,
       height,
-      duration: 130,
-      mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+      duration,
+      mode,
     });
+
+    if (view.box?.ease) {
+      view.box.ease({
+        width,
+        height,
+        duration,
+        mode,
+      });
+    };
+
+    if (view.glass?.ease) {
+      view.glass.ease({
+        width,
+        height,
+        duration,
+        mode,
+      });
+    };
 
     this._syncEditControls(widget, true);
   };
