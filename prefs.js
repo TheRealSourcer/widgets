@@ -2540,151 +2540,29 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             accentColorRow.sensitive = customAccentRow.get_active();
         });
 
-        // Style mode: two preview cards side by side (Glass | Solid) instead
-        // of a dropdown — the selected one is outlined with the accent color,
-        // and the settings section switches to that style.
-        const cardCss = new Gtk.CssProvider();
-        cardCss.load_from_string(`
-            .dw-style-card {
-                padding: 8px;
-                border-radius: 14px;
-                border: 2px solid transparent;
-            }
-            .dw-style-card:checked {
-                border-color: @accent_bg_color;
-                background-color: color-mix(in srgb, @accent_bg_color 12%, transparent);
-            }
-        `);
-
-        const drawStylePreview = (cr, width, height, kind) => {
-            const R = (x, y, w, h, r) => {
-                cr.newPath();
-                cr.arc(x + r, y + r, r, Math.PI, 1.5 * Math.PI);
-                cr.arc(x + w - r, y + r, r, 1.5 * Math.PI, 2 * Math.PI);
-                cr.arc(x + w - r, y + h - r, r, 0, 0.5 * Math.PI);
-                cr.arc(x + r, y + h - r + 0, r, 0.5 * Math.PI, Math.PI);
-                cr.closePath();
-            };
-
-            // Wallpaper backdrop (only visible behind the glass pane).
-            R(0, 0, width, height, 8);
-            cr.clip();
-            cr.setSourceRGB(0.30, 0.49, 0.78);
-            cr.rectangle(0, 0, width, height);
-            cr.fill();
-            cr.setSourceRGBA(0.96, 0.83, 0.45, 0.55);
-            cr.arc(width * 0.72, height * 0.30, height * 0.42, 0, 2 * Math.PI);
-            cr.fill();
-            cr.setSourceRGBA(0.20, 0.55, 0.60, 0.45);
-            cr.arc(width * 0.22, height * 0.75, height * 0.38, 0, 2 * Math.PI);
-            cr.fill();
-
-            const paneX = 12;
-            const paneY = 12;
-            const paneW = width - 24;
-            const paneH = height - 24;
-
-            R(paneX, paneY, paneW, paneH, 6);
-
-            if (kind === 'glass') {
-                cr.setSourceRGBA(1, 1, 1, 0.28);
-                cr.fillPreserve();
-                cr.setSourceRGBA(1, 1, 1, 0.65);
-                cr.setLineWidth(1.5);
-                cr.stroke();
-                cr.setSourceRGBA(1, 1, 1, 0.75);
-            } else {
-                cr.setSourceRGB(0.14, 0.14, 0.14);
-                cr.fillPreserve();
-                cr.setSourceRGBA(1, 1, 1, 0.20);
-                cr.setLineWidth(1.5);
-                cr.stroke();
-                cr.setSourceRGBA(1, 1, 1, 0.85);
-            };
-
-            // Mock content: title bar, shorter artist bar, time dot.
-            const cx = paneX + paneW * 0.55;
-            R(cx, paneY + 6, paneW * 0.38, 5, 2.5);
-            cr.fill();
-            R(cx, paneY + 15, paneW * 0.26, 4, 2);
-            cr.fill();
-            R(paneX + 6, paneY + paneH - 10, paneW * 0.5, 4, 2);
-            cr.fill();
-            cr.setSourceRGBA(1, 1, 1, kind === 'glass' ? 0.55 : 0.35);
-            cr.arc(paneX + paneW - 9, paneY + 9, 3.5, 0, 2 * Math.PI);
-            cr.fill();
-            cr.resetClip();
-        };
-
-        const makeStyleCard = (kind, title, subtitle) => {
-            const card = new Gtk.ToggleButton({
-                css_classes: ['card', 'dw-style-card'],
-                hexpand: true,
-            });
-            card.get_style_context().add_provider(cardCss, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
-
-            const box = new Gtk.Box({
-                orientation: Gtk.Orientation.VERTICAL,
-                spacing: 6,
-                margin_start: 6,
-                margin_end: 6,
-                margin_top: 4,
-                margin_bottom: 4,
-            });
-
-            const preview = new Gtk.DrawingArea({
-                height_request: 56,
-            });
-            preview.set_draw_func((_widget, cr, width, height) => {
-                drawStylePreview(cr, width, height, kind);
-            });
-            box.append(preview);
-
-            const nameLabel = new Gtk.Label({
-                use_markup: true,
-                label: `<b>${title}</b>`,
-            });
-            box.append(nameLabel);
-
-            const subLabel = new Gtk.Label({
-                label: subtitle,
-                wrap: true,
-                wrap_mode: 1, // WORD
-                justify: 2,   // CENTER
-                css_classes: ['dim-label'],
-            });
-            box.append(subLabel);
-
-            card.child = box;
-            return card;
-        };
-
-        const glassCard = makeStyleCard('glass', _('Glass'),
-            _('Blurred wallpaper backdrop, refraction, specular highlights'));
-        const solidCard = makeStyleCard('solid', _('Solid'),
-            _('Opaque background, classic desktop look'));
-        solidCard.group = glassCard;
+        // Style mode: a segmented two-choice switcher (Glass | Solid) in the
+        // Focus/Break pill style; the section below follows the selection.
+        const styleSwitcher = new Adw.ToggleGroup({ homogeneous: true });
+        const glassToggle = new Adw.Toggle({ name: 'glass', label: _('Glass') });
+        const solidToggle = new Adw.Toggle({ name: 'solid', label: _('Solid') });
+        styleSwitcher.add(glassToggle);
+        styleSwitcher.add(solidToggle);
 
         const syncStyleVisibility = () => {
             const glass = settings.get_int('style-mode') === 0;
-            glassCard.active = glass;
-            solidCard.active = !glass;
+            styleSwitcher.active_name = glass ? 'glass' : 'solid';
             glassGroup.visible = glass;
             solidGroup.visible = !glass;
         };
         syncStyleVisibility();
 
-        glassCard.connect('toggled', () => {
-            if (glassCard.active && settings.get_int('style-mode') !== 0) {
-                settings.set_int('style-mode', 0);
-            };
+        styleSwitcher.connect('notify::active-name', () => {
+            const mode = styleSwitcher.active_name === 'glass' ? 0 : 1;
+            if (settings.get_int('style-mode') !== mode) {
+                settings.set_int('style-mode', mode);
+            }
         });
-        solidCard.connect('toggled', () => {
-            if (solidCard.active && settings.get_int('style-mode') !== 1) {
-                settings.set_int('style-mode', 1);
-            };
-        });
-        // Reset Style (and any external change) re-syncs the cards too.
+        // Reset Style (and any external change) re-syncs the switcher too.
         settings.connect('changed::style-mode', syncStyleVisibility);
 
         const cardsRow = new Adw.PreferencesRow({
@@ -2692,15 +2570,12 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         cardsRow.child = new Gtk.Box({
             orientation: Gtk.Orientation.HORIZONTAL,
-            spacing: 12,
-            homogeneous: true,
             margin_start: 12,
             margin_end: 12,
             margin_top: 8,
             margin_bottom: 8,
         });
-        cardsRow.child.append(glassCard);
-        cardsRow.child.append(solidCard);
+        cardsRow.child.append(styleSwitcher);
         styleGroup.add(cardsRow);
 
         // Signal the shell while a slider is being dragged so it can defer
