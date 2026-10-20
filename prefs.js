@@ -6,7 +6,6 @@ import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 import Gdk from 'gi://Gdk';
 import cairo from 'gi://cairo';
-import Graphene from 'gi://Graphene';
 
 import {ExtensionPreferences, gettext as _}
     from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
@@ -496,141 +495,46 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             }
         });
 
-        // Theme switchers are segmented pills with a sliding accent thumb
-        // (the Focus/Break look): a card-bg overlay, an accent thumb that
-        // animates left/right between segments and a transparent button row
-        // on top. Adw bound-less styles were rejected for their flat render.
-        const pillCss = new Gtk.CssProvider();
-        pillCss.load_from_string(`
-            .dw-seg-root {
-                border-radius: 9999px;
-            }
-            .dw-seg-thumb {
-                background-color: @accent_bg_color;
-                border-radius: 9999px;
-                min-width: 0;
-                min-height: 0;
-                margin: 3px;
-            }
-            .dw-seg-btn {
-                background: transparent;
-                box-shadow: none;
-                border-radius: 9999px;
-                min-height: 24px;
-                padding: 0 12px;
-            }
-            .dw-seg-btn.dw-seg-active label {
-                color: @accent_fg_color;
-                font-weight: 700;
-            }
-        `);
-
+        // Theme switchers are segmented pills (the Focus/Break look): a
+        // linked box of toggle buttons where the active segment carries the
+        // accent fill. Adw.ToggleGroup renders flat inside action rows, so
+        // the manual linked-toggles pill is used instead.
         const makeThemeSwitcher = (items, getActiveName, onActivate) => {
-            const root = new Gtk.Overlay({
+            const box = new Gtk.Box({
+                orientation: Gtk.Orientation.HORIZONTAL,
+                css_classes: ['linked'],
                 valign: Gtk.Align.CENTER,
-                hexpand: true,
-                height_request: 34,
-                css_classes: ['card', 'dw-seg-root'],
             });
-            root.get_style_context().add_provider(pillCss, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
-
-            // The thumb sits under the button row as the main child.
-            const thumb = new Gtk.Box({ css_classes: ['dw-seg-thumb'] });
-            root.set_child(thumb);
-
-            const buttonsBox = new Gtk.Box({ homogeneous: true, hexpand: true });
-            root.add_overlay(buttonsBox);
 
             const buttons = [];
+            const sync = () => {
+                const active = getActiveName();
+                for (const [btn, name] of buttons) {
+                    const shouldBe = name === active;
+                    if (btn.active !== shouldBe) {
+                        btn.set_active(shouldBe);
+                    }
+                }
+            };
+
             for (const [name, label] of items) {
-                const btn = new Gtk.Button({ label });
-                btn.connect('clicked', () => {
+                const btn = new Gtk.ToggleButton({ label });
+                btn.connect('toggled', () => {
+                    if (!btn.active) {
+                        return;
+                    }
                     if (getActiveName() !== name) {
                         onActivate(name);
                     }
                     sync();
                 });
                 buttons.push([btn, name]);
-                buttonsBox.append(btn);
+                box.append(btn);
             }
 
-            let anim = null;
-            const placeThumb = (animate) => {
-                const at = buttons.find(([btn, name]) => name === getActiveName());
-                if (!at) {
-                    return false;
-                };
-
-                const [btn] = at;
-                const [ok, point] = btn.compute_point(root, new Graphene.Point());
-                const bw = btn.get_allocated_width();
-                const rw = root.get_allocated_width();
-                if (!ok || bw <= 0 || rw <= 0) {
-                    return false;
-                };
-
-                const toMs = Math.max(0, point.x);
-                const toMe = Math.max(0, rw - point.x - bw);
-
-                if (!animate) {
-                    thumb.margin_start = toMs;
-                    thumb.margin_end = toMe;
-                    return true;
-                };
-
-                const fromMs = thumb.margin_start;
-                const fromMe = thumb.margin_end;
-                if (fromMs === toMs && fromMe === toMe) {
-                    return true;
-                };
-
-                if (anim) {
-                    anim.skip();
-                };
-
-                const target = Adw.CallbackAnimationTarget.new((v) => {
-                    thumb.margin_start = Math.round(fromMs + (toMs - fromMs) * v);
-                    thumb.margin_end = Math.round(fromMe + (toMe - fromMe) * v);
-                });
-                anim = new Adw.TimedAnimation({
-                    widget: thumb,
-                    value_from: 0,
-                    value_to: 1,
-                    duration: 200,
-                    easing: Adw.Easing.EASE_OUT_CUBIC,
-                    target,
-                });
-                anim.play();
-                return true;
-            };
-
-            const sync = () => {
-                const active = getActiveName();
-                for (const [btn, name] of buttons) {
-                    const isActive = name === active;
-                    if (isActive && !btn.has_css_class('dw-seg-active')) {
-                        btn.add_css_class('dw-seg-active');
-                    } else if (!isActive && btn.has_css_class('dw-seg-active')) {
-                        btn.remove_css_class('dw-seg-active');
-                    }
-                }
-                placeThumb(true);
-            };
             sync();
-
-            // Allocations arrive only after mapping, so re-place the thumb
-            // briefly until the widths are real (first paint lands right).
-            let retries = 0;
-            const fit = () => {
-                if (placeThumb(false) || ++retries > 16) {
-                    return GLib.SOURCE_REMOVE;
-                };
-                return GLib.SOURCE_CONTINUE;
-            };
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, fit);
-
-            root.syncTo = sync;
-            return root;
+            box.syncTo = sync;
+            return box;
         };
 
         // Widget theme switcher (Custom | Dark | Light)
