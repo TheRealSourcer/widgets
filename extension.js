@@ -1547,79 +1547,15 @@ class WidgetController {
   _syncPinButtonState(id) {
     const view = this._views.get(id);
     const widget = this._widgets.find(item => item.id === id);
-
+    
     if (!view?.pinButton || !widget) {
       return;
     };
-
-    this._styleEditButtons(view);
-  };
-
-  // Edit-mode icon buttons (pin / size / photo / remove) take their colors
-  // from the active style so they belong to the pane they sit on:
-  //  - glass: the widget's own glass shader shows through the button and a
-  //    light tint + edge keep it readable (glass-on-glass);
-  //  - solid: the widget's surface color, lifted toward the text color so
-  //    the control does not melt into the pane behind it.
-  _styleEditButtons(view) {
-    const theme = this._gnomeTheme();
-    const dark = Boolean(theme.dark);
-    const buttons = [
-      view.removeButton ? [view.removeButton, {dangerHover: true}] : null,
-      view.pinButton ? [view.pinButton, {pinned: Boolean(view.widget?.pinned)}] : null,
-      view.sizeButton ? [view.sizeButton, {}] : null,
-      view.photoButton ? [view.photoButton, {}] : null,
-    ];
-
-    const pane = String(theme.background ?? '#2e2e32');
-    const paneRgb = parseCssColor(pane) ?? {r: 0.18, g: 0.18, b: 0.2, a: 1};
-    const textRgb = parseCssColor(theme.text) ?? {r: 1, g: 1, b: 1, a: 1};
-    const css = rgb => `rgba(${Math.round(rgb.r * 255)}, ${Math.round(rgb.g * 255)}, ${Math.round(rgb.b * 255)}, 1)`;
-    const mix = (base, other, t) => css({
-      r: base.r + (other.r - base.r) * t,
-      g: base.g + (other.g - base.g) * t,
-      b: base.b + (other.b - base.b) * t,
-    });
-    const dangerRgb = parseCssColor('#ff5f6d') ?? {r: 1, g: 0.37, b: 0.43, a: 1};
-
-    for (const entry of buttons) {
-      if (!entry) continue;
-      const [button, opts] = entry;
-      if (isActorDestroyed(button)) continue;
-
-      const apply = () => {
-        if (opts.pinned) {
-          button.set_style(`background-color: ${theme.accent}; color: #ffffff; border-color: ${theme.accent};`);
-          return;
-        };
-
-        if (theme.isGlass) {
-          // Glass-on-glass: the pane's real glass shader stays visible
-          // through the button; the tint + edge do the separation.
-          const bg = button.hover
-            ? (dark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.13)')
-            : (dark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.05)');
-          const border = dark ? 'rgba(255, 255, 255, 0.30)' : 'rgba(0, 0, 0, 0.24)';
-          button.set_style(`background-color: ${bg}; border-color: ${border};`);
-        } else {
-          const hovered = button.hover
-            ? (opts.dangerHover
-              ? mix(paneRgb, dangerRgb, 0.28)
-              : mix(paneRgb, textRgb, 0.18))
-            : mix(paneRgb, textRgb, 0.10);
-          button.set_style(`background-color: ${css(hovered)}; border-color: ${mix(paneRgb, textRgb, 0.38)};`);
-        };
-      };
-
-      if (button._editButtonStyleId) {
-        try {
-          button.disconnect(button._editButtonStyleId);
-        } catch (e) {
-          // already destroyed
-        }
-      };
-      button._editButtonStyleId = button.connect('notify::hover', apply);
-      apply();
+    
+    if (widget.pinned) {
+      view.pinButton.set_style('background-color: #5b9de0; color: #ffffff; border-color: #5b9de0;');
+    } else {
+      view.pinButton.set_style(null);
     };
   };
 
@@ -2681,6 +2617,22 @@ class WidgetController {
       accessible_name: _('Pin widget'),
     });
 
+    // Apply the pinned visual state if the widget is pinned.
+    if (view.widget.pinned) {
+      if (this._pinStyleIdleId) {
+        GLib.source_remove(this._pinStyleIdleId);
+      };
+
+      this._pinStyleIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+        this._pinStyleIdleId = 0;
+        if (pinButton && !isActorDestroyed(pinButton)) {
+          const accent = this._gnomeTheme().accent;
+          pinButton.set_style(`background-color: ${accent}; color: #ffffff; border-color: ${accent};`);
+        }
+        return GLib.SOURCE_REMOVE;
+      });
+    };
+
     pinButton.connectObject('clicked', () => this.togglePin(view.widget.id), this);
     this._layer.add_child(pinButton);
 
@@ -2798,7 +2750,6 @@ sizeButton.connectObject('destroy', () => {
     view.sizeButton = sizeButton;
     view.sizeMenu = sizeMenu;
     view.photoButton = photoButton;
-    this._styleEditButtons(view);
     this._syncEditControls(view.widget);
   };
 
