@@ -280,7 +280,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const startBtn = new St.Button({
 		reactive: true,
 		can_focus: true,
-		child: dwControlIcon('play', iconOnAccentSuffix(accentHex), px(40),
+		child: dwControlIcon('play', iconOnAccentSuffix(accentHex), px(34),
 			'media-playback-start-symbolic', accentTextColor),
 		style: `padding: ${px(18)}px; border-radius: 999px; background-color: ${accentHex};`,
 	});
