@@ -82,6 +82,24 @@ function encodeJson(data) {
 	return new TextEncoder().encode(JSON.stringify(data, null, 2));
 }
 
+// Synchronous counterpart for tiny per-widget files: a render that must
+// *start* on the saved page (system monitor swipe position) can't afford
+// the one-frame default-page flip the async loader lets through.
+export function loadJsonFromFileSync(filePath) {
+	try {
+		const [, bytes] = Gio.File.new_for_path(filePath).load_contents(null);
+		if (!bytes || bytes.length === 0) {
+			return null;
+		}
+		return JSON.parse(new TextDecoder('utf-8').decode(bytes));
+	} catch (error) {
+		if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND)) {
+			warn('json-load', `Error reading ${filePath}: ${error}`);
+		}
+		return null;
+	}
+}
+
 function ensureParent(filePath) {
 	const parent = Gio.File.new_for_path(filePath).get_parent();
 

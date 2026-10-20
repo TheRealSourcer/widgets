@@ -6,6 +6,8 @@ import Gio from 'gi://Gio';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
 import { widgetResourcePath } from '../../paths.js';
+import { loadJsonFromFileSync } from '../../utils/ported.js';
+import { saveWidgetState, widgetStatePath } from '../../lib/widgetState.js';
 
 export const type = 'system';
 export const label = 'System Monitor';
@@ -692,6 +694,20 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
 
   let currentMetric = METRIC_CPU;
   let currentView = VIEW_CPU_RAM;
+  // The page the user last stopped on survives every re-render: theme and
+  // style switches, live refreshes and resizes all refill the body and used
+  // to throw the pane back onto the first page (RAM reported as CPU again).
+  const statePath = widgetStatePath('system', widget);
+  const clampIndex = (value, limit) =>
+    Number.isInteger(value) && value >= 0 && value < limit ? value : null;
+  try {
+    const savedPositions = loadJsonFromFileSync(statePath);
+    currentMetric = clampIndex(savedPositions?.metric, 5) ?? currentMetric;
+    currentView = clampIndex(savedPositions?.view, 3) ?? currentView;
+  } catch (e) {
+    // A corrupt page file is a page file from before this feature: fall
+    // through to the defaults rather than breaking the render.
+  }
   // Round dots or dashes — the global page-indicator-style setting.
   const indicatorStyle = (settings?.get_int('page-indicator-style') ?? 1) === 1 ? 'dash' : 'dot';
   // Page dash color: the accent when the System Monitor Widget switch is
@@ -904,6 +920,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         } else {
           currentMetric = (currentMetric + 1) % 5;
         }
+        // Remember the page for the next re-render (theme switch, resize...).
+        saveWidgetState(statePath, { metric: currentMetric });
         refreshDashes();
         
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
@@ -1066,6 +1084,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         } else {
           currentView = (currentView + 1) % 3;
         }
+        // Remember the page for the next re-render (theme switch, resize...).
+        saveWidgetState(statePath, { view: currentView });
         refreshDashes();
         
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
