@@ -22,10 +22,11 @@
     border-color: rgba(128, 128, 128, 0.55);
 }
 
-/* System monitor 1x1: the page dashes overlay the pane's bottom edge, so the
-   bottom inset shrinks to let them sit right against it (other system sizes
-   keep the regular 16px). */
-.widget-layer .widget-system-small {
+/* System monitor 1x1 and 2x1: the page dashes overlay the pane's bottom
+   edge, so the bottom inset shrinks to let them sit right against it
+   (large keeps the regular 16px — no swipe pages there). */
+.widget-layer .widget-system-small,
+.widget-layer .widget-system-medium {
     padding-bottom: 3px;
 }
 

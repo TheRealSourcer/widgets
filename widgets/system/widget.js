@@ -854,6 +854,43 @@ export function render({body, theme, widget, sizeForWidget}) {
     let tiles = [];
     let currentRow;
 
+    // Page dashes like the 1x1, one per swipe view (3): the active view
+    // lights up in the accent color, the rest stay muted.
+    const dashRow = new St.BoxLayout(boxLayoutProps({
+      x_expand: true,
+      x_align: Clutter.ActorAlign.CENTER,
+      style: `spacing: 5px;`,
+    }));
+    const dashes = viewConfigs.map(() => new St.Widget({
+      width: 10,
+      height: 3,
+      opacity: 72,
+      reactive: false,
+      style: `border-radius: 999px; background-color: ${theme.muted};`,
+    }));
+    dashes.forEach(dash => dashRow.add_child(dash));
+
+    // y-expanding filler above pins the row to the very bottom of the
+    // overlay (BinLayout gives children the shared rect).
+    dashWrap = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      x_expand: true,
+      y_expand: true,
+    }));
+    dashWrap.add_child(new St.Widget({y_expand: true, reactive: false}));
+    dashWrap.add_child(dashRow);
+
+    const refreshDashes = () => {
+      dashes.forEach((dash, index) => {
+        dash.style = `border-radius: 999px; background-color: ${index === currentView ? accentColor : theme.muted};`;
+        dash.ease({
+          opacity: index === currentView ? 255 : 72,
+          duration: 120,
+          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
+      });
+    };
+
     const rebuild = (enterX = 0) => {
       container.remove_all_children();
       currentRow = new St.BoxLayout(boxLayoutProps({
@@ -967,6 +1004,7 @@ export function render({body, theme, widget, sizeForWidget}) {
         } else {
           currentView = (currentView + 1) % 3;
         }
+        refreshDashes();
         
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
           rebuild(-exitX);
@@ -981,6 +1019,7 @@ export function render({body, theme, widget, sizeForWidget}) {
 
     rebuild();
     unsubscribe = monitor.subscribe(onData);
+    refreshDashes();
 
   } else if (size === 'large') {
     layoutMode = 'large';
