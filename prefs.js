@@ -1525,15 +1525,52 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         const usernameRow = new Adw.EntryRow({
             title: _('GitHub username'),
             text: settings.get_string('github-username'),
-            show_apply_button: true,
+            show_apply_button: false,
         });
         usernameRow.set_tooltip_text(_('Applied to all GitHub widgets. Empty to set a username per widget'));
         group.add(usernameRow);
-        usernameRow.connect('apply', () => {
+
+        // Idempotent apply: the checkmark button (accent-color style) and
+        // plain Enter both go through this.
+        const applyUsername = () => {
             const value = usernameRow.get_text().trim().replace(/^@/, '');
-            if (value === settings.get_string('github-username')) return;
-            settings.set_string('github-username', value);
+
+            if (value !== settings.get_string('github-username')) {
+                settings.set_string('github-username', value);
+            };
+        };
+
+        const applyUsernameRow = () => {
+            applyUsername();
+
+            // Brief green pulse to confirm the value was committed.
+            applyUsernameButton.get_style_context().add_class('suggested-action');
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
+                applyUsernameButton.get_style_context().remove_class('suggested-action');
+                return GLib.SOURCE_REMOVE;
+            });
+        };
+
+        const applyUsernameButton = new Gtk.Button({
+            icon_name: 'object-select-symbolic',
+            valign: Gtk.Align.CENTER,
+            focusable: false,
         });
+        applyUsernameButton.set_tooltip_text(_('Apply username'));
+        applyUsernameButton.connect('clicked', applyUsernameRow);
+        usernameRow.add_suffix(applyUsernameButton);
+
+        // Enter (main + keypad) applies the username too.
+        const usernameKeyController = new Gtk.EventControllerKey();
+        usernameKeyController.connect('key-pressed', (_ctrl, keyval) => {
+            if (keyval === Gdk.KEY_Return || keyval === Gdk.KEY_KP_Enter || keyval === Gdk.KEY_ISO_Enter) {
+                applyUsernameRow();
+                return false;
+            };
+
+            return false;
+        });
+        usernameRow.add_controller(usernameKeyController);
 
         page.add(group);
         return page;
