@@ -1235,6 +1235,17 @@ class WidgetController {
     };
   };
 
+  // Per-widget skip decision for the glass backdrop. Photos is special:
+  // glass only behind the empty "Select photo" placeholder, never behind a
+  // real photo (the photo frame paints the widget itself).
+  _widgetSkipsGlass(widget) {
+    if (widget.type === 'photos') {
+      return PhotosWidget.hasPhoto?.(widget) ?? true;
+    };
+
+    return NO_GLASS_BACKDROP.has(widget.type);
+  };
+
   _styleForWidget(widget) {
     const widgetModule = WIDGETS.get(widget.type);
 
@@ -1243,7 +1254,7 @@ class WidgetController {
     };
 
     const theme = this._gnomeTheme();
-    const glassRoot = theme.isGlass && !NO_GLASS_BACKDROP.has(widget.type);
+    const glassRoot = theme.isGlass && !this._widgetSkipsGlass(widget);
     let styleStr = widgetModule.style(theme);
 
     // Glass draws its own squircle backdrop behind the widget. Make only the
@@ -2008,7 +2019,7 @@ class WidgetController {
     const updateGlassGeometry = () => {
       if (this._glass) {
         const views = [...this._views.values()]
-          .filter(view => view.actor && !NO_GLASS_BACKDROP.has(view.widget.type))
+          .filter(view => view.actor && !this._widgetSkipsGlass(view.widget))
           .map(view => ({...view, id: view.widget.id}));
         
         for (const view of views) {
@@ -2171,7 +2182,7 @@ class WidgetController {
 
     // Add glass as first child (backdrop) if widget uses glass effect
     const isGlass = this._layoutSettings.get_int('style-mode') === 0;
-    const usesGlass = isGlass && !NO_GLASS_BACKDROP.has(widget.type);
+    const usesGlass = isGlass && !this._widgetSkipsGlass(widget);
     let glass = null;
 
     if (usesGlass) {
@@ -2211,36 +2222,9 @@ class WidgetController {
     };
     this._views.set(widget.id, view);
 
-    // Setup glass update listeners
-    if (usesGlass && glass) {
-      this._updateGlassParamsForView({glass, widget, actor});
-      this._updateGlassGeometryForView(view);
-
-      wrapper.connect('notify::x', () => this._updateGlassGeometryForView(view));
-      wrapper.connect('notify::y', () => this._updateGlassGeometryForView(view));
-      wrapper.connect('notify::width', () => this._updateGlassGeometryForView(view));
-      wrapper.connect('notify::height', () => this._updateGlassGeometryForView(view));
-      wrapper.connect('notify::allocation', () => this._updateGlassGeometryForView(view));
-
-      // Pointer tracking for specular highlights
-      wrapper.connect('motion-event', (_a, event) => {
-        if (!glass) return Clutter.EVENT_PROPAGATE;
-        const [sx, sy] = event.get_coords();
-        const [ok, lx, ly] = wrapper.transform_stage_point(sx, sy);
-        const [w, h] = wrapper.get_size();
-        if (ok && w > 0 && h > 0) {
-          glass.setPointer(lx / w, ly / h, wrapper.hover ? 1 : 0);
-        }
-        return Clutter.EVENT_PROPAGATE;
-      });
-
-      wrapper.connect('notify::hover', () => {
-        if (glass) glass.setPointer(-1, -1, wrapper.hover ? 1 : 0);
-      });
-
-      // Shell startup may allocate the layer before the signals above settle;
-      // keep polling until valid geometry has been applied at least once.
-      this._ensureGlassGeometry(view);
+    // Setup glass update listeners (shared with photo glass re-adds)
+    if (glass) {
+      this._attachGlassListeners(view);
     }
 
     if (this._editMode) {
@@ -2367,6 +2351,75 @@ class WidgetController {
   _syncGlass() {
     // Glass is now a child actor of each widget, no sync needed
     this._updateAllGlassParams();
+  };
+
+  // Wires size/geometry/pointer plumbing between the wrapper and the
+  // view-level LiquidGlass pane. Used at creation and whenever a photo
+  // widget gains a glass pane dynamically (placeholder <-> photo switch).
+  _attachGlassListeners(view) {
+    const {widget, actor: wrapper, box: actor, glass} = view;
+
+    if (!view.glass) {
+      return;
+    };
+
+    this._updateGlassParamsForView({glass: view.glass, widget, actor});
+    this._updateGlassGeometryForView(view);
+
+    wrapper.connect('notify::x', () => this._updateGlassGeometryForView(view));
+    wrapper.connect('notify::y', () => this._updateGlassGeometryForView(view));
+    wrapper.connect('notify::width', () => this._updateGlassGeometryForView(view));
+    wrapper.connect('notify::height', () => this._updateGlassGeometryForView(view));
+    wrapper.connect('notify::allocation', () => this._updateGlassGeometryForView(view));
+
+    // Pointer tracking for specular highlights (reads view.glass late, so it
+    // is safe while the pane is being added or removed).
+    wrapper.connect('motion-event', (_a, event) => {
+      const pane = view.glass;
+      if (!pane) return Clutter.EVENT_PROPAGATE;
+      const [sx, sy] = event.get_coords();
+      const [ok, lx, ly] = wrapper.transform_stage_point(sx, sy);
+      const [w, h] = wrapper.get_size();
+      if (ok && w > 0 && h > 0) {
+        pane.setPointer(lx / w, ly / h, wrapper.hover ? 1 : 0);
+      }
+      return Clutter.EVENT_PROPAGATE;
+    });
+
+    wrapper.connect('notify::hover', () => {
+      if (view.glass) view.glass.setPointer(-1, -1, wrapper.hover ? 1 : 0);
+    });
+
+    // Shell startup may allocate the layer before the signals above settle;
+    // keep polling until valid geometry has been applied at least once.
+    this._ensureGlassGeometry(view);
+  };
+
+  // Adds or removes the view-level glass pane for one widget without a full
+  // rebuild — currently used by the photos widget (glass only while the
+  // "Select photo" placeholder is showing, never behind a photo frame).
+  _syncWidgetGlass(widget) {
+    const view = this._views.get(widget.id);
+
+    if (!view?.actor) {
+      return;
+    };
+
+    const isGlass = this._layoutSettings.get_int('style-mode') === 0;
+    const wantsGlass = isGlass && !this._widgetSkipsGlass(widget);
+    const [width, height] = this._sizeFor(widget);
+
+    if (wantsGlass && !view.glass) {
+      const glass = new LiquidGlass();
+      glass.set_size(width, height);
+      view.actor.insert_child_at_index(glass, 0);
+      view.glass = glass;
+      this._attachGlassListeners(view);
+      this._updateAllGlassParams();
+    } else if (!wantsGlass && view.glass) {
+      view.glass.destroy();
+      view.glass = null;
+    }
   };
 
   _safeFillWidgetBody(widget, body) {
@@ -3308,6 +3361,9 @@ class WidgetController {
 
     this._saveWidgets();
     this._safeFillWidgetBody(widget, body);
+    // Glass follows the photo state: placeholder keeps the glass backdrop,
+    // a real photo removes it (re-selecting empty state brings it back).
+    this._syncWidgetGlass(widget);
   };
 
   _label(text, styleClass, style = null) {

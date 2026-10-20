@@ -144,6 +144,15 @@ export function openPhotoChooser(widget, onPhotoChange) {
 	openFileChooser(widget, onPhotoChange);
 };
 
+// Whether the widget currently displays a real photo (vs. the empty
+// "Select photo" placeholder). The extension uses this to decide whether
+// the glass backdrop applies (placeholder) or not (photo paints itself).
+export function hasPhoto(widget) {
+	const photo = widget?.data?.photo;
+
+	return Boolean(photo && Gio.File.new_for_path(photo).query_exists(null));
+};
+
 function buildEmptyState(createLabel, onPick, theme, radius = 16) {
 	const container = new St.BoxLayout(boxLayoutProps({
 		style_class: 'widget-photo-empty',
@@ -250,12 +259,11 @@ export function style(theme) {
 };
 
 export function render({body, widget, settings, createLabel, onPhotoChange, theme}) {
-	const photo = widget?.data?.photo;
-	const hasPhoto = photo && Gio.File.new_for_path(photo).query_exists(null);
+	const photoShown = hasPhoto(widget);
 	const sizeKey = String(settings?.get_string('photo-size') ?? 'cover');
 	const radius = theme?.radius ?? 16;
 
-	if (hasPhoto) {
+	if (photoShown) {
 		const file = Gio.File.new_for_path(photo);
 		const frame = new PhotoFrame(file, sizeKey, radius);
 
