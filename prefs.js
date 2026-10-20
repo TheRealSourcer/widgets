@@ -2777,7 +2777,9 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 value.label = format(settings.get_int(key));
             });
 
-            group.add(row);
+            // Glass-specific rows live in the Glass group so the whole
+            // section (sliders + GPU warning) hides together on Solid.
+            glassGroup.add(row);
             return row;
         };
 
