@@ -245,7 +245,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		can_focus: true,
 		child: new St.Icon({
 			icon_name: 'media-playback-start-symbolic',
-			icon_size: px(28),
+			icon_size: px(40),
 			style: `color: ${accentTextColor};`,
 		}),
 		style: `padding: ${px(18)}px; border-radius: 999px; background-color: ${accentHex};`,
@@ -312,7 +312,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		can_focus: true,
 		child: new St.Icon({
 			icon_name: 'media-playback-pause-symbolic',
-			icon_size: px(32),
+			icon_size: px(38),
 			style: `color: ${accentTextColor};`,
 		}),
 		style: `padding: ${px(20)}px; border-radius: 999px; background-color: ${accentHex}; border: ${px(3)}px solid rgba(255, 255, 255, 0.2);`,
@@ -324,7 +324,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		can_focus: true,
 		child: new St.Icon({
 			icon_name: 'media-playback-stop-symbolic',
-			icon_size: px(28),
+			icon_size: px(38),
 			style: `color: ${textColor};`,
 		}),
 		style: `padding: ${px(18)}px; border-radius: 999px; background-color: rgba(255, 255, 255, 0.12); border: ${px(3)}px solid rgba(255, 255, 255, 0.3);`,
