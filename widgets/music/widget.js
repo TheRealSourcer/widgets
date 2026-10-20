@@ -453,6 +453,9 @@ function setButtonIcon(target, iconName, isActive = false) {
 		: controlIcon(target.button._theme, iconName, isActive);
 
 	if (gicon) {
+		// Clear the textual name first: St.Icon keeps whichever source was
+		// set last, and swapping only the gicon left the old bars painted.
+		target.icon.icon_name = '';
 		target.icon.gicon = gicon;
 		target.button._iconName = iconName;
 		target.button._isActive = isActive;
@@ -687,15 +690,27 @@ card.artist.text = _('Play something to get going');
 		// in-session "capability off" state.
 		const dimmed = control ? 100 : 45;
 
+		// TEMP probe: journal line only on a state transition — shows whether
+		// update() runs on pause clicks and which icon it resolves to.
+		const probeSig = `${playing}|${hasTrack}|${canPlay}|${canPause}|${control}`;
+		if (card._dwProbeSig !== probeSig) {
+			card._dwProbeSig = probeSig;
+			log(`DW-MUSIC-U: playing=${playing} hasTrack=${hasTrack} canPlay=${canPlay} canPause=${canPause} control=${control} icon=${playing ? 'pause' : 'play'}`);
+		};
+
 		const loopOk = loopSupported !== false;
 
-		card.btnLoop.button.reactive = control && loopOk;
+		// Buttons stay reactive: the disabled look is carried by the dimmed
+		// opacity, while every click still plays the squash bounce (visual
+		// feedback on dead buttons). Dead clicks are safe no-ops —
+		// _callMethod bails without this._name, _cycleLoop/_setLoop too.
+		card.btnLoop.button.reactive = loopOk;
 		card.btnLoop.button.opacity = !loopOk ? 30 : (control ? 255 : 45);
-		card.btnPrev.button.reactive = control && (!!canPrev || forcePrev);
+		card.btnPrev.button.reactive = true;
 		card.btnPrev.button.opacity = control && (canPrev || forcePrev) ? 255 : dimmed;
-		card.btnPlay.button.reactive = control && (playing ? !!canPause : !!canPlay);
+		card.btnPlay.button.reactive = true;
 		card.btnPlay.button.opacity = control && (playing ? canPause : canPlay) ? 255 : dimmed;
-		card.btnNext.button.reactive = control && (!!canNext || forceNext);
+		card.btnNext.button.reactive = true;
 		card.btnNext.button.opacity = control && (canNext || forceNext) ? 255 : dimmed;
 
 		const seekable = control && (length > 0 || playing) && (canSeek || canPlay || canPause);
