@@ -235,6 +235,21 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
     });
     usernameEntry.hide();
 
+    // Accent-名为 checkmark next to the entry (same idea as the accent-color
+    // button in preferences): always visible while editing, click = commit.
+    const usernameApplyButton = new St.Button({
+        reactive: true,
+        can_focus: false,
+        y_align: Clutter.ActorAlign.CENTER,
+        style: `border-radius: 999px; padding: 3px; background-color: ${textRgba(0.2)};`,
+        child: new St.Icon({
+            icon_name: 'object-select-symbolic',
+            icon_size: Math.max(10, Math.round(layout.username * 0.95)),
+            style: `color: ${textColor};`,
+        }),
+    });
+    usernameApplyButton.hide();
+
     const headerSpacer = new St.Widget({ x_expand: true });
 
     const badgeLabel = new St.Label({
@@ -253,6 +268,7 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
     headerBox.add_child(avatarWidget);
     headerBox.add_child(usernameLabel);
     headerBox.add_child(usernameEntry);
+    headerBox.add_child(usernameApplyButton);
     headerBox.add_child(headerSpacer);
     headerBox.add_child(badgeLabel);
     mainBox.add_child(headerBox);
@@ -827,6 +843,7 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         usernameEntry.text = username;
         usernameLabel.hide();
         usernameEntry.show();
+        usernameApplyButton.show();
         global.stage.set_key_focus(usernameEntry);
     };
 
@@ -834,20 +851,23 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         if (!state.editing) return;
         state.editing = false;
         const submitted = usernameEntry.get_text().trim().replace(/^@/, '');
-    usernameEntry.hide();
+        usernameEntry.hide();
+        usernameApplyButton.hide();
 
-    usernameLabel._desktopWidgetsSelfClick = true;
-    usernameEntry._desktopWidgetsSelfClick = true;
+        usernameLabel._desktopWidgetsSelfClick = true;
+        usernameEntry._desktopWidgetsSelfClick = true;
 
         usernameLabel.show();
         if (global.stage.get_key_focus() === usernameEntry)
             global.stage.set_key_focus(null);
         if (!commit || submitted === '' || submitted === username) return;
-        if (settings) {
-            settings.set_string('github-username', submitted);
-            return;
-        }
+
+        // Update local state immediately: the header shows the name and the
+        // matrix resets even before the settings-changed re-render lands
+        // (this is what made the typed name appear to "not apply").
         username = submitted;
+        updateHeader();
+        setProfileUrl(false);
         latestByDate = new Map();
         badgeLabel.text = '';
         lastSyncTime = null;
@@ -859,10 +879,15 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
             bestDayCount = 0;
             bestDayLabel = '—';
         }
-        saveJsonToFile(dataFilePath, { username });
-        updateHeader();
+
+        if (settings) {
+            settings.set_string('github-username', submitted);
+            return;
+        }
+
         renderMatrix(new Map());
         if (isLarge) renderStats();
+        saveJsonToFile(dataFilePath, { username });
         fetchContributions();
     };
 
@@ -872,13 +897,23 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         return Clutter.EVENT_STOP;
     });
 
+    usernameApplyButton.connect('clicked', () => {
+        endEdit(true);
+        return Clutter.EVENT_STOP;
+    });
+
     usernameEntry.clutter_text.connect('key-press-event', (_actor, event) => {
         const sym = event.get_key_symbol();
         if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) { endEdit(true); return Clutter.EVENT_STOP; }
         if (sym === Clutter.KEY_Escape) { endEdit(false); return Clutter.EVENT_STOP; }
         return Clutter.EVENT_PROPAGATE;
     });
-    usernameEntry.clutter_text.connect('key-focus-out', () => endEdit(false));
+    // Clicking the checkmark moves stage focus off the entry BEFORE the
+    // click lands, so don't treat that specific focus loss as cancel.
+    usernameEntry.clutter_text.connect('key-focus-out', () => {
+        if (global.stage.get_key_focus() === usernameApplyButton) return;
+        endEdit(false);
+    });
 
     // --- REFRESH TIMER ---
     state.timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, REFRESH_INTERVAL, () => {
