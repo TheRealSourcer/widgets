@@ -521,6 +521,12 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 const btn = new Gtk.ToggleButton({ label });
                 btn.connect('toggled', () => {
                     if (!btn.active) {
+                        // Clicking the already-active segment un-checks it —
+                        // keep that segment highlighted instead of leaving
+                        // the pill black (image-2 bug).
+                        if (getActiveName() === name) {
+                            btn.set_active(true);
+                        }
                         return;
                     }
                     if (getActiveName() !== name) {
