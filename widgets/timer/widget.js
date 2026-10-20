@@ -172,10 +172,14 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		plusRow.add_child(plus1Btn);
 
 		// Fixed slot width == the rows' width, so the digits always center
-		// over their pairs for any two-digit value.
+		// over their pairs for any two-digit value. font-family is pinned:
+		// inherited theme fonts (Cantarell etc.) have wider/proportional ink
+		// that drifted off center; Ubuntu digits measure exactly 80px, so a
+		// symmetric 4px padding centers the ink at the exact slot midpoint.
 		const label = new St.Label({
 			text: '00',
-			style: `color: ${textColor}; font-size: ${px(72)}px; font-weight: 700; line-height: 0.9; padding: ${px(4)}px 0; width: ${px(88)}px;`,
+			x_align: Clutter.ActorAlign.CENTER,
+			style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(72)}px; font-weight: 700; line-height: 0.9; padding: ${px(4)}px ${px(4)}px; width: ${px(88)}px;`,
 		});
 
 		const minusRow = new St.BoxLayout({ style: `spacing: ${px(4)}px;` });
