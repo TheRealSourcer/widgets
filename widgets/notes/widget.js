@@ -78,6 +78,7 @@ export function render({ body, widget, theme, settings }) {
         style: `color: ${textColor}; font-size: ${titleFontSize}px; font-weight: 600; opacity: ${SECONDARY_OPACITY};`,
         x_expand: true,
         y_align: Clutter.ActorAlign.CENTER,
+        reactive: true,
     });
     titleLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
 
@@ -262,11 +263,12 @@ export function render({ body, widget, theme, settings }) {
                     // of the note after the break.
                     textEditor.insert_unichar('\n');
 
-                    const at = textEditor.get_cursor_position();
-                    textEditor.select_region(at, at);
+                    // The bound follows the insert; collapsing it removes any
+                    // stale selection (GNOME 51 has no select_region API).
+                    textEditor.set_selection_bound(textEditor.get_cursor_position());
 
                     // TEMP probe: verify no stale/doubled inserts remain.
-                    log(`DW-NOTES-KEY: shift-enter at=${at} len=${textEditor.get_text().length}`);
+                    log(`DW-NOTES-KEY: shift-enter at=${textEditor.get_cursor_position()} len=${textEditor.get_text().length}`);
                 }
                 return Clutter.EVENT_STOP;
             }
@@ -296,9 +298,78 @@ export function render({ body, widget, theme, settings }) {
         return Clutter.EVENT_PROPAGATE;
     });
 
+    // GNOME 51 carries no click-count API on Clutter.Event — a double-click
+    // is two quick presses at the same spot.
+    const doubleClickListener = () => {
+        let lastPress = null;
+        return (event) => {
+            const [gx, gy] = event.get_coords();
+            const now = GLib.get_monotonic_time();
+            const near = lastPress !== null && (now - lastPress.time) <= 400000 &&
+                Math.abs(gx - lastPress.x) <= 6 && Math.abs(gy - lastPress.y) <= 6;
+            lastPress = {time: now, x: gx, y: gy};
+            return near;
+        };
+    };
+
+    // Plain-text actors give a 1:1 index for a click point.
+    const plainIndexAt = (actor, event) => {
+        try {
+            const [gx, gy] = event.get_coords();
+            const [ax, ay] = actor.get_transformed_position();
+            return actor.clutter_text.coords_to_position(gx - ax, gy - ay);
+        } catch (_error) {
+            return -1;
+        }
+    };
+
+    // Double-click on the title edits with the title entry focused and the
+    // cursor exactly at the clicked character.
+    const titleDouble = doubleClickListener();
+    titleLabel.connect('button-press-event', (actor, event) => {
+        if (isEditing || event.get_button() !== 1 || !titleDouble(event)) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        showEditor();
+
+        const raw = titleEntry.get_text() ?? '';
+        const idx = plainIndexAt(actor, event);
+        if (idx >= 0) {
+            const at = Math.min(Math.max(0, idx), raw.length);
+            titleEntry.clutter_text.set_cursor_position(at);
+            titleEntry.clutter_text.set_selection_bound(at);
+            global.stage.set_key_focus(titleEntry.clutter_text);
+        }
+        return Clutter.EVENT_STOP;
+    });
+
+    // Double-click in the viewer edits with the cursor near the clicked
+    // spot. Proportional mapping: the markdown rendering has no 1:1 index
+    // into the raw source.
+    const bodyDouble = doubleClickListener();
+    displayLabel.connect('button-press-event', (actor, event) => {
+        if (isEditing || event.get_button() !== 1 || !bodyDouble(event)) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        showEditor();
+
+        const raw = textEditor.get_text() ?? '';
+        const plain = actor.get_text() ?? '';
+        if (raw.length > 0 && plain.length > 0) {
+            const idx = plainIndexAt(actor, event);
+            if (idx >= 0) {
+                const at = Math.min(raw.length, Math.round(idx * raw.length / plain.length));
+                textEditor.set_cursor_position(at);
+                textEditor.set_selection_bound(at);
+            }
+        }
+        return Clutter.EVENT_STOP;
+    });
+
     scrollContent.add_child(viewerContainer);
     scrollContent.add_child(editorContainer);
-
     const updateFontSizes = () => {
         const newTitleSize = settings?.get_int('notes-title-font-size') ?? 16;
         const newContentSize = settings?.get_int('notes-content-font-size') ?? 18;
