@@ -2478,7 +2478,8 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 settings.set_int('style-border-radius', radiusRow.get_value());
             }, 150);
         });
-        solidGroup.add(radiusRow);
+        // Shared with the Glass style too: both widget frames use these keys.
+        group.add(radiusRow);
 
         // Border Width
         const borderWidthRow = new Adw.SpinRow({
@@ -2497,7 +2498,7 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 settings.set_int('style-border-width', borderWidthRow.get_value());
             }, 150);
         });
-        solidGroup.add(borderWidthRow);
+        group.add(borderWidthRow);
 
         // Background Color
         const bgColorRow = this._createColorRow(
@@ -2933,6 +2934,9 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             settings.set_boolean('style-use-custom-accent', false);
             settings.set_string('style-accent-color', '');
             settings.set_int('appearance', 2);
+            // Both widget frames (Glass and Solid) share these keys.
+            settings.set_int('style-border-radius', 16);
+            settings.set_int('style-border-width', 1);
 
             if (isGlass) {
                 settings.set_int('blur-radius-px', 6);
@@ -2943,8 +2947,6 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 settings.set_int('tint-alpha-pct', 10);
                 settings.set_int('spec-strength-pct', 70);
             } else {
-                settings.set_int('style-border-radius', 16);
-                settings.set_int('style-border-width', 1);
                 settings.set_int('style-shadow-size', 24);
                 settings.set_string('style-shadow', '');
             }
