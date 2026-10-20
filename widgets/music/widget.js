@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Pango from 'gi://Pango';
 import St from 'gi://St';
 
 import { warn } from '../../logger.js';
@@ -540,9 +541,14 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 
 	card.title = createLabel('', 'widget-music-title', `font-size: ${titleFont}px; font-weight: 800; color: ${theme.text};`);
 	card.title.clutter_text.single_line_mode = true;
+	// Without ellipsize the meta line's min width equals the full text width,
+	// which pushed the column past the body clip and shaved the top-right
+	// status icon. Ellipsis keeps the column inside its allocation.
+	card.title.clutter_text.ellipsize = Pango.EllipsizeMode.END;
 
 	card.artist = createLabel('', 'widget-music-artist', `font-size: ${artistFont}px; color: ${theme.muted};`);
 	card.artist.clutter_text.single_line_mode = true;
+	card.artist.clutter_text.ellipsize = Pango.EllipsizeMode.END;
 
 	card.times = new St.BoxLayout({
 		x_expand: true,
@@ -629,6 +635,14 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	if (isMini) {
 		card.slider.hide();
 		card.times.hide();
+		// The mini right column is 113px wide; the full-size control row is
+		// 4×27px + gaps = 114px, so it overflowed the body clip by a pixel and
+		// shaved the top-right status icon. 26px buttons (icon 18 + 2×4 pad)
+		// bring the row to 110px.
+		for (const button of [card.btnLoop.button, card.btnPrev.button, card.btnPlay.button, card.btnNext.button]) {
+			button.set_width(26);
+			button.set_height(26);
+		};
 	};
 
 	card.update = function ({title, artist, artUrl, playing, position, length, canControl, canPrev, canNext, canPlay, canPause, loop = 'None', canSeek = false, seekPreview = false, loopSupported = true, forcePrev = false, forceNext = false}) {
