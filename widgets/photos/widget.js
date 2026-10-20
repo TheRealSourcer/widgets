@@ -264,7 +264,7 @@ export function render({body, widget, settings, createLabel, onPhotoChange, them
 	const radius = theme?.radius ?? 16;
 
 	if (photoShown) {
-		const file = Gio.File.new_for_path(photo);
+		const file = Gio.File.new_for_path(widget?.data?.photo);
 		const frame = new PhotoFrame(file, sizeKey, radius);
 
 		body.add_child(frame);
