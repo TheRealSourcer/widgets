@@ -344,29 +344,41 @@ export function render({ body, widget, theme, settings }) {
         return Clutter.EVENT_STOP;
     });
 
-    // Double-click in the viewer edits with the cursor near the clicked
-    // spot. Proportional mapping: the markdown rendering has no 1:1 index
-    // into the raw source.
+    // Double-click in the viewer is caught at the stage capture phase, so
+    // the second press is STOPped before Clutter.Text ever sees it — the
+    // built-in double-click word selection cannot race the cursor placement
+    // anymore (routing through the actor was flaky: "selects a word every
+    // other time").
     const bodyDouble = doubleClickListener();
-    displayLabel.connect('button-press-event', (actor, event) => {
-        if (isEditing || event.get_button() !== 1 || !bodyDouble(event)) {
+    global.stage.connectObject('captured-event', (_stage, event) => {
+        if (isEditing || event.type() !== Clutter.EventType.BUTTON_PRESS || event.get_button() !== 1) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        // Only presses that land on the viewer text count.
+        let a = event.get_source();
+        while (a && a !== displayLabel) {
+            a = a.get_parent();
+        }
+        if (!a || !bodyDouble(event)) {
             return Clutter.EVENT_PROPAGATE;
         }
 
         showEditor();
 
         const raw = textEditor.get_text() ?? '';
-        const plain = actor.get_text() ?? '';
+        const plain = displayLabel.get_text() ?? '';
         if (raw.length > 0 && plain.length > 0) {
-            const idx = plainIndexAt(actor, event);
+            const idx = plainIndexAt(displayLabel, event);
             if (idx >= 0) {
                 const at = Math.min(raw.length, Math.round(idx * raw.length / plain.length));
                 textEditor.set_cursor_position(at);
                 textEditor.set_selection_bound(at);
             }
         }
+        // The double-click never reaches the text: no word selection.
         return Clutter.EVENT_STOP;
-    });
+    }, body);
 
     scrollContent.add_child(viewerContainer);
     scrollContent.add_child(editorContainer);
