@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { bounceButton } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
 
 export const type = 'pomodoro';
@@ -339,6 +340,7 @@ function renderSmallTimer({body, theme, sizeForWidget, widget, settings}) {
 		if (event.get_button() !== 1) {
 			return Clutter.EVENT_PROPAGATE;
 		};
+		bounceButton(playPauseBtn);
 		if (state.isRunning) {
 			timer.stopTimer();
 		} else {
@@ -352,6 +354,7 @@ function renderSmallTimer({body, theme, sizeForWidget, widget, settings}) {
 		if (event.get_button() !== 1) {
 			return Clutter.EVENT_PROPAGATE;
 		};
+		bounceButton(resetBtn);
 		timer.resetCurrentPhase();
 		syncPlayPauseIcon();
 		return Clutter.EVENT_STOP;
@@ -361,6 +364,7 @@ function renderSmallTimer({body, theme, sizeForWidget, widget, settings}) {
 		if (event.get_button() !== 1) {
 			return Clutter.EVENT_PROPAGATE;
 		};
+		bounceButton(skipBtn);
 		timer.advanceToNextPhase();
 		syncPlayPauseIcon();
 		return Clutter.EVENT_STOP;
@@ -474,6 +478,7 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 			if (event.get_button() !== 1) {
 				return Clutter.EVENT_PROPAGATE;
 			};
+			bounceButton(button);
 			timer.switchToPhase(phase);
 			return Clutter.EVENT_STOP;
 		});
@@ -576,6 +581,7 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 		if (event.get_button() !== 1) {
 			return Clutter.EVENT_PROPAGATE;
 		};
+		bounceButton(startBtn);
 		if (state.isRunning) {
 			timer.stopTimer();
 		} else {
@@ -590,6 +596,7 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 		if (event.get_button() !== 1) {
 			return Clutter.EVENT_PROPAGATE;
 		};
+		bounceButton(resetBtn);
 		timer.resetCurrentPhase();
 		updateDisplay();
 		refreshControlStyles();

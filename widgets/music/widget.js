@@ -10,6 +10,7 @@ import { widgetResourcePath } from '../../paths.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
 import { SeekBar } from '../../lib/seekBar.js';
+import { bounceButton } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
 export const type = 'music';
 export const label = 'Music';
@@ -405,24 +406,8 @@ function controlAccentIcon(theme, iconName, isActive = false) {
 	};
 };
 
-// Click squash-and-spring on a plain St.Button — inspired by the reference
-// CanvasButton bounce (0.7 in / 1 out) but softer and slightly quicker.
-function playBounce(button) {
-	button.remove_transition('scale-x');
-	button.remove_transition('scale-y');
-	button.ease({
-		scale_x: 0.8,
-		scale_y: 0.8,
-		duration: 90,
-		mode: Clutter.AnimationMode.EASE_IN_QUAD,
-		onComplete: () => button.ease({
-			scale_x: 1,
-			scale_y: 1,
-			duration: 260,
-			mode: Clutter.AnimationMode.EASE_OUT_BACK,
-		}),
-	});
-};
+// Click squash-and-spring lives in lib/buttonBounce.js (shared with the
+// stopwatch/timer/pomodoro/task buttons) and is wired in createControlButton.
 
 // Control buttons: plain St.Button + St.Icon with the bundled SVG, exactly
 // like the reference implementation (gray when inactive, white/black when
@@ -453,7 +438,7 @@ function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius
 	button.set_width(27);
 	button.set_height(27);
 	button.set_pivot_point(0.5, 0.5);
-	button.connect('clicked', () => playBounce(button));
+	button.connect('clicked', () => bounceButton(button));
 
 	return {button, icon};
 };

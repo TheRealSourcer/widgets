@@ -8,6 +8,7 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { attachBounce } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
 
 export const type = 'timer';
@@ -469,6 +470,13 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	pauseBtn.connect('clicked', () => pauseTimer());
 	stopBtn.connect('clicked', () => stopTimerInternal());
+
+	// Squash-and-spring feedback (shared with music) on every control.
+	for (const button of [minutesPlus10Btn, minutesPlus1Btn, minutesMinus10Btn, minutesMinus1Btn,
+		secondsPlus10Btn, secondsPlus1Btn, secondsMinus10Btn, secondsMinus1Btn,
+		startBtn, pauseBtn, stopBtn]) {
+		attachBounce(button);
+	};
 
 	body.connect('destroy', () => {
 		if (timerId) {

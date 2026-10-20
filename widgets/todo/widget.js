@@ -8,6 +8,7 @@ import GLib from 'gi://GLib';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { attachBounce } from '../../lib/buttonBounce.js';
 import { getDataDir, isActorDestroyed, loadJsonFromFileAsync, parseCssColor, saveJsonToFile, saveJsonToFileSync, cssColorToRgba } from '../../utils/ported.js';
 
 export const type = 'todo';
@@ -257,6 +258,9 @@ export function render({ body, widget, theme, sizeForWidget }) {
         row.add_child(checkbox);
         row.add_child(textLabel);
         row.add_child(deleteButton);
+        // Press feedback on the checkbox and the delete (trash) button.
+        attachBounce(checkbox);
+        attachBounce(deleteButton);
         return row;
     }
 
@@ -304,6 +308,7 @@ export function render({ body, widget, theme, sizeForWidget }) {
         if (state.entryVisible) hideEntry();
         else showEntry();
     });
+    attachBounce(addButton);
 
     taskEntry.clutter_text.connect('key-press-event', (_actor, event) => {
         const sym = event.get_key_symbol();

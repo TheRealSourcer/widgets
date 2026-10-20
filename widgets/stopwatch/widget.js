@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { bounceButton } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
 
 export const type = 'stopwatch';
@@ -153,6 +154,7 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 		if (event.get_button() !== 1) {
 			return Clutter.EVENT_PROPAGATE;
 		}
+		bounceButton(pauseBtn);
 		if (isRunning) {
 			stopTimer();
 		} else {
@@ -165,6 +167,7 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 		if (event.get_button() !== 1) {
 			return Clutter.EVENT_PROPAGATE;
 		}
+		bounceButton(resetBtn);
 		resetTimer();
 		return Clutter.EVENT_STOP;
 	});
@@ -374,6 +377,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		if (event.get_button() !== 1) {
 			return Clutter.EVENT_PROPAGATE;
 		}
+		bounceButton(pauseBtn);
 		if (isRunning) {
 			stopTimer();
 		} else {
@@ -386,6 +390,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		if (event.get_button() !== 1) {
 			return Clutter.EVENT_PROPAGATE;
 		}
+		bounceButton(resetBtn);
 		resetTimer();
 		return Clutter.EVENT_STOP;
 	});
