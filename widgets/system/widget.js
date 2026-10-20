@@ -671,9 +671,11 @@ export function render({body, theme, widget, sizeForWidget}) {
     const dashRow = new St.BoxLayout(boxLayoutProps({
       x_expand: true,
       x_align: Clutter.ActorAlign.CENTER,
-      // Flush against the bottom (the body clip cuts anything below), so
-      // the dashes hug the pane edge like the calendar 1x1 page dots.
-      style: `spacing: 5px; margin-bottom: 1px;`,
+      // Flush against the bottom: with the small pane's 3px bottom inset
+      // and the container's 3px padding the dashes exactly fill the strip
+      // below the tile without touching its edge (the body clip cuts
+      // anything lower).
+      style: `spacing: 5px;`,
     }));
     const dashes = metricConfigs.map(() => new St.Widget({
       width: 10,

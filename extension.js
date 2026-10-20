@@ -2057,9 +2057,23 @@ class WidgetController {
 
     const [prevW, prevH] = this._sizeFor(widget);
     widget.size = sizeKey;
+    this._syncWidgetSizeClass(widget);
     this._clampWidget(widget);
     this._resolveLayout(widget, true, true);
     this._animateWidget(widget, true);
+  };
+
+  // The styled content box carries a size-specific class (widget-<type>-<size>);
+  // resizing keeps the same actor, so the class has to follow the new size.
+  _syncWidgetSizeClass(widget) {
+    const box = this._views.get(widget.id)?.box;
+
+    if (!box) {
+      return;
+    };
+
+    const base = `widget-${widget.type}`;
+    box.set_style_class_name(`widget ${base} ${base}-${widget.size ?? 'default'}`);
   };
 
   _setWidgetSize(widget, sizeKey) {
@@ -2070,6 +2084,7 @@ class WidgetController {
     const [prevW, prevH] = this._sizeFor(widget);
     widget.size = sizeKey;
     widget.data = {...(widget.data ?? {}), sizeManual: true};
+    this._syncWidgetSizeClass(widget);
     this._views.get(widget.id)?.sizeMenu?.hide();
     this._clampWidget(widget);
     this._resolveLayout(widget, true, true);
@@ -2150,7 +2165,10 @@ class WidgetController {
     const [width, height] = this._sizeFor(widget);
     const actorParams = boxLayoutProps({
       vertical: true,
-      style_class: `widget widget-${widget.type}`,
+      // Size-specific class (widget-system-small …): some widgets style
+      // differently per size (system 1x1 reserves room for the page dashes).
+      // _syncWidgetSizeClass keeps it in step when the widget resizes.
+      style_class: `widget widget-${widget.type} widget-${widget.type}-${widget.size ?? 'default'}`,
       reactive: true,
       can_focus: true,
       track_hover: true,
