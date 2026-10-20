@@ -216,7 +216,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		const label = new St.Label({
 			text: '00',
 			x_align: Clutter.ActorAlign.CENTER,
-			style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(72)}px; font-weight: 700; line-height: 0.9; padding: ${px(4)}px ${px(4)}px; width: ${px(88)}px;`,
+			style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(72)}px; font-weight: 700; padding: ${px(4)}px ${px(4)}px; width: ${px(88)}px;`,
 		});
 
 		const minusRow = new St.BoxLayout({ style: `spacing: ${px(4)}px;` });
