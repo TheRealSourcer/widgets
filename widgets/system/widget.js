@@ -129,6 +129,10 @@ function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, 
   dashes.forEach(dash => row.add_child(dash));
 
   // The y-expanding filler above the row pushes it to the strip bottom.
+  // The strip is a plain fixed-layout Widget: children keep their NATURAL
+  // size there, so the column has to be sized to the strip explicitly —
+  // otherwise it shrinks to the row's width and the dashes hug the pane's
+  // left edge instead of centering.
   const column = new St.BoxLayout(boxLayoutProps({
     vertical: true,
     x_expand: true,
@@ -136,6 +140,7 @@ function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, 
   }));
   column.add_child(new St.Widget({y_expand: true, reactive: false}));
   column.add_child(row);
+  column.set_size(paneW, 11);
 
   const strip = new St.Widget({reactive: false});
   strip.set_name('widget-system-page-dashes');
@@ -149,6 +154,7 @@ function attachPageDashes({paneRoot, sizeForWidget, widget, count, accentColor, 
     const [w, h] = paneRoot.get_size();
 
     strip.set_size(w, 11);
+    column.set_size(w, 11);
     strip.set_position(0, Math.max(0, h - 11));
   };
   const stripSignal = paneRoot.connect('notify::size', syncStrip);
