@@ -312,7 +312,8 @@ export function render({ body, widget, theme, sizeForWidget }) {
 
     taskEntry.clutter_text.connect('key-press-event', (_actor, event) => {
         const sym = event.get_key_symbol();
-        if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {
+        // KEY_ISO_Enter: plain Enter on some layouts/XKB options.
+        if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter || sym === Clutter.KEY_ISO_Enter) {
             commitTask();
             return Clutter.EVENT_STOP;
         }

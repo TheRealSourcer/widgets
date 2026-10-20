@@ -904,7 +904,10 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
 
     usernameEntry.clutter_text.connect('key-press-event', (_actor, event) => {
         const sym = event.get_key_symbol();
-        if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) { endEdit(true); return Clutter.EVENT_STOP; }
+        // KEY_ISO_Enter: some keyboard layouts/XKB options emit it for the
+        // plain Enter key (Shift+Enter then produced KEY_Return, which is why
+        // "Shift+Enter applied but plain Enter did nothing").
+        if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter || sym === Clutter.KEY_ISO_Enter) { endEdit(true); return Clutter.EVENT_STOP; }
         if (sym === Clutter.KEY_Escape) { endEdit(false); return Clutter.EVENT_STOP; }
         return Clutter.EVENT_PROPAGATE;
     });
