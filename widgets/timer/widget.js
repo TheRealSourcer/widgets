@@ -210,12 +210,16 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	} = buildStepper();
 	centerBox.add_child(minutesBox);
 
-	// Colon
+	// Colon. Paint-only nudge: the ':' glyph's ink sits a couple of px right
+	// of the midpoint between the two digit groups, so shift the painting
+	// only — translation does not touch the layout (same trick as the
+	// system-widget icon alignment).
 	const colonLabel = new St.Label({
 		text: ':',
 		y_align: Clutter.ActorAlign.CENTER,
 		style: `color: ${textColor}; font-size: ${px(72)}px; font-weight: 700;`,
 	});
+	colonLabel.translation_x = -px(3);
 	centerBox.add_child(colonLabel);
 
 	const {
