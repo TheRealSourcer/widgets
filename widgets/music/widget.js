@@ -950,7 +950,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	// The new icon sits top-right of the first row of the right column:
 	// that row belongs to it alone, the rest of the content sits below.
 	card.statusIcon = new St.Icon({
-		gicon: controlIcon(theme, 'music', true), // Always active (white in dark theme)
+		gicon: controlIcon(theme, 'music', false), // Inactive by default (gray)
 		x_align: Clutter.ActorAlign.END,
 		reactive: false,
 		style: 'icon-size: 18px; margin-bottom: 2px;',
@@ -1107,6 +1107,11 @@ card.artist.text = _('Play something to get going');
 		// Update navigation icons (prev/next) with active state
 		setButtonIcon(card.btnPrev, 'rewind', hasTrack);
 		setButtonIcon(card.btnNext, 'fast-forward', hasTrack);
+		
+		// Update status icon (lyrics) based on track state
+		if (card.statusIcon) {
+			card.statusIcon.gicon = controlIcon(theme, 'music', hasTrack);
+		}
 		
 		// Update loop icon based on state
 		if (loop === 'Track') {
