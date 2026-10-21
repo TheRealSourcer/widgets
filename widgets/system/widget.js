@@ -840,6 +840,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       scrollBox = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
+        // Opaque page background — same cross-overlap rationale as 2x1.
+        style: `background-color: ${theme.background};`,
       }));
 
       const config = metricConfigs[currentMetric];
@@ -979,8 +981,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     layoutMode = 'medium';
 
     // The 2x1 pane is twice the width of the 1x1 card — the calendar-paced
-    // cross needs a longer travel time, or it reads as a fast blink.
-    const CROSS_DURATION = Math.round(ANIMATION_DURATION * 1.6);
+    // cross needs a longer travel time, and a big sweep reads best slow.
+    const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2.4); // 600ms
 
     const viewConfigs = [
       [
@@ -1021,7 +1023,10 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       currentRow = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
-        style: `spacing: 10px;`,
+        // Opaque page background (the card colour): during the cross the
+        // leaving and entering rows are stacked in the Bin, and solid page
+        // cards passing over each other keep their texts from mixing.
+        style: `spacing: 10px; background-color: ${theme.background};`,
       }));
 
       const view = viewConfigs[currentView];
