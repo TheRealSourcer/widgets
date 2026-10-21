@@ -685,7 +685,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		x_expand: true,
 		y_expand: true,
 		x_align: Clutter.ActorAlign.CENTER,
-		y_align: Clutter.ActorAlign.START,
+		y_align: Clutter.ActorAlign.CENTER,
 		style: 'spacing: 14px;',
 	});
 	// The compact 1x1 card carries no app rows; the box stays detached.
