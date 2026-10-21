@@ -14,11 +14,14 @@ export const type = 'screentime';
 export const label = 'Screen Time';
 export const stylesheet = 'widgets/screentime/stylesheet.css';
 export const defaultSize = 'medium';
-export const supportedSizes = ['medium', 'large'];
+export const supportedSizes = ['small', 'medium', 'large'];
 
 const BORDER_ALPHA = 0.14;
 const REF_WIDTH = 360;
 const REF_HEIGHT = 170;
+// 1x1 compact card reference square (content box of a 190px cell minus
+// the .widget padding/border), so the layout paints ~1:1 at s=1.
+const COMPACT_SQUARE_REF = 156;
 
 const MAIN_PANEL_WIDTH_RATIO = 0.65;
 const SIDE_PANEL_LIGHTEN = 0.08;
@@ -127,6 +130,7 @@ function resolveDesktopAppInfo(appKey) {
 }
 
 const SIZE_CONFIGS = {
+	small:      { showChart: true,  maxApps: 0 }, // 1x1 compact: total + hour chart only
 	medium:     { showChart: true,  maxApps: 4 }, // 2×1
 	large:      { showChart: true,  maxApps: 8 }, // 2×2
 };
@@ -136,6 +140,9 @@ const DEFAULT_CONFIG = { showChart: false, maxApps: 3 };
 export function render({body, createLabel, theme, sizeForWidget, widget, settings}) {
 	const size = widget?.size && SIZE_CONFIGS[widget.size] ? widget.size : defaultSize;
 	const config = SIZE_CONFIGS[size] ?? DEFAULT_CONFIG;
+	// 1x1 compact card: total on the top-left + hour chart; no avatar, no
+	// date nav, no side app list.
+	const compactSquare = size === 'small';
 
 	// Get widget dimensions for proper layout sizing
 	const [widgetWidth, widgetHeight] = sizeForWidget(widget);
@@ -160,6 +167,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	};
 
 	// Nothing may paint outside the widget's own box.
+	state.chartCompact = compactSquare;
 	body.clip_to_allocation = true;
 
 	// ── Split layout: main panel (chart) + side panel (apps) ───────────────
@@ -171,7 +179,17 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		y_align: Clutter.ActorAlign.START,
 		clip_to_allocation: true,
 	});
-	body.add_child(splitBox);
+	// 1x1 compact card: vertical stack instead of the split layout — the
+	// total on the top-left and the chart below (no avatar in this design).
+	const compactBox = compactSquare
+		? new St.BoxLayout({
+			orientation: Clutter.Orientation.VERTICAL,
+			x_expand: true,
+			y_expand: true,
+			clip_to_allocation: true,
+		})
+		: null;
+	body.add_child(compactSquare ? compactBox : splitBox);
 
 	// Glass paints a blurred wallpaper backdrop BEHIND the widget and
 	// theme.background is a regular colour. These two panels sit on top of the
@@ -201,7 +219,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 	// ── Header: total time (left) + date/nav (right column) ────────────────
 	const headerBox = new St.BoxLayout({ orientation: Clutter.Orientation.HORIZONTAL });
-	leftPanel.add_child(headerBox);
+	(compactSquare ? compactBox : leftPanel).add_child(headerBox);
 
 	const totalTimeLabel = new St.Label({
 		text: '0m',
@@ -216,7 +234,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		x_align: Clutter.ActorAlign.END,
 		style: 'spacing: 6px;',
 	});
-	headerBox.add_child(controlsColumn);
+	// The compact 1x1 card has no date/nav controls at all.
+	if (!compactSquare)
+		headerBox.add_child(controlsColumn);
 
 	const dateLabel = new St.Label({
 		text: '',
@@ -275,7 +295,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	let yAxisLabels = null;
 	if (config.showChart) {
 		chartWrap = new St.Widget({ x_expand: true, y_expand: true });
-		leftPanel.add_child(chartWrap);
+		(compactSquare ? compactBox : leftPanel).add_child(chartWrap);
 
 		chartCanvas = new St.DrawingArea();
 		chartWrap.add_child(chartCanvas);
@@ -295,11 +315,14 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		yAxisLabels.forEach(label => yAxisBox.add_child(label));
 		chartWrap.add_child(yAxisBox);
 
-		const xAxisAlignments = [Clutter.ActorAlign.START, Clutter.ActorAlign.CENTER, Clutter.ActorAlign.END];
-		const xAxisLabels = ['00:00', '12:00', '24:00'].map((text, index) => new St.Label({
+		const xAxisSpec = compactSquare
+			// Compact: only the 12:00 and 18:00 marks, per the reference look.
+			? [['', Clutter.ActorAlign.START], ['12', Clutter.ActorAlign.CENTER], ['18', Clutter.ActorAlign.CENTER]]
+			: [['00:00', Clutter.ActorAlign.START], ['12:00', Clutter.ActorAlign.CENTER], ['24:00', Clutter.ActorAlign.END]];
+		const xAxisLabels = xAxisSpec.map(([text, xAlign]) => new St.Label({
 			text,
 			x_expand: true,
-			x_align: xAxisAlignments[index],
+			x_align: xAlign,
 			style: `color: ${textColor}; font-size: ${AXIS_LABEL_FONT_SIZE_PX}px; `
 				+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY};`,
 		}));
@@ -328,14 +351,23 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			ctx.setLineWidth(1);
 			ctx.setDash([3 * s, 3 * s], 0);
 
-			for (let i = 0; i < 3; i++) {
-				const y = Math.round((canvasHeight / 2) * i) + 0.5;
-				ctx.moveTo(0, y);
-				ctx.lineTo(canvasWidth, y);
+			if (state.chartCompact) {
+				// Vertical dashed guides under the 12:00 and 18:00 columns.
+				for (const frac of [0.5, 0.75]) {
+					const x = Math.round(canvasWidth * frac) + 0.5;
+					ctx.moveTo(x, 0);
+					ctx.lineTo(x, canvasHeight);
+				}
+			} else {
+				for (let i = 0; i < 3; i++) {
+					const y = Math.round((canvasHeight / 2) * i) + 0.5;
+					ctx.moveTo(0, y);
+					ctx.lineTo(canvasWidth, y);
 
-				const x = Math.round((canvasWidth / 2) * i) + 0.5;
-				ctx.moveTo(x, 0);
-				ctx.lineTo(x, canvasHeight);
+					const x = Math.round((canvasWidth / 2) * i) + 0.5;
+					ctx.moveTo(x, 0);
+					ctx.lineTo(x, canvasHeight);
+				}
 			}
 			ctx.stroke();
 			ctx.setDash([], 0);
@@ -344,8 +376,12 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const scaleMax = computeScaleMaxSeconds(hours);
 			const accent = parseCssColor(accentHex);
 			ctx.setSourceRGBA(accent.r, accent.g, accent.b, 1);
-			const barWidth = Math.round(BAR_WIDTH_PX * s);
-			const barRadius = Math.round(BAR_WIDTH_PX / 2 * s);
+			// The compact card fits 24 bars edge-to-edge: the bar width is
+			// derived from the plot instead of the fixed 4px constant.
+			const barWidth = state.chartCompact
+				? Math.max(2, Math.round(canvasWidth / HOURS_PER_DAY * 0.5))
+				: Math.round(BAR_WIDTH_PX * s);
+			const barRadius = Math.round(barWidth / 2);
 
 			for (let hour = 0; hour < hours.length; hour++) {
 				if (hours[hour] <= 0) continue;
@@ -375,14 +411,21 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		y_align: Clutter.ActorAlign.START,
 		style: 'spacing: 14px;',
 	});
-	rightPanel.add_child(appRowsBox);
+	// The compact 1x1 card carries no app rows; the box stays detached.
+	if (!compactSquare)
+		rightPanel.add_child(appRowsBox);
 
 	// Acquire tracking: engine starts collecting data when first widget acquires
 	state.releaseEngine = screenTimeEngine.acquire();
 	state.selectedDate = screenTimeEngine.getTodayDate();
 
 	const onEngineTick = () => {
-		if (state.selectedDate === screenTimeEngine.getTodayDate())
+		const today = screenTimeEngine.getTodayDate();
+		// The compact card has no navigation: re-pin to today at the rollover.
+		if (compactSquare && today && state.selectedDate !== today) {
+			state.selectedDate = today;
+		}
+		if (state.selectedDate === today)
 			refreshData();
 	};
 
@@ -424,22 +467,28 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		if (!state.snapshot) return;
 
 		totalTimeLabel.text = formatCompactDuration(state.snapshot.totalSeconds);
-		dateLabel.text = formatShortDate(state.selectedDate);
-		const isViewingToday = state.selectedDate === screenTimeEngine.getTodayDate();
-		nextButton.set_opacity(isViewingToday ? DISABLED_CONTROL_OPACITY : 255);
+
+		if (!compactSquare) {
+			dateLabel.text = formatShortDate(state.selectedDate);
+			const isViewingToday = state.selectedDate === screenTimeEngine.getTodayDate();
+			nextButton.set_opacity(isViewingToday ? DISABLED_CONTROL_OPACITY : 255);
+		}
 
 		if (config.showChart)
 			updateYAxisLabels();
 
-		const signature = appListSignature(state.snapshot);
-		const geometryChanged = state.geometry.scale !== state.lastAppListScale
-			|| state.geometry.listHeight !== state.lastListHeight;
-		if (signature !== state.lastAppListSignature || geometryChanged) {
-			state.lastAppListSignature = signature;
-			state.lastAppListScale = state.geometry.scale;
-			state.lastListHeight = state.geometry.listHeight;
-			rebuildAppList();
+		if (!compactSquare) {
+			const signature = appListSignature(state.snapshot);
+			const geometryChanged = state.geometry.scale !== state.lastAppListScale
+				|| state.geometry.listHeight !== state.lastListHeight;
+			if (signature !== state.lastAppListSignature || geometryChanged) {
+				state.lastAppListSignature = signature;
+				state.lastAppListScale = state.geometry.scale;
+				state.lastListHeight = state.geometry.listHeight;
+				rebuildAppList();
+			}
 		}
+
 		if (chartCanvas && state.geometry.plotWidth > 0)
 			chartCanvas.queue_repaint();
 	}
@@ -532,9 +581,39 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		// Skip until the container has real dimensions; otherwise scale and
 		// plot extents collapse to NaN and Clutter allocates INT32_MIN.
 		if (!currentWidth || !currentHeight) return;
-		const s = Math.min(currentWidth / REF_WIDTH, currentHeight / REF_HEIGHT);
+		const s = Math.min(
+			currentWidth / (compactSquare ? COMPACT_SQUARE_REF : REF_WIDTH),
+			currentHeight / (compactSquare ? COMPACT_SQUARE_REF : REF_HEIGHT),
+		);
 		if (!isFinite(s) || s <= 0) return;
 		state.geometry.scale = s;
+
+		if (compactSquare) {
+			// ── 1x1 compact layout: total on top, chart fills the rest ──
+			const padTop = Math.round(12 * s);
+			const padSide = Math.round(13 * s);
+			const padBottom = Math.round(8 * s);
+			compactBox.style = `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
+
+			const headerReserve = Math.round(40 * s);
+			const yWidth = Math.round(30 * s);
+			const plotWidth = Math.max(1, currentWidth - padSide * 2 - yWidth);
+			const plotHeight = Math.max(1, currentHeight - padTop - padBottom
+				- headerReserve - Math.round(X_AXIS_HEIGHT_PX * s) - Math.round(4 * s));
+			Object.assign(state.geometry, { plotWidth, plotHeight });
+
+			chartCanvas.set_position(0, headerReserve);
+			chartCanvas.set_size(plotWidth, plotHeight);
+			yAxisBox.set_position(plotWidth, headerReserve);
+			yAxisBox.set_size(yWidth, plotHeight);
+			xAxisBox.set_position(0, headerReserve + plotHeight + Math.round(4 * s));
+			xAxisBox.set_size(plotWidth, Math.round(X_AXIS_HEIGHT_PX * s));
+
+			totalTimeLabel.style = `color: ${textColor}; font-size: ${Math.round(HEADER_FONT_SIZE_PX * s * 0.9)}px; font-weight: 600;`;
+
+			renderDynamic();
+			return;
+		}
 
 		const totalWidth = currentWidth;
 		const mainWidth = Math.round(totalWidth * MAIN_PANEL_WIDTH_RATIO);
