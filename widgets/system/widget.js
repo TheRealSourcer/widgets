@@ -996,9 +996,9 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
   } else if (size === 'medium') {
     layoutMode = 'medium';
 
-    // The 2x1 pane is twice the width of the 1x1 card — the calendar-paced
-    // cross needs a longer travel time, and a big sweep reads best slow.
-    const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2.4); // 600ms
+    // GNOME eases the workspace switch with EASE_OUT_CUBIC; the pane is
+    // narrow so a slightly longer sweep reads calm.
+    const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2); // 500ms
 
     const viewConfigs = [
       [
@@ -1029,19 +1029,20 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     });
     const refreshDashes = () => pageDashes.set(currentView);
 
-    const rebuild = (enterX = 0, { keepLeaving = false, enterInPlace = false } = {}) => {
-      // The swipe-timed rebuild keeps the outgoing row in the pane — it
-      // finishes its own full-width slide and removes itself afterwards,
-      // while the incoming row enters from the opposite side: the calendar
-      // page cross. Only fresh builds wipe children.
-      if (!keepLeaving)
+    // ── GNOME workspace-switch cross (js/ui/workspaceAnimation.js) ────────
+    // A stripe holds the leaving and the incoming page side by side and the
+    // whole stripe travels (pages never overlap, nothing fades — the seam
+    // between them is the only thing crossing the pane). A plain build
+    // (init, theme change) attaches straight to the pane.
+    const rebuild = (attachTo = container) => {
+      if (attachTo === container)
         container.remove_all_children();
+
       currentRow = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
-        // Opaque page background (the card colour): during the cross the
-        // leaving and entering rows are stacked in the Bin, and solid page
-        // cards passing over each other keep their texts from mixing.
+        // Opaque page background (the card colour) so the travelling pages
+        // read as solid bars like GNOME's workspaces.
         style: `spacing: 10px; background-color: ${theme.background};`,
       }));
 
@@ -1050,7 +1051,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
 
       for (const config of view) {
         const samples = monitor.lastData[config.samplesKey] || [];
-        
+
         let extraInfo = null;
         if (config.label === 'CPU' && monitor.lastData.cpuTemp > 0) {
           extraInfo = `${Math.round(monitor.lastData.cpuTemp)}°C`;
@@ -1059,26 +1060,13 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         } else if (config.label === 'RAM') {
           extraInfo = formatMem(monitor.lastData.ramUsed);
         }
-        
+
         const result = createSparkTile(theme, config.label, '0', config.unit, accentColor, samples, config.maxValue, extraInfo, config.key);
         tiles.push(result);
         currentRow.add_child(result.tile);
-        
-        // In-place entry (swipe): the page settles at its final positions
-        // right away and just fades in — during the cross the pane already
-        // shows the information it will hold afterwards, instead of an
-        // empty half waiting for the slide-in.
-        result.tile.translation_x = enterInPlace ? 0 : enterX;
-        result.tile.set_opacity(0);
-        result.tile.ease({
-          translation_x: 0,
-          opacity: 255,
-          duration: CROSS_DURATION,
-          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-        });
       }
 
-      container.add_child(currentRow);
+      attachTo.add_child(currentRow);
       layoutRows = [currentRow];
       layoutTiles();
     };
@@ -1145,36 +1133,16 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       const delta = endX - startX;
 
       if (Math.abs(delta) > SWIPE_THRESHOLD) {
+        // ── GNOME workspace-switch cross (js/ui/workspaceAnimation.js) ─────
+        // Both pages live side by side in one strip and travel together.
+        // Each page is exactly one pane wide; the pages are separated by a
+        // gap (GNOME: WORKSPACE_SPACING between workspaces) whose dark band
+        // is what visibly crosses the pane. Nothing fades, nothing
+        // overlaps — at every moment the pane shows page content.
         const oldRow = currentRow;
-        const exitX = delta < 0 ? -width : width;
-
-        // Two-phase exit: the page sweeps with both tiles intact, then the
-        // tail finishes the run while the whole page fades as one — so both
-        // tiles vanish together instead of the left tile lingering bright
-        // after the right one has already left the pane.
-        const outPhase = Math.round(CROSS_DURATION * 0.45);
-        const fadePhase = CROSS_DURATION - outPhase;
-
-        animatingActors.add(oldRow);
-        oldRow.ease({
-          translation_x: exitX * 0.55,
-          duration: outPhase,
-          mode: Clutter.AnimationMode.EASE_IN_QUAD,
-          onComplete: () => {
-            oldRow.ease({
-              translation_x: exitX,
-              opacity: 0,
-              duration: fadePhase,
-              mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-              onComplete: () => {
-                animatingActors.delete(oldRow);
-                if (oldRow.get_parent()) {
-                  oldRow.get_parent().remove_child(oldRow);
-                }
-              },
-            });
-          },
-        });
+        const oldBox = oldRow.get_allocation_box();
+        const pageW = Math.max(1, oldBox.get_width());
+        const pageH = Math.max(1, oldBox.get_height());
 
         if (delta > 0) {
           currentView = (currentView - 1 + 3) % 3;
@@ -1185,17 +1153,55 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         saveWidgetState(statePath, { view: currentView });
         refreshDashes();
 
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, CROSS_DURATION / 2, () => {
-          rebuild(-exitX, { keepLeaving: true, enterInPlace: true });
-          // The leaving page stays ABOVE the settled one, so its sweep is
-          // still visible while the incoming page already holds the pane.
-          if (oldRow.get_parent())
-            container.set_child_above_sibling(oldRow, currentRow);
-          if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0) {
-            onData(monitor.lastData);
-          }
-          return GLib.SOURCE_REMOVE;
+        // pageW + gap = GNOME's baseDistance between adjacent workspaces.
+        const base = pageW + Math.round(pageW / 16);
+        const next = delta < 0;
+
+        // The strip's box spans both pages plus the gap, so its dark
+        // background shows only in the travelling gap band.
+        const strip = new St.Widget({
+          style: 'background-color: rgba(0, 0, 0, 0.4);',
         });
+        strip.x_align = next ? Clutter.ActorAlign.START : Clutter.ActorAlign.END;
+        strip.set_size(pageW + base, pageH);
+
+        // The leaving page keeps its card and slides with the strip.
+        container.remove_child(oldRow);
+        strip.add_child(oldRow);
+
+        // The incoming page is laid out on the other side of the gap, at
+        // the position where it will land — like GNOME's workspaces.
+        rebuild(strip);
+        const newRow = currentRow;
+        newRow.set_size(pageW, pageH);
+        if (next) {
+          oldRow.set_position(0, 0);
+          newRow.set_position(base, 0);
+        } else {
+          newRow.set_position(0, 0);
+          oldRow.set_position(base, 0);
+        }
+
+        container.add_child(strip);
+
+        strip.ease({
+          // Dragging left (next page) moves the strip left and the page
+          // arrives from the right, exactly like GNOME workspaces.
+          translation_x: next ? -base : base,
+          duration: CROSS_DURATION,
+          mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+          onComplete: () => {
+            // The incoming page now sits exactly over the pane box: hand
+            // it to the pane and dissolve the strip with the leaving page.
+            strip.remove_child(newRow);
+            container.add_child(newRow);
+            strip.destroy();
+            layoutTiles();
+          },
+        });
+
+        if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0)
+          onData(monitor.lastData);
       }
       return Clutter.EVENT_STOP;
     });
