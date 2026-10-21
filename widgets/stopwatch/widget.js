@@ -299,7 +299,10 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// sizes, ignored child aligns), so nothing depends on alignment anymore:
 	// every child gets exact design offsets and the row centers itself with
 	// a paint-only translation, whatever width the vertical mainBox hands it.
-	const timeBox = new St.Widget();
+	// Empirical (journal probe): the vertical BoxLayout does honor child
+	// x_align on the cross axis — center here, translation stays as a
+	// fallback in case some variant ever stretches the row again.
+	const timeBox = new St.Widget({x_align: Clutter.ActorAlign.CENTER});
 
 	// One shared digit slot for all three columns plus fixed 16-unit colon
 	// blocks between them: 3*123 + 2*16 + 4*8 = 457 units ≤ 540 canvas.
