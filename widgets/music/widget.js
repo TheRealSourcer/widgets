@@ -551,16 +551,33 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	const lyricStyleInactive = `font-size: ${lyrFont}px; color: ${theme.muted};`;
 	const lyricStyleActive = `font-size: ${lyrFont}px; font-weight: 700; color: ${theme.accent};`;
 
-	// Panel = a Bin: the lyrics feed fills it, the hint floats centered,
-	// the music icon stays top-right ABOVE the feed so the area keeps its
-	// corner anchor while the overlay is open.
-	card.lyricsPanel = new St.Widget({
-		layout_manager: new Clutter.BinLayout(),
+	// Panel structure (proven primitives only): a vertical Box with the
+	// badge row on top — the music icon anchors top-right even while the
+	// overlay is open — over a Bin layer where the feed fills the area and
+	// the hint floats centered over it (same centering the cover icon uses).
+	card.lyricsPanel = new St.BoxLayout(boxLayoutProps({
+		vertical: true,
 		x_expand: true,
 		y_expand: true,
 		visible: false,
 		reactive: true,
-		style: `background-color: ${theme.background}; border-radius: ${coverRadius}px; padding: 10px 14px;`,
+		style: `background-color: ${theme.background}; border-radius: ${coverRadius}px; padding: 8px 12px;`,
+	}));
+
+	const badgeRow = new St.BoxLayout({x_expand: true});
+	card._lyricsBadge = new St.Icon({
+		gicon: controlIcon(theme, 'music'),
+		reactive: false,
+		style: 'icon-size: 18px;',
+	});
+	badgeRow.add_child(new St.Widget({x_expand: true}));
+	badgeRow.add_child(card._lyricsBadge);
+	card.lyricsPanel.add_child(badgeRow);
+
+	card._lyricsFeed = new St.Widget({
+		layout_manager: new Clutter.BinLayout(),
+		x_expand: true,
+		y_expand: true,
 	});
 
 	card._lyricsBox = new St.BoxLayout(boxLayoutProps({
@@ -570,7 +587,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	card._lyricsScroll = new St.ScrollView({x_expand: true, y_expand: true});
 	card._lyricsScroll.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
 	card._lyricsScroll.add_child(card._lyricsBox);
-	card.lyricsPanel.add_child(card._lyricsScroll);
+	card._lyricsFeed.add_child(card._lyricsScroll);
 
 	const hintFont = Math.max(14, Math.round(widgetHeight * 0.11));
 	card._lyricsHint = createLabel('…', 'widget-music-lyric',
@@ -579,16 +596,9 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	card._lyricsHint.clutter_text.ellipsize = Pango.EllipsizeMode.END;
 	card._lyricsHint.x_align = Clutter.ActorAlign.CENTER;
 	card._lyricsHint.y_align = Clutter.ActorAlign.CENTER;
-	card.lyricsPanel.add_child(card._lyricsHint);
+	card._lyricsFeed.add_child(card._lyricsHint);
 
-	card._lyricsBadge = new St.Icon({
-		gicon: controlIcon(theme, 'music'),
-		x_align: Clutter.ActorAlign.END,
-		y_align: Clutter.ActorAlign.START,
-		reactive: false,
-		style: 'icon-size: 18px; margin: 2px 2px 0 0;',
-	});
-	card.lyricsPanel.add_child(card._lyricsBadge);
+	card.lyricsPanel.add_child(card._lyricsFeed);
 
 	// The panel covers the whole card, so a click anywhere on it returns to
 	// the normal card (including the badge — it is a passive mirror of the
@@ -689,6 +699,14 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 			};
 
 			card._buildLyrics(result);
+		}).catch(error => {
+			log(`[debug] lyrics resolve failed: ${error}`);
+
+			if (token !== card._lyricsToken) {
+				return;
+			};
+
+			card._buildLyrics(null);
 		});
 	};
 
