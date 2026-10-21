@@ -256,7 +256,7 @@ function textOnAccentColor(accent) {
 	const { r, g, b } = parseCssColor(accent);
 	const lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
-	return lum > 0.55 ? 'rgba(30,30,30,0.92)' : 'rgba(255,255,255,0.92)';
+	return lum > 0.55 ? '#000000' : '#ffffff';
 };
 
 // Ghost buttons read against the surface: the white outline was invisible
