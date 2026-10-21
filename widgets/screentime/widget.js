@@ -193,7 +193,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			clip_to_allocation: true,
 		})
 		: null;
-	body.add_child(compactSquare ? compactBox : splitBox);
+	const root = compactSquare ? compactBox : splitBox;
+	body.add_child(root);
 
 	// Glass paints a blurred wallpaper backdrop BEHIND the widget and
 	// theme.background is a regular colour. These two panels sit on top of the
@@ -511,14 +512,24 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	state.engineListener = onEngineTick;
 	screenTimeEngine.addListener(onEngineTick);
 
+	let engineCleaned = false;
 	const cleanup = () => {
+		if (engineCleaned) return;
+		engineCleaned = true;
 		if (state.releaseEngine) {
 			state.releaseEngine();
 			state.releaseEngine = null;
 		}
-		screenTimeEngine.removeListener(state.engineListener);
+		if (state.engineListener) {
+			screenTimeEngine.removeListener(state.engineListener);
+			state.engineListener = null;
+		}
 	};
 
+	// The root dies on every refill (theme/style change re-fills the body in
+	// place, destroying only children) — anchor the engine release there or
+	// every re-render leaks one more engine acquire.
+	root.connect('destroy', cleanup);
 	body.connect('destroy', cleanup);
 
 	function refreshData() {

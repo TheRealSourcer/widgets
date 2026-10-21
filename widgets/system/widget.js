@@ -704,6 +704,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
   monitor = getSystemMonitor();
   const size = widget?.size || defaultSize;
   const [width, height] = sizeForWidget(widget);
+  console.log(`[debug] system render size=${size} paneRoot=${!!paneRoot}`);
   const accentColor = theme.accent || '#3584e4';
 
   let currentMetric = METRIC_CPU;
@@ -976,6 +977,9 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         refreshDashes();
 
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
+          // A refill may have re-rendered the pane mid-cross; rebuilding
+          // into the dead one would only corrupt the new body.
+          if (tornDown) return GLib.SOURCE_REMOVE;
           rebuild(-exitX, { keepLeaving: true, enterInPlace: true });
           // The leaving page stays above the settled one during the cross.
           if (oldTile.get_parent())
@@ -1072,6 +1076,14 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     };
 
     const onData = (data) => {
+      try {
+        applyData(data);
+      } catch (e) {
+        console.error('[debug] sysmon onData fail: ' + e.message);
+      }
+    };
+
+    const applyData = (data) => {
       const view = viewConfigs[currentView];
       
       for (let i = 0; i < tiles.length; i++) {
@@ -1143,6 +1155,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         const oldBox = oldRow.get_allocation_box();
         const pageW = Math.max(1, oldBox.get_width());
         const pageH = Math.max(1, oldBox.get_height());
+        console.log(`[debug] sysmon swipe pageW=${pageW} pageH=${pageH} pageKids=${container.get_children().length}`);
 
         if (delta > 0) {
           currentView = (currentView - 1 + 3) % 3;
@@ -1191,12 +1204,18 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
           duration: CROSS_DURATION,
           mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
           onComplete: () => {
+            // A refill may have re-rendered the pane while the strip was
+            // travelling: the strip died with the old pane and must not
+            // claw pages out of the freshly built body.
+            if (tornDown) return;
             // The incoming page now sits exactly over the pane box: hand
             // it to the pane and dissolve the strip with the leaving page.
             strip.remove_child(newRow);
             container.add_child(newRow);
             strip.destroy();
             layoutTiles();
+            const b = newRow.get_allocation_box();
+            console.log(`[debug] sysmon handover pageKids=${container.get_children().length} rowW=${b.get_width()} rowH=${b.get_height()}`);
           },
         });
 
@@ -1290,18 +1309,30 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
 
   body.add_child(container);
 
-  body.connect('destroy', () => {
+  // The body is refilled in place on theme/style changes (its CHILDREN are
+  // destroyed, the body itself survives) — a destroy hook on the body alone
+  // never fires there, so onData stayed subscribed and kept poking DEAD
+  // actors on every monitor tick (the endless "already disposed" spam and
+  // eventual visual blanks). Anchor the same teardown to the pane: that
+  // actor dies on every refill too.
+  let tornDown = false;
+  const teardown = () => {
+    if (tornDown) return;
+    tornDown = true;
     // Cancel all active ease animations to prevent ghost content
     for (const actor of animatingActors) {
       actor.remove_all_transitions();
     }
     animatingActors.clear();
-    
+
     if (unsubscribe) {
       unsubscribe();
       unsubscribe = null;
     }
-  });
+  };
+  container.connect('destroy', teardown);
+  body.connect('destroy', teardown);
+  console.log(`[debug] system fill size=${size} bodyKids=${body.get_children().length} pageKids=${container.get_children().length}`);
 }
 
 export function style(theme) {

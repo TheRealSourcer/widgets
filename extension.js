@@ -2453,6 +2453,7 @@ class WidgetController {
     try {
       this._fillWidgetBody(widget, body);
     } catch (error) {
+      console.error(`[debug] fill-catch ${widget.type}/${widget.size ?? 'default'}: ${error.message} bodyKids=${body.get_children().length}`);
       warn('widget-render-failed', `Failed to render ${widget.type}: ${error.message}\n${error.stack}`);
     };
   };
@@ -3328,10 +3329,11 @@ sizeButton.connectObject('destroy', () => {
         // pin them here, escaping the pane's padding and the body clip.
         paneRoot: this._views.get(widget.id)?.actor ?? null,
         onPhotoChange: path => this._setWidgetPhoto(widget, body, path),
-      suppressAppClick: () => {
-        this._suppressAppClickUntil = Date.now() + 400;
-      },
-    });
+        suppressAppClick: () => {
+          this._suppressAppClickUntil = Date.now() + 400;
+        },
+      });
+      console.log(`[debug] fill ${widget.type}/${widget.size ?? 'default'} bodyKids=${body.get_children().length}`);
   };
 
   _refreshCalendarWeekdays() {
