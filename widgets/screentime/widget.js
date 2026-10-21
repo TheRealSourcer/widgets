@@ -597,7 +597,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			// ── 1x1 compact layout: total on top, chart fills the rest ──
 			const padTop = Math.round(12 * s);
 			const padSide = Math.round(13 * s);
-			const padBottom = Math.round(8 * s);
+			// A generous bottom margin keeps the 00/12/24 axis from crowding
+			// the card edge.
+			const padBottom = Math.round(14 * s);
 			compactBox.style = `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
 
 			const headerReserve = Math.round(40 * s);
