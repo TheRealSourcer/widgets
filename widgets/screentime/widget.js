@@ -164,6 +164,10 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		lastAppListSignature: '',
 		lastAppListScale: null,
 		lastListHeight: null,
+		// The engine's "today" seen at the last tick — lets the compact card
+		// detect a real day rollover instead of yanking back a manually
+		// browsed past day on every tick.
+		lastKnownToday: null,
 	};
 
 	// Nothing may paint outside the widget's own box.
@@ -286,6 +290,31 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 	const prevButton = buildNavButton('go-previous-symbolic', goToPreviousDay);
 	const nextButton = buildNavButton('go-next-symbolic', goToNextDay);
+
+	// ── 1x1: flip days with the mouse, calendar-style ──────────────────────
+	// Press-drag-release across the card shifts one day per gesture; no
+	// bottom indicator dashes like the calendar's view dots.
+	if (compactSquare) {
+		const COMPACT_SWIPE_THRESHOLD = 30;
+		let swipeStartX = null;
+
+		compactBox.reactive = true;
+		compactBox.connect('button-press-event', (_actor, event) => {
+			if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+			swipeStartX = event.get_coords()[0];
+			return Clutter.EVENT_PROPAGATE;
+		});
+		compactBox.connect('button-release-event', (_actor, event) => {
+			if (swipeStartX === null) return Clutter.EVENT_PROPAGATE;
+			const startX = swipeStartX;
+			swipeStartX = null;
+			const delta = event.get_coords()[0] - startX;
+			if (Math.abs(delta) < COMPACT_SWIPE_THRESHOLD) return Clutter.EVENT_PROPAGATE;
+			// Drag left = next day, drag right = back one day.
+			if (delta < 0) goToNextDay(); else goToPreviousDay();
+			return Clutter.EVENT_STOP;
+		});
+	}
 
 	// ── Chart (main panel) ─────────────────────────────────────────────────
 	let chartWrap = null;
@@ -426,10 +455,16 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 	const onEngineTick = () => {
 		const today = screenTimeEngine.getTodayDate();
-		// The compact card has no navigation: re-pin to today at the rollover.
-		if (compactSquare && today && state.selectedDate !== today) {
+		// The compact card is swipe-navigated: only re-pin to "today" on a
+		// real day rollover and only while the card was still showing the
+		// previous "today" — a browsed past day must stay where it is.
+		if (compactSquare && today && state.lastKnownToday
+			&& today !== state.lastKnownToday
+			&& state.selectedDate === state.lastKnownToday) {
 			state.selectedDate = today;
 		}
+		if (today)
+			state.lastKnownToday = today;
 		if (state.selectedDate === today)
 			refreshData();
 	};
