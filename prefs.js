@@ -1470,9 +1470,11 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(firstDayRow);
 
-        // How far ahead the events list looks (reference widget's lookahead:
-        // 0 = 7, 1 = 14, 2 = 30, 3 = 60 days).
+        // How far ahead the events list looks (reference widget's lookahead
+        // idea, plus a "today and tomorrow only" option: 0 = today and
+        // tomorrow, 1 = 7, 2 = 14, 3 = 30, 4 = 60 days).
         const LOOKAHEAD_LABELS = [
+            _('Today and tomorrow'),
             _('7 days'),
             _('14 days'),
             _('30 days'),
@@ -1484,7 +1486,7 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             subtitle: _('How far ahead the events list looks'),
             model: lookaheadModel,
         });
-        lookaheadRow.set_selected(Math.max(0, Math.min(3, settings.get_int('calendar-lookahead') ?? 2)));
+        lookaheadRow.set_selected(Math.max(0, Math.min(4, settings.get_int('calendar-lookahead') ?? 3)));
         lookaheadRow.connect('notify::selected', () => {
             settings.set_int('calendar-lookahead', lookaheadRow.selected);
         });

@@ -36,11 +36,12 @@ const CALENDAR_SERVER_IFACE = 'org.gnome.Shell.CalendarServer';
 const EVENTS_REFRESH_SECONDS = 300;
 const EVENTS_WINDOW_DAYS = 35;
 // The events list looks this far ahead; the schema stores the index
-// (mirror of the reference widget: 0 = 7, 1 = 14, 2 = 30, 3 = 60 days).
-const LOOKAHEAD_DAYS = [7, 14, 30, 60];
+// (mirror of the reference widget's lookahead idea: 0 = only today and
+// tomorrow, 1 = 7, 2 = 14, 3 = 30, 4 = 60 days).
+const LOOKAHEAD_DAYS = [1, 7, 14, 30, 60];
 
 function lookaheadDays(settings) {
-	const index = settings?.get_int('calendar-lookahead') ?? 2;
+	const index = settings?.get_int('calendar-lookahead') ?? 3;
 	return LOOKAHEAD_DAYS[index] ?? 30;
 }
 const SWIPE_THRESHOLD = 30;

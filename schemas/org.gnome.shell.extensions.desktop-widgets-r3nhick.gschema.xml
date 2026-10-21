@@ -77,9 +77,9 @@
       <description>Mirror of the reference calendar widget: 0 = from the locale (GNOME setting), 1 = Sunday, 2 = Monday.</description>
     </key>
     <key name="calendar-lookahead" type="i">
-      <default>2</default>
+      <default>3</default>
       <summary>How far ahead the event list looks</summary>
-      <description>0 = 7, 1 = 14, 2 = 30, 3 = 60 days ahead.</description>
+      <description>0 = only today and tomorrow, 1 = 7, 2 = 14, 3 = 30, 4 = 60 days ahead.</description>
     </key>
     <key name="calendar-use-accent-color" type="b">
       <default>false</default>

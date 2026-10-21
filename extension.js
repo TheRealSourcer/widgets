@@ -516,6 +516,10 @@ class WidgetController {
       'changed::edit-mode-binding', () => this._registerEditModeBinding(),
       'changed::calendar-weekday-format', () => this._refreshCalendarWeekdays(),
       'changed::calendar-use-accent-color', () => this._refreshCalendarWeekdays(),
+      // First day of the week / events lookahead re-render the calendar
+      // cards in place, so the change is visible without reloading.
+      'changed::calendar-first-day', () => this._scheduleAppearance('refresh'),
+      'changed::calendar-lookahead', () => this._scheduleAppearance('refresh'),
       'changed::calendar-show-page-dots', () => this._scheduleAppearance('refresh'),
       'changed::page-indicator-style', () => this._scheduleAppearance('refresh'),
       'changed::calendar-page-indicator-accent', () => this._scheduleAppearance('refresh'),
