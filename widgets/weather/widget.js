@@ -400,7 +400,7 @@ function tempNumber(value) {
 	return match ? Number(match[0].replace(',', '.')) : null;
 };
 
-function temperatureRange(daily, theme, createLabel, scale, size = 11) {
+function temperatureRange(daily, theme, createLabel, scale, size = 11, weight = 400) {
 	const today = daily[0];
 
 	if (!today) {
@@ -417,7 +417,7 @@ function temperatureRange(daily, theme, createLabel, scale, size = 11) {
 	return createLabel(
 		_('H:%s L:%s').format(today.high, today.low),
 		'widget-weather-range',
-		`color: ${theme.muted}; font-size: ${scaledFont(size, scale)}px; font-weight: 400;`);
+		`color: ${theme.muted}; font-size: ${scaledFont(size, scale)}px; font-weight: ${weight};`);
 };
 
 function buildHeader(rendered, theme, createLabel, scale, opts = {}) {
@@ -692,7 +692,7 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 	body.add_child(createLabel(
 		rendered.temp,
 		'widget-weather-temp-main',
-		`color: ${tempColor ?? theme.accent}; font-size: ${scaledFont(40, scale)}px; font-weight: 600;`));
+		`color: ${tempColor ?? theme.accent}; font-size: ${scaledFont(52, scale)}px; font-weight: 600;`));
 	body.add_child(new St.Widget({y_expand: true}));
 
 	const bottom = new St.BoxLayout(boxLayoutProps({
@@ -721,8 +721,8 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 		'widget-weather-summary',
 		`color: ${theme.text}; font-size: ${scaledFont(13, scale)}px; font-weight: 600;`));
 
-	// H/L: a notch larger than the header range, kept at normal weight.
-	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 12);
+	// H/L: enlarged and weighted like the Overcast summary (600) above it.
+	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 15, 600);
 
 	if (range) {
 		bottom.add_child(range);
