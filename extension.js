@@ -2318,6 +2318,11 @@ class WidgetController {
       tint = parseCssColor(background);
       if (typeof tint.a === 'number')
         tintAlpha *= tint.a;
+    } else if (colors.glassIsLight) {
+      // Light glass must stay a light surface over dark wallpapers: the 10%
+      // default white tint alone left near-black text unreadable. The slider
+      // still wins when it is set above the floor.
+      tintAlpha = Math.max(tintAlpha, 0.45);
     }
 
     view.glass.setParams({
