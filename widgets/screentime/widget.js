@@ -673,8 +673,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		bandColumns = [0, 1].map(() => new St.BoxLayout({
 			orientation: Clutter.Orientation.VERTICAL,
 			x_expand: true,
-			y_expand: true,
-			y_align: Clutter.ActorAlign.FILL,
+			y_align: Clutter.ActorAlign.START,
 		}));
 		bandColumns.forEach(column => appsBand.add_child(column));
 		largeRoot.add_child(appsBand);
@@ -1072,10 +1071,11 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				Math.round(APP_BAND_FONT_SIZE_PX * s * 1.5),
 			);
 			
-			// Calculate spacing dynamically to fill available space with exactly 4 rows
+			// Calculate spacing to distribute rows evenly
 			const rowsTarget = LARGE_APP_ROWS_MAX;
-			const availableForRows = bandH - bandPadT - bandPadB;
-			const bandSpacing = Math.max(4, Math.floor((availableForRows - (rowsTarget * bandRowH)) / (rowsTarget - 1)));
+			const totalRowHeight = rowsTarget * bandRowH;
+			const totalSpacingNeeded = (rowsTarget - 1);
+			const bandSpacing = Math.floor((bandH - bandPadT - bandPadB - totalRowHeight) / totalSpacingNeeded);
 			
 			const rowsFit = Math.floor((bandH - bandPadT - bandPadB + bandSpacing) / (bandRowH + bandSpacing));
 			state.geometry.bandRows = Math.min(LARGE_APP_ROWS_MAX, Math.max(1, rowsFit));
