@@ -11,7 +11,8 @@ import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.j
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
 import { SeekBar } from '../../lib/seekBar.js';
 import { bounceButton, bindHoverShrink } from '../../lib/buttonBounce.js';
-import { parseCssColor } from '../../utils/ported.js';
+import { getDataDir, parseCssColor } from '../../utils/ported.js';
+import { lineIndexAt, resolveLyrics } from '../../lib/lyrics.js';
 export const type = 'music';
 export const label = 'Music';
 export const stylesheet = 'widgets/music/stylesheet.css';
@@ -334,6 +335,7 @@ function parseMetadata(metadata) {
 		artUrl: variantValue(md['mpris:artUrl']) ?? null,
 		length: Math.max(0, Number(variantValue(md['mpris:length']) ?? 0)),
 		trackId: variantValue(md['mpris:trackid']) ?? null,
+		trackUrl: variantValue(md['xesam:url']) ?? null,
 	};
 };
 
@@ -524,6 +526,182 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		};
 	};
 
+	// ── Lyrics overlay ────────────────────────────────────────────────────
+	// The top-right status icon doubles as the toggle: a click swaps the
+	// cover art for a synced lyrics feed. The resolution chain lives in
+	// lib/lyrics.js (local .lrc -> lrclib.net -> cached); any failure just
+	// keeps the cover art in place.
+	card._lyricsDir = getDataDir('lyrics');
+	card._lyricsOn = false;
+	card._lyricsToken = 0;
+	card._lyricsKey = null;
+	card._lyricsMeta = null;
+	card._lyricsLines = null;
+	card._lyricsSynced = false;
+	card._lyricsLabels = [];
+	card._lyricsActive = -1;
+
+	const lyrFont = Math.max(10, Math.round(cover * 0.115));
+	const lyricStyleInactive = `font-size: ${lyrFont}px; color: ${theme.muted};`;
+	const lyricStyleActive = `font-size: ${lyrFont}px; font-weight: 700; color: ${theme.accent};`;
+
+	card.lyricsPanel = new St.BoxLayout(boxLayoutProps({
+		vertical: true,
+		x_expand: true,
+		y_expand: true,
+		visible: false,
+		style: `background-color: ${theme.background}; border-radius: ${coverRadius}px; padding: 6px 8px; spacing: 4px;`,
+	}));
+
+	card._lyricsHint = createLabel('…', 'widget-music-lyric',
+		`font-size: ${Math.max(9, lyrFont - 2)}px; color: ${theme.muted};`);
+	card._lyricsHint.clutter_text.single_line_mode = true;
+	card._lyricsHint.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+
+	card._lyricsBox = new St.BoxLayout(boxLayoutProps({
+		vertical: true,
+		style: 'spacing: 3px;',
+	}));
+	card._lyricsScroll = new St.ScrollView({x_expand: true, y_expand: true});
+	card._lyricsScroll.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
+	card._lyricsScroll.add_child(card._lyricsBox);
+
+	card.lyricsPanel.add_child(card._lyricsHint);
+	card.lyricsPanel.add_child(card._lyricsScroll);
+	card.coverBox.add_child(card.lyricsPanel);
+
+	card._setLyricsHint = function (text) {
+		card._lyricsHint.text = text;
+		card._lyricsHint.visible = Boolean(text);
+	};
+
+	card._resetLyricsFeed = function () {
+		for (const child of card._lyricsBox.get_children()) {
+			card._lyricsBox.remove_child(child);
+		};
+
+		card._lyricsLabels = [];
+		card._lyricsActive = -1;
+		card._lyricsSynced = false;
+	};
+
+	card._buildLyrics = function (result) {
+		card._resetLyricsFeed();
+
+		if (!result || !Array.isArray(result.lines) || result.lines.length === 0) {
+			card._lyricsLines = null;
+			card._setLyricsHint(_('No lyrics found'));
+			return;
+		};
+
+		for (const entry of result.lines) {
+			const row = new St.Label({
+				text: entry.line,
+				x_align: Clutter.ActorAlign.START,
+				opacity: 140,
+				style: lyricStyleInactive,
+			});
+			row.clutter_text.single_line_mode = true;
+			row.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+			row._styleInactive = lyricStyleInactive;
+			row._styleActive = lyricStyleActive;
+			card._lyricsBox.add_child(row);
+			card._lyricsLabels.push(row);
+		};
+
+		card._lyricsSynced = result.synced;
+		card._lyricsLines = result.lines;
+		card._setLyricsHint('');
+	};
+
+	card.toggleLyrics = function () {
+		if (card._coverSize < 64 || !(card._lyricsMeta && card._lyricsMeta.title)) {
+			return;
+		};
+
+		card._lyricsOn = !card._lyricsOn;
+		card.lyricsPanel.visible = card._lyricsOn;
+
+		if (card._lyricsOn) {
+			// Same-track reopen reuses the existing feed; an empty feed
+			// (previous lookup failed) forces a retry.
+			card._loadLyrics(card._lyricsLabels.length === 0);
+		};
+	};
+
+	card._loadLyrics = function (force = false) {
+		const meta = card._lyricsMeta;
+
+		if (!meta || !meta.title) {
+			card._setLyricsHint(_('Play something to get going'));
+			return;
+		};
+
+		const key = `${meta.artist ?? ''}|${meta.title}`;
+		if (!force && key === card._lyricsKey) {
+			return;
+		};
+
+		card._lyricsKey = key;
+		card._lyricsToken += 1;
+		const token = card._lyricsToken;
+		card._setLyricsHint('…');
+
+		resolveLyrics({
+			artist: meta.artist,
+			title: meta.title,
+			durationUs: meta.length,
+			trackUrl: meta.trackUrl,
+			dir: card._lyricsDir,
+		}).then(result => {
+			if (token !== card._lyricsToken) {
+				// A newer track (or toggle cycle) superseded this lookup.
+				return;
+			};
+
+			card._buildLyrics(result);
+		});
+	};
+
+	// Tick hook: repaint + scroll only when the active line changes, so the
+	// 1s MPRIS update never thrashes the feed.
+	card._tickLyrics = function (positionUs) {
+		if (!card._lyricsOn || !card._lyricsSynced || card._lyricsLabels.length === 0) {
+			return;
+		};
+
+		const index = lineIndexAt(card._lyricsLines, positionUs);
+		if (index < 0 || index === card._lyricsActive) {
+			return;
+		};
+
+		if (card._lyricsActive >= 0 && card._lyricsActive < card._lyricsLabels.length) {
+			const before = card._lyricsLabels[card._lyricsActive];
+			before.opacity = 140;
+			before.style = before._styleInactive;
+		};
+
+		card._lyricsActive = index;
+		const current = card._lyricsLabels[index];
+		current.opacity = 255;
+		current.style = current._styleActive;
+
+		const adjustment = card._lyricsScroll.vscroll.adjustment;
+		const ideal = current.y + current.height / 2 - adjustment.page_size / 2;
+		const highest = Math.max(adjustment.lower, adjustment.upper - adjustment.page_size);
+		const clamped = Math.min(Math.max(ideal, adjustment.lower), highest);
+
+		if (!isFinite(clamped)) {
+			return;
+		};
+
+		if (typeof adjustment.ease === 'function') {
+			adjustment.ease(clamped, {duration: 220, mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+		} else {
+			adjustment.value = clamped;
+		};
+	};
+
 	card.column = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
 		x_expand: true,
@@ -618,7 +796,24 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	card.times.add_child(card.timeTotal);
 	// The SeekBar paints its own time labels now; the old labels row stays
 	// out of the layout (its update code is kept harmless above).
-	card.column.add_child(card.statusIcon);
+	if (card._coverSize >= 64) {
+		// The top-right music icon opens/closes the lyrics overlay. Same
+		// visuals as the old static icon; now clickable, with the shared
+		// hover shrink and click bounce of every other widget button.
+		card.lyricsToggle = new St.Button({
+			child: card.statusIcon,
+			x_align: Clutter.ActorAlign.END,
+			style: 'padding: 2px;',
+		});
+		bindHoverShrink(card.lyricsToggle);
+		card.lyricsToggle.connect('clicked', () => {
+			bounceButton(card.lyricsToggle);
+			card.toggleLyrics();
+		});
+		card.column.add_child(card.lyricsToggle);
+	} else {
+		card.column.add_child(card.statusIcon);
+	};
 	card.column.add_child(card.title);
 	card.column.add_child(card.artist);
 	card.column.add_child(card.slider);
@@ -640,7 +835,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		};
 	};
 
-	card.update = function ({title, artist, artUrl, playing, position, length, canControl, canPrev, canNext, canPlay, canPause, loop = 'None', canSeek = false, seekPreview = false, loopSupported = true, forcePrev = false, forceNext = false}) {
+	card.update = function ({title, artist, artUrl, trackUrl = null, playing, position, length, canControl, canPrev, canNext, canPlay, canPause, loop = 'None', canSeek = false, seekPreview = false, loopSupported = true, forcePrev = false, forceNext = false}) {
 		const hasTrack = Boolean(title && title.length > 0);
 		const gifPath = !hasTrack
 			? emptyGifPath(this._settings?.get_string('music-empty-gif'))
@@ -673,6 +868,24 @@ card.artist.text = _('Play something to get going');
 			// Reset time displays and slider when no track
 			card.timeElapsed.text = '0:00';
 			card.timeTotal.text = length > 0 ? formatUs(length) : '0:00';
+		};
+
+		// Lyrics plumbing: remember the query for the (lazy) load, auto-close
+		// the overlay on an empty card, refresh an open feed on track change
+		// (the key guard inside _loadLyrics keeps same-track ticks a no-op).
+		if (hasTrack) {
+			card._lyricsMeta = {title, artist, length, trackUrl};
+
+			if (card._lyricsOn) {
+				card._loadLyrics();
+			};
+		} else {
+			card._lyricsMeta = null;
+
+			if (card._lyricsOn) {
+				card._lyricsOn = false;
+				card.lyricsPanel.visible = false;
+			};
 		};
 
 		const displayLength = hasTrack ? length : 0;
@@ -744,6 +957,10 @@ card.artist.text = _('Play something to get going');
 		
 		recolorIcon(card.btnPrev);
 		recolorIcon(card.btnNext);
+
+		// Keep the lyrics feed in sync with the reported position. Runs every
+		// tick but repaints only on an active-line change (guarded inside).
+		card._tickLyrics(position);
 	};
 
 	card.update({title: null, artist: null, artUrl: null, playing: false, position: 0, length: 0,
@@ -783,7 +1000,7 @@ let Controller = class Controller {
 		this._lastPosSync = 0;
 		this._lastPlayerScan = 0;
 		this._seekCapture = false;
-		this._meta = {title: null, artist: null, artUrl: null};
+		this._meta = {title: null, artist: null, artUrl: null, trackUrl: null};
 		this._relisten = false;
 		this._bound = false;
 		this._lastPlayingAt = {};
@@ -1062,7 +1279,7 @@ let Controller = class Controller {
 
 				this._position = 0;
 				this._posAt = 0;
-				this._meta = {title: null, artist: null, artUrl: null};
+				this._meta = {title: null, artist: null, artUrl: null, trackUrl: null};
 				this._playing = false;
 				this._canControl = false;
 				this._canPrev = false;
@@ -1097,7 +1314,7 @@ let Controller = class Controller {
 		};
 
 		if (status === 'Stopped') {
-			this._meta = {title: null, artist: null, artUrl: null};
+			this._meta = {title: null, artist: null, artUrl: null, trackUrl: null};
 			this._length = 0;
 			this._position = 0;
 			this._posAt = Date.now();
@@ -1156,6 +1373,10 @@ let Controller = class Controller {
 				displayed.artUrl = meta.artUrl;
 			};
 
+			if (meta.trackUrl !== displayed.trackUrl) {
+				displayed.trackUrl = meta.trackUrl;
+			};
+
 			if (meta.length > 0) {
 				this._length = meta.length;
 			};
@@ -1171,7 +1392,7 @@ let Controller = class Controller {
 			return;
 		};
 
-		this._meta = {title: meta.title, artist: meta.artist, artUrl: meta.artUrl};
+		this._meta = {title: meta.title, artist: meta.artist, artUrl: meta.artUrl, trackUrl: meta.trackUrl};
 
 		if (this._chromium) {
 			this._lockedTrackId = meta.trackId ?? null;
@@ -1206,8 +1427,8 @@ let Controller = class Controller {
 			// empty with just buttons/slider reacting. The reference renders
 			// whatever metadata the player reports, Stopped or not.
 			this._meta = meta.title
-				? {title: meta.title, artist: meta.artist, artUrl: meta.artUrl}
-				: {title: null, artist: null, artUrl: null};
+				? {title: meta.title, artist: meta.artist, artUrl: meta.artUrl, trackUrl: meta.trackUrl}
+				: {title: null, artist: null, artUrl: null, trackUrl: null};
 			this._lockedTrackId = null;
 			this._length = meta.length > 0 ? meta.length : 0;
 		} else {
@@ -1332,6 +1553,7 @@ let Controller = class Controller {
 			title: this._meta.title,
 			artist: this._meta.artist,
 			artUrl: this._meta.artUrl,
+			trackUrl: this._meta.trackUrl,
 			playing: this._playing,
 			position,
 			length: this._length,
