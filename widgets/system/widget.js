@@ -1223,28 +1223,23 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
           mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
           onComplete: () => {
             // A refill may have re-rendered the pane while the strip was
-            // travelling: the strip died with the old pane and must not
-            // claw pages out of the freshly built body.
+            // travelling: the strip died with the old pane and there is
+            // nothing to settle.
             if (tornDown) return;
-            // The incoming page now sits exactly over the pane box: hand
-            // it to the pane and dissolve the strip with the leaving page.
-            // The row carries its strip-local position (base,0) and possibly
-            // a stale strip box — restate the pane box explicitly and nudge
-            // the layout, otherwise the Bin may skip the pass and the pane
-            // reads as an empty widget (the rank of the after-swipe bug).
-            strip.remove_child(newRow);
-            container.add_child(newRow);
-            newRow.set_position(0, 0);
-            newRow.set_size(pageW, pageH);
+            // Settled: dissolve the strip whole (the leaving page goes with
+            // it) and rebuild the settled page fresh in the pane. Re-parenting
+            // the landed row left its box strip-local when the pane skipped
+            // its next allocation pass — measured rowbox: next-direction
+            // swipes ended on a stale 358x153 box and an empty pane, while
+            // plain builds always land cleanly. The fresh build shows the
+            // very same page, so the merge is invisible.
             strip.destroy();
-            container.queue_relayout();
-            layoutTiles();
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 60, () => {
-              if (!tornDown) layoutTiles();
-              return GLib.SOURCE_REMOVE;
-            });
-            const b = newRow.get_allocation_box();
-            console.log(`[debug] sysmon handover pageKids=${container.get_children().length} rowW=${b.get_width()} rowH=${b.get_height()}`);
+            rebuild();
+            const finalData = monitor.lastData;
+            if (finalData && (finalData.cpu > 0 || finalData.ram > 0)) {
+              onData(finalData);
+            }
+            console.log(`[debug] sysmon handover-rebuild pageKids=${container.get_children().length}`);
           },
         });
 
