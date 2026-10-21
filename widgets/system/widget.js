@@ -15,7 +15,7 @@ export const defaultSize = 'small';
 export const supportedSizes = ['small', 'medium', 'large'];
 
 const POLL_INTERVAL_MS = 5000;
-const SWIPE_THRESHOLD = 50;
+const SWIPE_THRESHOLD = 30; // same gesture distance as the calendar widget
 const SPARK_SAMPLES = 40;
 const SPARK_LINE_WIDTH = 2;
 const SPARK_FILL_ALPHA = 0.15;
