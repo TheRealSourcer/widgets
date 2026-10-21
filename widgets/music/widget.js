@@ -1247,6 +1247,7 @@ let Controller = class Controller {
 
 	async _pickActive() {
 		const rows = [];
+		const ignoreBrowsers = this._settings?.get_boolean('music-ignore-browsers') ?? true;
 
 		for (const candidate of await this.listCandidates()) {
 			const props = await this._readProps(candidate);
@@ -1259,57 +1260,60 @@ let Controller = class Controller {
 			const meta = parseMetadata(variantValue(props.Metadata));
 			const hasTitle = Boolean(meta.title && meta.title.length);
 			const isChromium = isChromiumName(candidate);
-			const ignoreBrowsers = this._settings?.get_boolean('music-ignore-browsers') ?? true;
-			
-			if (ignoreBrowsers && isChromium) {
-				continue;
-			};
-
 			const isProxy = candidate.toLowerCase().includes('playerctld');
+
+			const playing = status === 'Playing' && hasTitle;
 			let value = 0;
 
-			if (status === 'Playing' && hasTitle) {
+			if (playing) {
+				// Every playing player keeps a heartbeat timestamp, so the
+				// most recently activated one stays stable while it plays.
+				this._lastPlayingAt[candidate] = Date.now();
 				value = 500;
-
-				if (!isChromium) {
-					this._lastPlayingAt[candidate] = Date.now();
-				};
 			} else if (status === 'Paused' && hasTitle) {
 				value = 100;
 			} else if (hasTitle) {
 				value = 50;
 			};
 
-			rows.push({name: candidate, props, status, hasTitle, value,
+			rows.push({name: candidate, props, status, hasTitle, playing, value,
 				recency: this._lastPlayingAt[candidate] ?? 0, isChromium, isProxy});
 		};
 
-		let bestNonChrome = null;
-		let bestChrome = null;
+		const candidates = rows.filter(row => row.value > 0);
+		const playingRows = candidates.filter(row => row.playing);
+		const idleRows = candidates.filter(row => !row.playing);
 
-		for (const row of rows) {
-			if (row.value <= 0) {
-				continue;
-			};
+		// What is playing right now owns the card. The browser skip
+		// preference only outranks it while some other app still plays:
+		// Spotify playing beats a noisy YouTube tab, but on an empty field
+		// the YouTube tab is shown rather than "ignored to nothing".
+		const playNonBrowser = playingRows.filter(row => !row.isChromium);
+		const playPool = playingRows.length === 0
+			? []
+			: (ignoreBrowsers && playNonBrowser.length > 0 ? playNonBrowser : playingRows);
 
-			const slot = row.isChromium ? () => bestChrome : () => bestNonChrome;
-			const current = row.isChromium ? bestChrome : bestNonChrome;
+		if (playPool.length > 0) {
+			playPool.sort((a, b) => b.recency - a.recency
+				|| (a.isProxy ? 1 : 0) - (b.isProxy ? 1 : 0));
+			return playPool[0];
+		};
 
-			if (!current || row.value > current.value ||
-				(row.value === current.value && row.recency > current.recency)) {
-				if (row.isChromium) {
-					bestChrome = row;
-				} else {
-					bestNonChrome = row;
-				};
+		// Nothing plays: paused-with-title keeps leading bare titles, and
+		// the browser preference applies only while alternatives remain.
+		let idlePool = idleRows;
+		if (ignoreBrowsers) {
+			const nonBrowser = idleRows.filter(row => !row.isChromium);
+			if (nonBrowser.length > 0) {
+				idlePool = nonBrowser;
 			};
 		};
 
-		const chosen = bestNonChrome && !(bestNonChrome.isProxy && bestChrome && bestNonChrome.value <= bestChrome.value)
-			? bestNonChrome
-			: bestChrome;
+		idlePool.sort((a, b) => b.value - a.value
+			|| b.recency - a.recency
+			|| (a.isProxy ? 1 : 0) - (b.isProxy ? 1 : 0));
 
-		return chosen;
+		return idlePool[0] ?? null;
 	};
 
 	async _readProps(name) {
