@@ -673,7 +673,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		bandColumns = [0, 1].map(() => new St.BoxLayout({
 			orientation: Clutter.Orientation.VERTICAL,
 			x_expand: true,
-			y_align: Clutter.ActorAlign.START,
+			y_expand: true,
+			y_align: Clutter.ActorAlign.FILL,
 		}));
 		bandColumns.forEach(column => appsBand.add_child(column));
 		largeRoot.add_child(appsBand);
