@@ -1141,6 +1141,9 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
 
     let startX = 0;
     let dragging = false;
+    // A cross is in flight — right-button swipes are swallowed until it
+    // settles (mid-flight swipes only corrupt the geometry).
+    let crossBusy = false;
 
     container.reactive = true;
     // Swipe only with the RIGHT button — the left button stays free for
@@ -1160,27 +1163,19 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
 
       if (Math.abs(delta) > SWIPE_THRESHOLD) {
         // ── GNOME workspace-switch cross (js/ui/workspaceAnimation.js) ─────
-        // Both pages live side by side in one strip and travel together.
-        // Each page is exactly one pane wide; the pages are separated by a
-        // gap (GNOME: WORKSPACE_SPACING between workspaces) whose dark band
-        // is what visibly crosses the pane. Nothing fades, nothing
-        // overlaps — at every moment the pane shows page content.
+        // Crosses are serialized: a swipe during a travelling cross only
+        // disturbs the geometry mid-flight, so it is swallowed instead.
+        if (crossBusy) return Clutter.EVENT_STOP;
+
         const oldRow = currentRow;
         // The pane box — never the row's own allocation — is authoritative
-        // here: a page handed over an instant ago can still carry a stale
-        // (zero/1px) allocation, and a cross built from it leaves the pane
-        // visually empty until the next layout pass (the journal probe
-        // caught exactly that: handover rowW=0 → next swipe pageW=1).
+        // here: a page landed an instant ago can still carry a stale box,
+        // and a cross built from it left the pane visually empty.
         const paneBox = container.get_allocation_box();
         const pageW = Math.max(1, Math.floor(paneBox.get_width()) - CONTAINER_PAD * 2);
         const pageH = Math.max(1, Math.floor(paneBox.get_height()) - CONTAINER_PAD * 2);
         console.log(`[debug] sysmon swipe pageW=${pageW} pageH=${pageH} pageKids=${container.get_children().length}`);
 
-        if (delta > 0) {
-          currentView = (currentView - 1 + 3) % 3;
-        } else {
-          currentView = (currentView + 1) % 3;
-        }
         // Remember the page we are leaving BEFORE currentView moves on.
         const leavingPageIndex = currentView;
 
@@ -1197,67 +1192,55 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         const base = pageW + Math.round(pageW / 16);
         const next = delta < 0;
 
-        // The strip's box spans both pages plus the gap, so its dark
-        // background shows only in the travelling gap band.
-        const strip = new St.Widget({
-          style: 'background-color: rgba(0, 0, 0, 0.4);',
-        });
-        strip.x_align = next ? Clutter.ActorAlign.START : Clutter.ActorAlign.END;
-        strip.set_size(pageW + base, pageH);
+        // Both pages are rebuilt fresh and live directly IN the pane Bin —
+        // the layout-always-clean parent whose every settled row lands at
+        // the padded (pad,pad) box (rowbox logs). No secondary layout-less
+        // strip is involved anymore: its children kept only explicit boxes,
+        // and its (0,0)-child could hold a stale box that never repainted —
+        // the invisible half of earlier crosses. The pages start exactly
+        // one baseDistance apart and travel in lockstep by their own
+        // translations, like GNOME's workspaces; nothing fades, nothing
+        // overlaps.
+        crossBusy = true;
+        const leavingRow = buildRow(container, leavingPageIndex);
+        const newRow = buildRow(container, currentView);
+        newRow.translation_x = next ? base : -base;
 
-        // Both pages are twinned fresh inside the strip. Rows built there
-        // always receive a cleanly allocated strip-local box when the strip
-        // gains its allocation, while a row MOVED over from the pane could
-        // keep its stale container box and stay invisible for its half of
-        // the travel (measured on next-direction swipes), so the original
-        // row never travels: it leaves the pane and is destroyed below.
-        const leavingRow = rebuild(strip, leavingPageIndex);
-        leavingRow.set_size(pageW, pageH);
-        const newRow = rebuild(strip);
-        newRow.set_size(pageW, pageH);
-
-        // The entering build was the last one, so the live-data loop keeps
-        // pointing at the arriving page. Both pages get tile sizing.
+        // The original row made way; it does not travel.
         container.remove_child(oldRow);
         oldRow.destroy();
+
+        // The entering build was the last one, so the live-data loop keeps
+        // pointing at the arriving page; both travelling pages get tiles.
         layoutRows = [leavingRow, newRow];
         layoutTiles();
 
-        if (next) {
-          leavingRow.set_position(0, 0);
-          newRow.set_position(base, 0);
-        } else {
-          newRow.set_position(0, 0);
-          leavingRow.set_position(base, 0);
-        }
-
-        container.add_child(strip);
-
-        strip.ease({
-          // Dragging left (next page) moves the strip left and the page
-          // arrives from the right, exactly like GNOME workspaces.
+        leavingRow.ease({
           translation_x: next ? -base : base,
           duration: CROSS_DURATION,
           mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
           onComplete: () => {
-            // A refill may have re-rendered the pane while the strip was
-            // travelling: the strip died with the old pane and there is
-            // nothing to settle.
+            if (leavingRow.get_parent() === container)
+              container.remove_child(leavingRow);
+            leavingRow.destroy();
+          },
+        });
+        newRow.ease({
+          translation_x: 0,
+          duration: CROSS_DURATION,
+          mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+          onComplete: () => {
+            crossBusy = false;
             if (tornDown) return;
-            // Settled: dissolve the strip whole (the leaving page goes with
-            // it) and rebuild the settled page fresh in the pane. Re-parenting
-            // the landed row left its box strip-local when the pane skipped
-            // its next allocation pass — measured rowbox: next-direction
-            // swipes ended on a stale 358x153 box and an empty pane, while
-            // plain builds always land cleanly. The fresh build shows the
-            // very same page, so the merge is invisible.
-            strip.destroy();
-            rebuild();
+            // The arriving page is the page now on duty.
+            currentRow = newRow;
+            layoutRows = [newRow];
+            layoutTiles();
             const finalData = monitor.lastData;
             if (finalData && (finalData.cpu > 0 || finalData.ram > 0)) {
               onData(finalData);
             }
-            console.log(`[debug] sysmon handover-rebuild pageKids=${container.get_children().length}`);
+            console.log(`[debug] sysmon cross-settled pageKids=${container.get_children().length}`);
           },
         });
 
