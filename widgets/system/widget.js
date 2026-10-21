@@ -938,18 +938,30 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       if (Math.abs(delta) > SWIPE_THRESHOLD) {
         const oldTile = tile;
         const exitX = delta < 0 ? -width : width;
-        
+
+        // Two-phase exit (see the 2x1 handler): sweep intact, then fade the
+        // page as one at the tail so nothing lingers alone at the edge.
+        const outPhase = Math.round(ANIMATION_DURATION * 0.45);
+        const fadePhase = ANIMATION_DURATION - outPhase;
+
         animatingActors.add(oldTile);
         oldTile.ease({
-          opacity: 0,
-          translation_x: exitX,
-          duration: ANIMATION_DURATION,
+          translation_x: exitX * 0.55,
+          duration: outPhase,
           mode: Clutter.AnimationMode.EASE_IN_QUAD,
           onComplete: () => {
-            animatingActors.delete(oldTile);
-            if (oldTile.get_parent()) {
-              oldTile.get_parent().remove_child(oldTile);
-            }
+            oldTile.ease({
+              translation_x: exitX,
+              opacity: 0,
+              duration: fadePhase,
+              mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+              onComplete: () => {
+                animatingActors.delete(oldTile);
+                if (oldTile.get_parent()) {
+                  oldTile.get_parent().remove_child(oldTile);
+                }
+              },
+            });
           },
         });
 
@@ -1128,17 +1140,31 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         const oldRow = currentRow;
         const exitX = delta < 0 ? -width : width;
 
+        // Two-phase exit: the page sweeps with both tiles intact, then the
+        // tail finishes the run while the whole page fades as one — so both
+        // tiles vanish together instead of the left tile lingering bright
+        // after the right one has already left the pane.
+        const outPhase = Math.round(CROSS_DURATION * 0.45);
+        const fadePhase = CROSS_DURATION - outPhase;
+
         animatingActors.add(oldRow);
         oldRow.ease({
-          opacity: 0,
-          translation_x: exitX,
-          duration: CROSS_DURATION,
+          translation_x: exitX * 0.55,
+          duration: outPhase,
           mode: Clutter.AnimationMode.EASE_IN_QUAD,
           onComplete: () => {
-            animatingActors.delete(oldRow);
-            if (oldRow.get_parent()) {
-              oldRow.get_parent().remove_child(oldRow);
-            }
+            oldRow.ease({
+              translation_x: exitX,
+              opacity: 0,
+              duration: fadePhase,
+              mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+              onComplete: () => {
+                animatingActors.delete(oldRow);
+                if (oldRow.get_parent()) {
+                  oldRow.get_parent().remove_child(oldRow);
+                }
+              },
+            });
           },
         });
 
