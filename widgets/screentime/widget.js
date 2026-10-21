@@ -292,11 +292,15 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	const nextButton = buildNavButton('go-next-symbolic', goToNextDay);
 
 	// ── 1x1: flip days with the mouse, calendar-style ──────────────────────
-	// Press-drag-release across the card shifts one day per gesture; no
-	// bottom indicator dashes like the calendar's view dots.
+	// Right-button press-drag-release shifts one day per gesture. The flip
+	// plays the calendar's crossed-page feel: the current day slides out and
+	// fades, the data swaps off-stage, then the new day slides in from the
+	// opposite side. No bottom indicator dashes.
 	if (compactSquare) {
 		const COMPACT_SWIPE_THRESHOLD = 30;
+		const COMPACT_SWIPE_DURATION = 250; // same beat as calendar/system monitor
 		let swipeStartX = null;
+		let swipeBusy = false;
 
 		compactBox.reactive = true;
 		// Flip with the RIGHT button only — the left button stays free for
@@ -310,10 +314,43 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			if (swipeStartX === null) return Clutter.EVENT_PROPAGATE;
 			const startX = swipeStartX;
 			swipeStartX = null;
+
 			const delta = event.get_coords()[0] - startX;
 			if (Math.abs(delta) < COMPACT_SWIPE_THRESHOLD) return Clutter.EVENT_PROPAGATE;
-			// Drag left = next day, drag right = back one day.
-			if (delta < 0) goToNextDay(); else goToPreviousDay();
+			if (swipeBusy) return Clutter.EVENT_STOP;
+
+			// Drag left = next day, drag right = back one day. There are no
+			// future days to show — stop at today.
+			const dayDelta = delta < 0 ? 1 : -1;
+			if (dayDelta > 0 && state.selectedDate === screenTimeEngine.getTodayDate())
+				return Clutter.EVENT_STOP;
+
+			const pageWidth = Math.max(120, compactBox.get_width() || 180);
+			const exitX = delta < 0 ? -pageWidth : pageWidth;
+			swipeBusy = true;
+
+			// The old day slides out; the data swap and the entry slide both
+			// happen in the complete handler, so the swap is never visible —
+			// the card always arrives from the opposite side, like the
+			// calendar's page cross.
+			compactBox.ease({
+				opacity: 0,
+				translation_x: exitX,
+				duration: COMPACT_SWIPE_DURATION,
+				mode: Clutter.AnimationMode.EASE_IN_QUAD,
+				onComplete: () => {
+					state.selectedDate = addDays(state.selectedDate, dayDelta);
+					refreshData();
+					compactBox.translation_x = -exitX;
+					compactBox.ease({
+						opacity: 255,
+						translation_x: 0,
+						duration: COMPACT_SWIPE_DURATION,
+						mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+						onComplete: () => { swipeBusy = false; },
+					});
+				},
+			});
 			return Clutter.EVENT_STOP;
 		});
 	}
