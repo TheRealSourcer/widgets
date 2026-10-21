@@ -303,11 +303,12 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const timeBox = new St.Widget({x_align: Clutter.ActorAlign.CENTER, x_expand: true});
 
 	// One shared digit slot for all three columns plus fixed 16-unit colon
-	// blocks between them.
-	const digitSlot = px(123);
+	// blocks between them. Slot 133 fits the 19px/700 "Centiseconds" caption
+	// (ink 127) with symmetric pads and keeps the row inside the 540 canvas.
+	const digitSlot = px(133);
 	const colonSlot = px(16);
 	const colonGap = px(8);
-	const timeRowH = px(88);
+	const timeRowH = px(96);
 
 	// Minutes
 	const minutesBox = new St.BoxLayout({
@@ -325,7 +326,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const minutesCaption = new St.Label({
 		text: _('Minutes'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(30)}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(19)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(31)}px;`,
 	});
 
 	minutesBox.add_child(minutesLabel);
@@ -372,7 +373,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const secondsCaption = new St.Label({
 		text: _('Seconds'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(27)}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(19)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(26)}px;`,
 	});
 
 	secondsBox.add_child(secondsLabel);
@@ -395,7 +396,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const centisecondsCaption = new St.Label({
 		text: _('Centiseconds'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(7)}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(19)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(3)}px;`,
 	});
 
 	centisecondsBox.add_child(centisecondsLabel);
@@ -441,6 +442,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// (Ubuntu digits aren't tabular — '01' ink 60 vs '00' 69 — while running
 	// the deviation stays within a couple of paint pixels; tabular-nums is
 	// requested in CSS to tighten that when the font supports it.)
+	// Captions at 19px/700: inks 71 / 81 / 127.
 	const digitAlignment = Math.round((digitSlot - px(69)) / 2);
 	minutesLabel.translation_x = digitAlignment;
 	secondsLabel.translation_x = digitAlignment;
