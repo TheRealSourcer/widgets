@@ -650,10 +650,15 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 	const refreshControlStyles = () => {
 		const isWork = state.phase === PHASE_WORK;
 
-		modeSelector.style = `background-color: rgba(255, 255, 255, 0.06); padding: ${px(3)}px; border-radius: ${px(10)}px;`;
+		// Selector track and the active pill flip to an ink wash in light
+		// mode — the white washes vanished on light cards and it was
+		// impossible to see which of Focus/Break is selected.
+		modeSelector.style = `background-color: ${theme.dark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)'}; padding: ${px(3)}px; border-radius: ${px(10)}px;`;
 
 		const modeButtonStyle = (isActive) => {
-			const bg = isActive ? `background-color: rgba(255, 255, 255, 0.12);` : '';
+			const bg = isActive
+				? `background-color: ${theme.dark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)'};`
+				: '';
 			const color = isActive ? textColor : mutedColor;
 
 			return `${bg} font-size: ${px(12)}px; padding: ${px(6)}px 0; border-radius: ${px(7)}px; color: ${color}; font-weight: 600;`;
