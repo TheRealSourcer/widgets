@@ -851,7 +851,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				text: formatCompactDuration(app.seconds),
 				y_align: Clutter.ActorAlign.CENTER,
 				style: `color: ${textColor}; font-size: ${px(APP_BAND_FONT_SIZE_PX)}px; `
-					+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY};`,
+					+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY}; margin-left: 8px;`,
 			});
 			row.add_child(durationLabel);
 		} else {
