@@ -1,5 +1,6 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
+import Pango from 'gi://Pango';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { bounceButton } from '../../lib/buttonBounce.js';
@@ -326,7 +327,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const minutesCaption = new St.Label({
 		text: _('Minutes'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(19)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(31)}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(19)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(30)}px;`,
 	});
 
 	minutesBox.add_child(minutesLabel);
@@ -373,7 +374,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const secondsCaption = new St.Label({
 		text: _('Seconds'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(19)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(26)}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(19)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(25)}px;`,
 	});
 
 	secondsBox.add_child(secondsLabel);
@@ -396,8 +397,16 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const centisecondsCaption = new St.Label({
 		text: _('Centiseconds'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(19)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(3)}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(19)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(2)}px;`,
 	});
+
+	// The caption content budget equals the LOGICAL text width (pads above
+	// are logical-measured), but Clutter still trims its layout at one-line
+	// tightness: forbid the ellipsis outright — a couple of paint px of
+	// bleed into the inter-block air beats a truncated "Minu…".
+	for (const caption of [minutesCaption, secondsCaption, centisecondsCaption]) {
+		caption.get_clutter_text().set_ellipsize(Pango.EllipsizeMode.NONE);
+	};
 
 	centisecondsBox.add_child(centisecondsLabel);
 	centisecondsBox.add_child(centisecondsCaption);
