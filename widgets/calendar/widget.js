@@ -28,7 +28,6 @@ const CELL_BASE_WIDTH = 24;
 const DAY_BASE_FONT = 14;
 const GAP_BASE = 4;
 const WIDE_THRESHOLD = 340;
-const TODAY_BOOST = 4;
 
 const CALENDAR_SERVER_BUS = 'org.gnome.Shell.CalendarServer';
 const CALENDAR_SERVER_PATH = '/org/gnome/Shell/CalendarServer';
@@ -561,7 +560,12 @@ function buildGrid(options) {
 				? `background-color: ${accent}; border-radius: 999px;`
 				: null;
 
-			row.add_child(calendarCell(String(day), labelStyle, cellStyle, createLabel, cellWidth, cellHeight, cellsInteractive, isToday ? TODAY_BOOST : 0));
+			row.add_child(calendarCell(String(day), labelStyle, cellStyle, createLabel, cellWidth, cellHeight, cellsInteractive, 0, label => {
+				// The accent pill is drawn by the cell style at the cell size;
+				// no extra width anywhere, so the row never shifts around the
+				// highlighted day.
+				label.clutter_text.set_line_wrap(false);
+			}));
 			day++;
 		};
 
