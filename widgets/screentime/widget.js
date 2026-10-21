@@ -352,7 +352,13 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			ctx.setDash([3 * s, 3 * s], 0);
 
 			if (state.chartCompact) {
-				// Vertical dashed guides under the 12:00 and 18:00 columns.
+				// Dashed guides at the top / mid / bottom scale stops, plus
+				// verticals under the 12:00 and 18:00 columns.
+				for (const yFrac of [0, 0.5, 1]) {
+					const y = Math.round(canvasHeight * yFrac) + 0.5;
+					ctx.moveTo(0, y);
+					ctx.lineTo(canvasWidth, y);
+				}
 				for (const frac of [0.5, 0.75]) {
 					const x = Math.round(canvasWidth * frac) + 0.5;
 					ctx.moveTo(x, 0);
@@ -377,9 +383,10 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const accent = parseCssColor(accentHex);
 			ctx.setSourceRGBA(accent.r, accent.g, accent.b, 1);
 			// The compact card fits 24 bars edge-to-edge: the bar width is
-			// derived from the plot instead of the fixed 4px constant.
+			// derived from the plot with a guaranteed gap, min 3px, so the
+			// bars stay readable at 1x1 instead of hairline-thin.
 			const barWidth = state.chartCompact
-				? Math.max(2, Math.round(canvasWidth / HOURS_PER_DAY * 0.5))
+				? Math.max(3, Math.round((canvasWidth / HOURS_PER_DAY) * 0.62))
 				: Math.round(BAR_WIDTH_PX * s);
 			const barRadius = Math.round(barWidth / 2);
 
