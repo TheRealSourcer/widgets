@@ -1065,7 +1065,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const bandH = Math.max(0, currentHeight - padTop - headerEstimate - headerMargin
 				- (chartZoneH + xAxisZone) - legendBlock);
 			const bandPadT = Math.round(6 * s);
-			const bandPadB = Math.round(6 * s);
+			const bandPadB = Math.round(2 * s);
 			const bandRowH = Math.max(
 				Math.round(APP_ICON_SIZE_PX * s),
 				Math.round(APP_BAND_FONT_SIZE_PX * s * 1.5),
