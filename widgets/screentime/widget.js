@@ -1066,12 +1066,17 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const bandH = Math.max(0, currentHeight - padTop - headerEstimate - headerMargin
 				- (chartZoneH + xAxisZone) - legendBlock);
 			const bandPadT = Math.round(6 * s);
-			const bandPadB = Math.round(2 * s);
+			const bandPadB = Math.round(6 * s);
 			const bandRowH = Math.max(
 				Math.round(APP_ICON_SIZE_PX * s),
 				Math.round(APP_BAND_FONT_SIZE_PX * s * 1.5),
 			);
-			const bandSpacing = Math.round(6 * s);
+			
+			// Calculate spacing dynamically to fill available space with exactly 4 rows
+			const rowsTarget = LARGE_APP_ROWS_MAX;
+			const availableForRows = bandH - bandPadT - bandPadB;
+			const bandSpacing = Math.max(4, Math.floor((availableForRows - (rowsTarget * bandRowH)) / (rowsTarget - 1)));
+			
 			const rowsFit = Math.floor((bandH - bandPadT - bandPadB + bandSpacing) / (bandRowH + bandSpacing));
 			state.geometry.bandRows = Math.min(LARGE_APP_ROWS_MAX, Math.max(1, rowsFit));
 			// The rebuild trigger compares listHeight: the band height stands in
