@@ -1111,6 +1111,7 @@ card.artist.text = _('Play something to get going');
 		// Update status icon (lyrics) based on track state
 		if (card.statusIcon) {
 			card.statusIcon.gicon = controlIcon(theme, 'music', hasTrack);
+			card.statusIcon.opacity = hasTrack ? 255 : idleDim;
 		}
 		
 		// Update loop icon based on state
