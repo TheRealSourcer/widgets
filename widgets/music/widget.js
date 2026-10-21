@@ -565,10 +565,20 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	}));
 
 	const badgeRow = new St.BoxLayout({x_expand: true});
-	card._lyricsBadge = new St.Icon({
-		gicon: controlIcon(theme, 'music'),
-		reactive: false,
-		style: 'icon-size: 18px;',
+	card._lyricsBadge = new St.Button({
+		child: new St.Icon({
+			gicon: controlIcon(theme, 'music'),
+			style: 'icon-size: 18px;',
+		}),
+		x_align: Clutter.ActorAlign.END,
+		style: 'padding: 6px;',
+	});
+	// Same feel as the toggle under it: hover shrink and the squash-spring
+	// press. Clicking the badge leaves lyrics, exactly like the panel.
+	bindHoverShrink(card._lyricsBadge);
+	card._lyricsBadge.connect('clicked', () => {
+		bounceButton(card._lyricsBadge);
+		card.toggleLyrics();
 	});
 	badgeRow.add_child(new St.Widget({x_expand: true}));
 	badgeRow.add_child(card._lyricsBadge);
@@ -614,7 +624,54 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		card._lyricsHint.visible = Boolean(text);
 	};
 
+	// Breathing «…» while the resolver runs: a chained in/out ease that
+	// stops the moment real content (or the miss hint) lands.
+	card._startLyricsWait = function () {
+		if (card._lyricsWaitOn) {
+			return;
+		};
+		card._lyricsWaitOn = true;
+
+		const step = () => {
+			if (!card._lyricsWaitOn || !card._lyricsHint.mapped) {
+				card._stopLyricsWait();
+				return;
+			};
+
+			card._lyricsHint.ease({
+				opacity: 70,
+				duration: 650,
+				mode: Clutter.AnimationMode.EASE_IN_OUT_SINE,
+				onComplete: () => {
+					if (!card._lyricsWaitOn) {
+						return;
+					};
+
+					card._lyricsHint.ease({
+						opacity: 255,
+						duration: 650,
+						mode: Clutter.AnimationMode.EASE_IN_OUT_SINE,
+						onComplete: step,
+					});
+				},
+			});
+		};
+
+		step();
+	};
+
+	card._stopLyricsWait = function () {
+		card._lyricsWaitOn = false;
+
+		if (card._lyricsHint) {
+			card._lyricsHint.remove_all_transitions();
+			card._lyricsHint.opacity = 255;
+		};
+	};
+
 	card._resetLyricsFeed = function () {
+		card._stopLyricsWait();
+
 		// A follow tween must never write into a feed that is being torn
 		// down or replaced.
 		if (card._lyricsScrollTween) {
@@ -692,6 +749,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		card._lyricsToken += 1;
 		const token = card._lyricsToken;
 		card._setLyricsHint('…');
+		card._startLyricsWait();
 
 		resolveLyrics({
 			artist: meta.artist,
