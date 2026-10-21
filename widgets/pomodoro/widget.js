@@ -2,7 +2,7 @@ import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
-import { bounceButton } from '../../lib/buttonBounce.js';
+import { bounceButton, bindHoverShrink } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
 import {
 	elapsedSinceWall,
@@ -378,6 +378,11 @@ function renderSmallTimer({body, theme, sizeForWidget, widget, settings}) {
 
 	skipBtn.set_child(skipIcon);
 
+	// Hover shrink (no hover frame), shared with every other widget.
+	bindHoverShrink(playPauseBtn);
+	bindHoverShrink(resetBtn);
+	bindHoverShrink(skipBtn);
+
 	controlsRow.add_child(resetBtn);
 	controlsRow.add_child(playPauseBtn);
 	controlsRow.add_child(skipBtn);
@@ -582,6 +587,7 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 		});
 
 		modeSelector.add_child(button);
+		bindHoverShrink(button);
 		return button;
 	};
 
@@ -707,6 +713,9 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 		refreshControlStyles();
 		return Clutter.EVENT_STOP;
 	});
+
+	bindHoverShrink(startBtn);
+	bindHoverShrink(resetBtn);
 
 	body.connect('destroy', () => {
 		if (state.timerId) {

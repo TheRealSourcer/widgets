@@ -281,15 +281,30 @@ export function render({ body, widget, theme, sizeForWidget }) {
 
                 const cell = { icon: appIcon, button, padding: TILE_PADDING_MIN, hovered: false, pressX: 0, pressY: 0, mousePressed: false };
 
+                // Tiles keep their hover tint; on top of it the icon eases
+                // down to 85% — the same hover shrink every widget button has.
+                button.set_pivot_point(0.5, 0.5);
                 button.connect('enter-event', () => {
                     cell.hovered = true;
                     button.set_style(buildTileStyle(tileHoverBg, cell.padding));
+                    button.ease({
+                        scale_x: 0.85,
+                        scale_y: 0.85,
+                        duration: 120,
+                        mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                    });
                     return Clutter.EVENT_PROPAGATE;
                 });
                 button.connect('leave-event', () => {
                     cell.hovered = false;
                     cell.mousePressed = false;
                     button.set_style(buildTileStyle(tileBaseBg, cell.padding));
+                    button.ease({
+                        scale_x: 1,
+                        scale_y: 1,
+                        duration: 150,
+                        mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                    });
                     return Clutter.EVENT_PROPAGATE;
                 });
 

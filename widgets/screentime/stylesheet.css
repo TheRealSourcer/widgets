@@ -6,10 +6,6 @@
 	transition-duration: 100ms;
 }
 
-.screentime-widget StButton:hover {
-	background-color: rgba(255, 255, 255, 0.05);
-}
-
 .screentime-widget StButton:active {
 	background-color: rgba(255, 255, 255, 0.1);
 }

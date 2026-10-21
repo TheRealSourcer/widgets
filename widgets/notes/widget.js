@@ -12,6 +12,7 @@ import Pango from 'gi://Pango';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { getDataDir, isActorDestroyed, loadJsonFromFileAsync, saveJsonToFile, parseCssColor } from '../../utils/ported.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
+import { bindHoverShrink } from '../../lib/buttonBounce.js';
 
 export const type = 'notes';
 export const label = 'Quick Notes';
@@ -105,6 +106,7 @@ export function render({ body, widget, theme, settings }) {
         track_hover: true,
         y_align: Clutter.ActorAlign.CENTER,
     });
+    bindHoverShrink(editButton);
 
     headerBox.add_child(titleLabel);
     headerBox.add_child(titleEntry);

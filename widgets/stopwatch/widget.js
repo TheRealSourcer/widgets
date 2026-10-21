@@ -3,7 +3,7 @@ import GLib from 'gi://GLib';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
-import { bounceButton } from '../../lib/buttonBounce.js';
+import { bounceButton, bindHoverShrink } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
 import {
 	elapsedSinceWall,
@@ -175,6 +175,9 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 		}),
 		style: `padding: ${px(8)}px ${px(16)}px; border-radius: ${px(8)}px; background-color: transparent; border: 1px solid ${ghostBorderColor(theme)};`,
 	});
+
+	bindHoverShrink(pauseBtn);
+	bindHoverShrink(resetBtn);
 
 	buttonsBox.add_child(pauseBtn);
 	buttonsBox.add_child(resetBtn);
@@ -517,6 +520,9 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		}),
 		style: `font-size: ${px(19)}px; padding: ${px(12)}px ${px(32)}px; border-radius: ${px(12)}px; background-color: transparent; border: 1px solid ${ghostBorderColor(theme)}; color: ${textColor}; font-weight: 600;`,
 	});
+
+	bindHoverShrink(pauseBtn);
+	bindHoverShrink(resetBtn);
 
 	buttonsBox.add_child(pauseBtn);
 	buttonsBox.add_child(resetBtn);

@@ -13,6 +13,7 @@ import Soup from 'gi://Soup?version=3.0';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { getDataDir, isActorDestroyed, loadJsonFromFileAsync, saveJsonToFile, parseCssColor, cssColorToRgba } from '../../utils/ported.js';
+import { bindHoverShrink } from '../../lib/buttonBounce.js';
 
 export const type = 'github';
 export const label = 'GitHub Activity';
@@ -248,6 +249,7 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
             style: `color: ${textColor};`,
         }),
     });
+    bindHoverShrink(usernameApplyButton);
     usernameApplyButton.hide();
 
     const headerSpacer = new St.Widget({ x_expand: true });

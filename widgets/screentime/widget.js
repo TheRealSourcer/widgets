@@ -6,7 +6,7 @@ import Pango from 'gi://Pango';
 
 import { screenTimeEngine } from '../../utils/screenTimeEngine.js';
 import { isActorDestroyed } from '../../utils/actorLifecycle.js';
-import { bounceButton } from '../../lib/buttonBounce.js';
+import { bounceButton, bindHoverShrink } from '../../lib/buttonBounce.js';
 import { parseCssColor, cssColorToRgba } from '../../utils/ported.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -423,6 +423,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			return Clutter.EVENT_STOP;
 		});
 		button.set_pivot_point(0.5, 0.5);
+		bindHoverShrink(button);
 		navButtonsRow.add_child(button);
 		return button;
 	};

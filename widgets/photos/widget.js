@@ -9,6 +9,7 @@ import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.j
 import { warn } from '../../logger.js';
 import { settingsIconPath } from '../../paths.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
+import { bindHoverShrink } from '../../lib/buttonBounce.js';
 
 export const type = 'photos';
 export const label = 'Photos';
@@ -214,6 +215,7 @@ function buildEmptyState(createLabel, onPick, theme, radius = 16) {
 	});
 
 	button.set_child(container);
+	bindHoverShrink(button);
 	button.connect('clicked', onPick);
 	return button;
 };

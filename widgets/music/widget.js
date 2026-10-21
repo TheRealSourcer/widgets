@@ -10,7 +10,7 @@ import { widgetResourcePath } from '../../paths.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
 import { SeekBar } from '../../lib/seekBar.js';
-import { bounceButton } from '../../lib/buttonBounce.js';
+import { bounceButton, bindHoverShrink } from '../../lib/buttonBounce.js';
 import { parseCssColor } from '../../utils/ported.js';
 export const type = 'music';
 export const label = 'Music';
@@ -439,28 +439,9 @@ function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius
 	button.set_height(27);
 	button.set_pivot_point(0.5, 0.5);
 	button.connect('clicked', () => bounceButton(button));
-
-	// Hover = no frame, just the icon briefly shrinking (back to size on
-	// leave). The click keeps the squash-and-spring bounce.
-	const HOVER_SCALE = 0.85;
-	button.connect('enter-event', () => {
-		button.ease({
-			scale_x: HOVER_SCALE,
-			scale_y: HOVER_SCALE,
-			duration: 120,
-			mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
-		});
-		return Clutter.EVENT_PROPAGATE;
-	});
-	button.connect('leave-event', () => {
-		button.ease({
-			scale_x: 1,
-			scale_y: 1,
-			duration: 150,
-			mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
-		});
-		return Clutter.EVENT_PROPAGATE;
-	});
+	// Hover = no frame, just the icon briefly shrinking (shared with every
+	// other widget's buttons); the click keeps the squash-and-spring bounce.
+	bindHoverShrink(button);
 
 	return {button, icon};
 };
