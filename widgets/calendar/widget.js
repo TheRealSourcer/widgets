@@ -35,6 +35,14 @@ const CALENDAR_SERVER_PATH = '/org/gnome/Shell/CalendarServer';
 const CALENDAR_SERVER_IFACE = 'org.gnome.Shell.CalendarServer';
 const EVENTS_REFRESH_SECONDS = 300;
 const EVENTS_WINDOW_DAYS = 35;
+// The events list looks this far ahead; the schema stores the index
+// (mirror of the reference widget: 0 = 7, 1 = 14, 2 = 30, 3 = 60 days).
+const LOOKAHEAD_DAYS = [7, 14, 30, 60];
+
+function lookaheadDays(settings) {
+	const index = settings?.get_int('calendar-lookahead') ?? 2;
+	return LOOKAHEAD_DAYS[index] ?? 30;
+}
 const SWIPE_THRESHOLD = 30;
 const ANIMATION_DURATION = 250;
 
@@ -210,6 +218,20 @@ export class CalendarEventsClient {
     };
 
     return out.sort((a, b) => a.start - b.start).slice(0, limit);
+  };
+
+  eventsInRange(since, until) {
+    // Events starting inside the window — the Calendar app's "upcoming"
+    // semantics for the events list lookahead.
+    const out = [];
+
+    for (const event of this._events.values()) {
+      if (event.start >= since && event.start <= until) {
+        out.push(event);
+      };
+    };
+
+    return out.sort((a, b) => a.start - b.start);
   };
 
   onChange(callback) {
@@ -408,6 +430,19 @@ function isTomorrowEvent(event, now) {
 	return d.getFullYear() === tomorrow.getFullYear() &&
 		d.getMonth() === tomorrow.getMonth() &&
 		d.getDate() === tomorrow.getDate();
+};
+
+function isUpcomingEvent(event, now) {
+	// Anything from the day after tomorrow onward — gets a date subtitle.
+	const d = new Date(event.start * 1000);
+	const dayAfter = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+	return d.getTime() >= dayAfter.getTime();
+};
+
+// "Wed, Oct 24" / "ср, 24 жовт." — locale-driven day label for the
+// upcoming-events lookahead rows.
+function formatEventDay(date) {
+	return date.toLocaleDateString(undefined, {weekday: 'short', month: 'short', day: 'numeric'});
 };
 
 function calendarCell(text, labelStyle, cellStyle, createLabel, cellWidth, cellHeight, interactive = false, boost = 0, labelModifier = null) {
@@ -657,8 +692,16 @@ function fillEventsBox(container, {eventsClient, now, secondary, createLabel, se
 	const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 	const tomorrowEvents = eventsClient.eventsForDate(tomorrow);
 
-	// Show all today's events + all tomorrow's events
-	const shown = [...todayEvents, ...tomorrowEvents];
+	// Upcoming events from the day after tomorrow through the lookahead
+	// window (mirror of the reference widget's "upcoming" group).
+	const upcomingSince = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+	const upcomingSinceUnix = Math.floor(upcomingSince.getTime() / 1000);
+	const horizon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + lookaheadDays(settings));
+	const horizonUnix = Math.floor(horizon.getTime() / 1000) + 86399;
+	const upcomingEvents = eventsClient.eventsInRange?.(upcomingSinceUnix, horizonUnix) ?? [];
+
+	// Show all today's events + tomorrow's + upcoming ones inside the window
+	const shown = [...todayEvents, ...tomorrowEvents, ...upcomingEvents];
 
 	if (!shown.length) {
 		container.add_child(eventLabel(noEventsToday()));
@@ -702,9 +745,15 @@ function fillEventsBox(container, {eventsClient, now, secondary, createLabel, se
 		eventTextLabel.x_expand = true;
 		textBox.add_child(eventTextLabel);
 
-		// Subtitle (time for all events, or "All day")
+		// Subtitle: time for today, "Tomorrow" for the next day, and a
+		// locale day label for upcoming events (or "All day" variants).
 		let subtitleText;
-		if (isAllDayEvent(event)) {
+		if (isUpcomingEvent(event, now)) {
+			const dayStr = formatEventDay(new Date(event.start * 1000));
+			subtitleText = isAllDayEvent(event)
+				? dayStr
+				: `${dayStr}, ${formatEventTime(event, settings, true)}`;
+		} else if (isAllDayEvent(event)) {
 			subtitleText = isTomorrowEvent(event, now)
 				? _('Tomorrow')
 				: _('All day');
@@ -829,7 +878,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 
 			const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 			const startEpoch = Math.floor(dayStart.getTime() / 1000);
-			events.requestRange(startEpoch, startEpoch + EVENTS_WINDOW_DAYS * 86400);
+			events.requestRange(startEpoch, startEpoch + Math.max(EVENTS_WINDOW_DAYS, lookaheadDays(settings) + 1) * 86400);
 		} else {
 			fillEventsBox(eventsBox, {eventsClient: null, now, secondary, createLabel, settings, text, theme});
 		};
@@ -1083,7 +1132,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	if (events) {
 		const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 		const startEpoch = Math.floor(dayStart.getTime() / 1000);
-		events.requestRange(startEpoch, startEpoch + EVENTS_WINDOW_DAYS * 86400);
+		events.requestRange(startEpoch, startEpoch + Math.max(EVENTS_WINDOW_DAYS, lookaheadDays(settings) + 1) * 86400);
 	}
 
 	body.add_child(pageStack);

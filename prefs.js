@@ -1470,6 +1470,26 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(firstDayRow);
 
+        // How far ahead the events list looks (reference widget's lookahead:
+        // 0 = 7, 1 = 14, 2 = 30, 3 = 60 days).
+        const LOOKAHEAD_LABELS = [
+            _('7 days'),
+            _('14 days'),
+            _('30 days'),
+            _('60 days'),
+        ];
+        const lookaheadModel = Gtk.StringList.new(LOOKAHEAD_LABELS);
+        const lookaheadRow = new Adw.ComboRow({
+            title: _('Show events for the next'),
+            subtitle: _('How far ahead the events list looks'),
+            model: lookaheadModel,
+        });
+        lookaheadRow.set_selected(Math.max(0, Math.min(3, settings.get_int('calendar-lookahead') ?? 2)));
+        lookaheadRow.connect('notify::selected', () => {
+            settings.set_int('calendar-lookahead', lookaheadRow.selected);
+        });
+        group.add(lookaheadRow);
+
         const accentRow = new Adw.SwitchRow({
             title: _('Use accent color'),
             subtitle: _('Use system or custom accent color from Appearance settings. When disabled, uses neutral gray.'),
