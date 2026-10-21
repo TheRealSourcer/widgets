@@ -424,6 +424,44 @@ function sourceColor(eventId) {
 	return EVENT_COLORS[Math.abs(hashString(sourceId)) % EVENT_COLORS.length];
 }
 
+// White or near-black day number so the highlighted day stays readable on
+// any accent color — including white / very light custom accents where a
+// hardcoded white label would vanish into the pill.
+function readableOnColor(color) {
+	const s = String(color ?? '').trim();
+
+	let r = null;
+	let g = null;
+	let b = null;
+
+	const hex = s.match(/^#?([0-9a-f]{6})$/i);
+
+	if (hex) {
+		const v = parseInt(hex[1], 16);
+		r = (v >> 16) & 255;
+		g = (v >> 8) & 255;
+		b = v & 255;
+	} else {
+		// The custom accent arrives as "rgba(R, G, B, A)" (Gdk.RGBA.to_string).
+		const rgb = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+
+		if (rgb) {
+			r = Number(rgb[1]);
+			g = Number(rgb[2]);
+			b = Number(rgb[3]);
+		}
+	}
+
+	if (r === null) {
+		return '#ffffff';
+	};
+
+	// Perceived (relative) luminance, 0..1
+	const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+	return lum > 0.62 ? '#1c1c1e' : '#ffffff';
+}
+
 function isTomorrowEvent(event, now) {
 	const d = new Date(event.start * 1000);
 	const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -554,7 +592,7 @@ function buildGrid(options) {
 			const nativeDay = (firstDay + column) % 7;
 			const isWeekend = weekendColor && weekend.has(nativeDay);
 			const labelStyle = isToday
-				? `font-size: ${dayFont}px; font-weight: 800; color: #ffffff;`
+				? `font-size: ${dayFont}px; font-weight: 800; color: ${readableOnColor(accent)};`
 				: `font-size: ${dayFont}px; font-weight: 600; color: ${isWeekend ? weekendColor : text};`;
 			const cellStyle = isToday
 				? `background-color: ${accent}; border-radius: 999px;`
