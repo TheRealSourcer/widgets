@@ -316,8 +316,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		chartWrap.add_child(yAxisBox);
 
 		const xAxisSpec = compactSquare
-			// Compact: only the 12:00 and 18:00 marks, per the reference look.
-			? [['', Clutter.ActorAlign.START], ['12', Clutter.ActorAlign.CENTER], ['18', Clutter.ActorAlign.CENTER]]
+			// Compact: same 00/12/24 marks as the wide cards, shortened.
+			? [['00', Clutter.ActorAlign.START], ['12', Clutter.ActorAlign.CENTER], ['24', Clutter.ActorAlign.END]]
 			: [['00:00', Clutter.ActorAlign.START], ['12:00', Clutter.ActorAlign.CENTER], ['24:00', Clutter.ActorAlign.END]];
 		const xAxisLabels = xAxisSpec.map(([text, xAlign]) => new St.Label({
 			text,
@@ -353,17 +353,15 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 			if (state.chartCompact) {
 				// Dashed guides at the top / mid / bottom scale stops, plus
-				// verticals under the 12:00 and 18:00 columns.
+				// one vertical under the 12:00 column.
 				for (const yFrac of [0, 0.5, 1]) {
 					const y = Math.round(canvasHeight * yFrac) + 0.5;
 					ctx.moveTo(0, y);
 					ctx.lineTo(canvasWidth, y);
 				}
-				for (const frac of [0.5, 0.75]) {
-					const x = Math.round(canvasWidth * frac) + 0.5;
-					ctx.moveTo(x, 0);
-					ctx.lineTo(x, canvasHeight);
-				}
+				const x = Math.round(canvasWidth * 0.5) + 0.5;
+				ctx.moveTo(x, 0);
+				ctx.lineTo(x, canvasHeight);
 			} else {
 				for (let i = 0; i < 3; i++) {
 					const y = Math.round((canvasHeight / 2) * i) + 0.5;
