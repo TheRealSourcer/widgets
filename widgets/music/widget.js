@@ -615,6 +615,13 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	};
 
 	card._resetLyricsFeed = function () {
+		// A follow tween must never write into a feed that is being torn
+		// down or replaced.
+		if (card._lyricsScrollTween) {
+			GLib.source_remove(card._lyricsScrollTween);
+			card._lyricsScrollTween = null;
+		};
+
 		for (const child of card._lyricsBox.get_children()) {
 			card._lyricsBox.remove_child(child);
 		};
@@ -733,11 +740,12 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		current.opacity = 255;
 		current.style = current._styleActive;
 
-		// NOTE: St.ScrollView in this runtime answers neither the "vscroll"
-		// JS property nor a get_vscroll_bar() accessor (journaled), while the
-		// St.Scrollable interface exposes the adjustment directly on the
-		// view itself — "vadjustment" (the same field the Shell's own code
-		// reads).
+		// St.ScrollView in this runtime answers neither the "vscroll" JS
+		// property nor a working get_vscroll_bar() accessor (journaled),
+		// while the St.Scrollable interface exposes the adjustment right
+		// on the view as "vadjustment" — verified against the installed
+		// St-51 typelib, which also lacks st_adjustment_ease, so the
+		// follow tween walks adjustment.value by hand.
 		const adjustment = card._lyricsScroll.vadjustment ?? null;
 
 		if (!adjustment) {
@@ -751,17 +759,43 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		const ideal = current.y + current.height / 2 - adjustment.page_size / 2;
 		const highest = Math.max(adjustment.lower, adjustment.upper - adjustment.page_size);
 		const clamped = Math.min(Math.max(ideal, adjustment.lower), highest);
-		log(`[debug] lyrics scroll line=${index} y=${Math.round(current.y)} upper=${Math.round(adjustment.upper)} page=${Math.round(adjustment.page_size)} -> ${Math.round(clamped)}`);
 
 		if (!isFinite(clamped)) {
 			return;
 		};
 
-		if (typeof adjustment.ease === 'function') {
-			adjustment.ease(clamped, {duration: 220, mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
-		} else {
-			adjustment.value = clamped;
+		log(`[debug] lyrics scroll line=${index} y=${Math.round(current.y)} upper=${Math.round(adjustment.upper)} page=${Math.round(adjustment.page_size)} -> ${Math.round(clamped)}`);
+
+		// Kill a running follow tween so two writes never race.
+		if (card._lyricsScrollTween) {
+			GLib.source_remove(card._lyricsScrollTween);
+			card._lyricsScrollTween = null;
 		};
+
+		if (Math.abs(clamped - adjustment.value) < 1) {
+			adjustment.value = clamped;
+			return;
+		};
+
+		// ~220 ms ease-out-cubic at ~60 fps.
+		const startValue = adjustment.value;
+		const delta = clamped - startValue;
+		const durationMs = 220;
+		const startedAt = GLib.get_monotonic_time() / 1000;
+
+		card._lyricsScrollTween = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, () => {
+			const t = Math.min(1, (GLib.get_monotonic_time() / 1000 - startedAt) / durationMs);
+			const eased = 1 - Math.pow(1 - t, 3);
+
+			adjustment.value = startValue + delta * eased;
+
+			if (t < 1) {
+				return GLib.SOURCE_CONTINUE;
+			};
+
+			card._lyricsScrollTween = null;
+			return GLib.SOURCE_REMOVE;
+		});
 	};
 
 	card.column = new St.BoxLayout(boxLayoutProps({
