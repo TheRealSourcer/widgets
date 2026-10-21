@@ -733,10 +733,23 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		current.opacity = 255;
 		current.style = current._styleActive;
 
-		const adjustment = card._lyricsScroll.vscroll.adjustment;
+		// NOTE: St.ScrollView has no "vscroll" JS property in this runtime —
+		// reading it threw every tick (journaled). The bar comes from the
+		// introspected accessor instead.
+		const scrollBar = typeof card._lyricsScroll.get_vscroll_bar === 'function'
+			? card._lyricsScroll.get_vscroll_bar()
+			: card._lyricsScroll.vscroll;
+		const adjustment = scrollBar ? scrollBar.adjustment : null;
+
+		if (!adjustment) {
+			log('[debug] lyrics scroll: no adjustment yet');
+			return;
+		};
+
 		const ideal = current.y + current.height / 2 - adjustment.page_size / 2;
 		const highest = Math.max(adjustment.lower, adjustment.upper - adjustment.page_size);
 		const clamped = Math.min(Math.max(ideal, adjustment.lower), highest);
+		log(`[debug] lyrics scroll line=${index} y=${Math.round(current.y)} upper=${Math.round(adjustment.upper)} page=${Math.round(adjustment.page_size)} -> ${Math.round(clamped)}`);
 
 		if (!isFinite(clamped)) {
 			return;
