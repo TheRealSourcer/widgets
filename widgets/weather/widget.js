@@ -721,8 +721,9 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 		'widget-weather-summary',
 		`color: ${theme.text}; font-size: ${scaledFont(13, scale)}px; font-weight: 600;`));
 
-	// H/L: enlarged and weighted like the Overcast summary (600) above it.
-	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 15, 600);
+	// H/L: sized like the Overcast line above it (13 units) so the bottom
+	// block reads as one tidy unit; the 600 weight (Overcast-like) stays.
+	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 13, 600);
 
 	if (range) {
 		bottom.add_child(range);
