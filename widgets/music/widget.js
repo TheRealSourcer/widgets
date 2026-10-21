@@ -756,7 +756,12 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 			return;
 		};
 
-		const ideal = current.y + current.height / 2 - adjustment.page_size / 2;
+		// Layout-managed children are positioned through their ALLOCATION:
+		// the actor's own y property stays 0 (it is the fixed-position
+		// slot), which made every line look like the first row
+		// (journaled: line=46 y=0 upper=984 page=130 -> 0).
+		const rowY = current.allocation ? current.allocation.y1 : 0;
+		const ideal = rowY + current.height / 2 - adjustment.page_size / 2;
 		const highest = Math.max(adjustment.lower, adjustment.upper - adjustment.page_size);
 		const clamped = Math.min(Math.max(ideal, adjustment.lower), highest);
 
@@ -764,7 +769,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 			return;
 		};
 
-		log(`[debug] lyrics scroll line=${index} y=${Math.round(current.y)} upper=${Math.round(adjustment.upper)} page=${Math.round(adjustment.page_size)} -> ${Math.round(clamped)}`);
+		log(`[debug] lyrics scroll line=${index} y=${Math.round(rowY)} upper=${Math.round(adjustment.upper)} page=${Math.round(adjustment.page_size)} -> ${Math.round(clamped)}`);
 
 		// Kill a running follow tween so two writes never race.
 		if (card._lyricsScrollTween) {
