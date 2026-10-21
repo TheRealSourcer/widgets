@@ -1129,7 +1129,10 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	let startX = 0;
 	let dragging = false;
 
+	// Swipe only with the RIGHT button — the left button stays free for
+	// normal content clicks.
 	container.connect('button-press-event', (actor, event) => {
+		if (event.get_button() !== 3) return Clutter.EVENT_PROPAGATE;
 		startX = event.get_coords()[0];
 		dragging = true;
 		return Clutter.EVENT_PROPAGATE;

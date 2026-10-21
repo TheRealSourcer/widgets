@@ -299,8 +299,10 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		let swipeStartX = null;
 
 		compactBox.reactive = true;
+		// Flip with the RIGHT button only — the left button stays free for
+		// normal content clicks.
 		compactBox.connect('button-press-event', (_actor, event) => {
-			if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+			if (event.get_button() !== 3) return Clutter.EVENT_PROPAGATE;
 			swipeStartX = event.get_coords()[0];
 			return Clutter.EVENT_PROPAGATE;
 		});

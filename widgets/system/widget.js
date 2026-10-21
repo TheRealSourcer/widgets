@@ -909,7 +909,10 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     let dragging = false;
 
     container.reactive = true;
+    // Swipe only with the RIGHT button — the left button stays free for
+    // normal content clicks.
     container.connect('button-press-event', (actor, event) => {
+      if (event.get_button() !== 3) return Clutter.EVENT_PROPAGATE;
       startX = event.get_coords()[0];
       dragging = true;
       return Clutter.EVENT_PROPAGATE;
@@ -1083,7 +1086,10 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     let dragging = false;
 
     container.reactive = true;
+    // Swipe only with the RIGHT button — the left button stays free for
+    // normal content clicks.
     container.connect('button-press-event', (actor, event) => {
+      if (event.get_button() !== 3) return Clutter.EVENT_PROPAGATE;
       startX = event.get_coords()[0];
       dragging = true;
       return Clutter.EVENT_PROPAGATE;
