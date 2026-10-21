@@ -507,10 +507,8 @@ function buildHeader(rendered, theme, createLabel, scale, opts = {}) {
 		'widget-weather-condition',
 		`color: ${theme.text}; font-size: ${scaledFont(condFont, scale)}px; font-weight: ${condWeight};`));
 
-	// H/L matches the condition row minus 2 units (scaled down everywhere
-	// per request) and carries the Overcast-like 600 weight across every
-	// regime.
-	const range = temperatureRange(rendered.daily, theme, createLabel, scale, condFont - 2, 600);
+	// H/L: condition row minus 1 unit (dialed scaledown); 600 weight stays.
+	const range = temperatureRange(rendered.daily, theme, createLabel, scale, condFont - 1, 600);
 
 	right.add_child(condRow);
 	if (range) {
@@ -724,9 +722,9 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 		'widget-weather-summary',
 		`color: ${theme.text}; font-size: ${scaledFont(13, scale)}px; font-weight: 600;`));
 
-	// H/L: sized like the Overcast line above it (13 units) so the bottom
-	// block reads as one tidy unit; the 600 weight (Overcast-like) stays.
-	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 11, 600);
+	// H/L: same as the Overcast line above it (13 units); the 600 weight
+	// (Overcast-like) stays.
+	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 12, 600);
 
 	if (range) {
 		bottom.add_child(range);
