@@ -23,10 +23,6 @@
   background-color: transparent;
 }
 
-.widget-music-button:hover {
-  background-color: rgba(128, 128, 128, 0.20);
-}
-
 .widget-music-button:active {
   background-color: rgba(128, 128, 128, 0.30);
 }

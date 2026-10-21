@@ -440,6 +440,28 @@ function createControlButton(theme, iconName, iconSize = 18, padding = 4, radius
 	button.set_pivot_point(0.5, 0.5);
 	button.connect('clicked', () => bounceButton(button));
 
+	// Hover = no frame, just the icon briefly shrinking (back to size on
+	// leave). The click keeps the squash-and-spring bounce.
+	const HOVER_SCALE = 0.85;
+	button.connect('enter-event', () => {
+		button.ease({
+			scale_x: HOVER_SCALE,
+			scale_y: HOVER_SCALE,
+			duration: 120,
+			mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+		});
+		return Clutter.EVENT_PROPAGATE;
+	});
+	button.connect('leave-event', () => {
+		button.ease({
+			scale_x: 1,
+			scale_y: 1,
+			duration: 150,
+			mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+		});
+		return Clutter.EVENT_PROPAGATE;
+	});
+
 	return {button, icon};
 };
 
@@ -715,7 +737,9 @@ card.artist.text = _('Play something to get going');
 
 		const seekable = control && (length > 0 || playing) && (canSeek || canPlay || canPause);
 		card.slider.setEnabled?.(seekable);
-		card.slider.reactive = seekable;
+		// The bar stays reactive even when it cannot seek: hover must still
+		// animate its thickness (the user expectations), while drag attempts
+		// bail out inside SeekBar's own press guard (disabled/lengthless).
 
 		// Update play/pause icon (bare pause bars — no ring, bigger symbol)
 		setButtonIcon(card.btnPlay, playing ? 'pause' : 'play', hasTrack);
