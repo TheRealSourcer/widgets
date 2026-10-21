@@ -1011,12 +1011,13 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     });
     const refreshDashes = () => pageDashes.set(currentView);
 
-    // The 2x1 keeps the ORIGINAL cross feel: the swipe rebuild wipes the
-    // pane at the midpoint, so the outgoing row leaves early and the new
-    // row enters right after — on a wide pane this read cleaner than the
-    // full overlap. The 1x1 keeps the calendar-style overlap.
-    const rebuild = (enterX = 0) => {
-      container.remove_all_children();
+    const rebuild = (enterX = 0, { keepLeaving = false } = {}) => {
+      // The swipe-timed rebuild keeps the outgoing row in the pane — it
+      // finishes its own full-width slide and removes itself afterwards,
+      // while the incoming row enters from the opposite side: the calendar
+      // page cross. Only fresh builds wipe children.
+      if (!keepLeaving)
+        container.remove_all_children();
       currentRow = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
@@ -1146,7 +1147,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         refreshDashes();
 
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, CROSS_DURATION / 2, () => {
-          rebuild(-exitX);
+          rebuild(-exitX, { keepLeaving: true });
           if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0) {
             onData(monitor.lastData);
           }
