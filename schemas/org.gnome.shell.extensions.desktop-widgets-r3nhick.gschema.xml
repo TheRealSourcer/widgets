@@ -137,9 +137,9 @@
       <description>Show the AM/PM indicator next to the time in 12-hour format.</description>
     </key>
     <key name="digitalclock-smooth-seconds" type="b">
-      <default>false</default>
-      <summary>Smooth seconds animation</summary>
-      <description>Animate the seconds hand smoothly (every frame) instead of stepping once per second. Only available when seconds are visible.</description>
+      <default>true</default>
+      <summary>Smooth second ring</summary>
+      <description>Animate the second ring every frame (smooth) or step once per second, like the reference clock-digital toggle's off state.</description>
     </key>
     <key name="edit-mode-binding" type="as">
       <default>[]</default>

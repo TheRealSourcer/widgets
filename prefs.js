@@ -1592,6 +1592,18 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             settings.set_boolean('digitalclock-show-ampm', showAmPmRow.get_active());
         });
 
+        // Smooth second ring toggle (reference clock-digital parity): OFF
+        // steps the ring once per second instead of animating every frame.
+        const smoothSecondsRow = new Adw.SwitchRow({
+            title: _('Smooth second ring'),
+            subtitle: _('Animate the ring every frame; off steps it once per second'),
+        });
+        smoothSecondsRow.set_active(settings.get_boolean('digitalclock-smooth-seconds'));
+        group.add(smoothSecondsRow);
+        smoothSecondsRow.connect('notify::active', () => {
+            settings.set_boolean('digitalclock-smooth-seconds', smoothSecondsRow.get_active());
+        });
+
         page.add(group);
         return page;
     }

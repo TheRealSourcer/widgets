@@ -71,6 +71,10 @@ const DigitalClockRing = GObject.registerClass(
 			this._theme = options?.theme ?? {};
 			this._radius = options?.radius ?? CORNER_RADIUS;
 			this._dark = this._theme.dark ?? false;
+			// Smooth (default) repaints every frame; stepped pins the head to
+			// whole seconds and repaints once per second — the reference
+			// clock-digital's off state for its smooth-seconds toggle.
+			this._smooth = options?.smoothSeconds ?? true;
 
 			this._ticks = null;
 			this._tickSize = null;
@@ -79,17 +83,42 @@ const DigitalClockRing = GObject.registerClass(
 			// map/unmap are vfuncs, not signals — track notify::mapped.
 			this._timeline = new Clutter.Timeline({actor: this, duration: 1000, repeat_count: -1});
 			this._timeline.connect('new-frame', () => this.queue_repaint());
+			this._tickSourceId = 0;
+
+			this._syncTicker = () => {
+				if (this._timeline)
+					this._timeline.stop();
+				if (this._tickSourceId) {
+					GLib.Source.remove(this._tickSourceId);
+					this._tickSourceId = 0;
+				}
+				if (!this.mapped)
+					return;
+				if (this._smooth) {
+					this._timeline.start();
+				} else {
+					// Repaint at the next second boundary, then once a second.
+					this._tickSourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000 - (Date.now() % 1000) + 1, () => {
+						this._tickSourceId = 0;
+						this.queue_repaint();
+						this._syncTicker();
+						return GLib.SOURCE_REMOVE;
+					});
+				}
+			};
+
 			this.connect('notify::mapped', () => {
 				if (!this._timeline)
 					return;
-				if (this.mapped)
-					this._timeline.start();
-				else
-					this._timeline.stop();
+				this._syncTicker();
 			});
 			this.connect('destroy', () => {
 				this._timeline?.stop();
 				this._timeline = null;
+				if (this._tickSourceId) {
+					GLib.Source.remove(this._tickSourceId);
+					this._tickSourceId = 0;
+				}
 			});
 			this.connect('notify::width', () => {
 				this._ticks = null;
@@ -120,7 +149,8 @@ const DigitalClockRing = GObject.registerClass(
 			const base = 0.26;
 
 			const ms = Date.now() % 60000;
-			const pos = ms / 1000;                 // smooth seconds, every frame
+			// Smooth: fractional second (every frame); stepped: whole seconds.
+			const pos = this._smooth ? ms / 1000 : Math.floor(ms / 1000);
 			const current = Math.floor(pos) % 60;
 			const previous = (current + 59) % 60;
 			const frac = pos - Math.floor(pos);
@@ -360,6 +390,7 @@ export function render({body, theme, settings, widget}) {
 	const showSeconds = settings?.get_boolean('digitalclock-show-seconds') === true &&
 		(sizeKey === 'medium' || sizeKey === 'mini' || vertical);
 	const showAmPm = settings?.get_boolean('digitalclock-show-ampm') !== false;
+	const smoothSeconds = settings?.get_boolean('digitalclock-smooth-seconds') !== false;
 
 	// The tick ring and the digits overlap: a plain St.Widget with a
 	// BinLayout stacks both children in the same box (a vertical BoxLayout
@@ -369,7 +400,7 @@ export function render({body, theme, settings, widget}) {
 		x_expand: true,
 		y_expand: true,
 	});
-	const ring = new DigitalClockRing({theme, radius: theme.radius});
+	const ring = new DigitalClockRing({theme, radius: theme.radius, smoothSeconds});
 	const face = new DigitalClockFace({theme, use24h, showSeconds, showAmPm, radius: theme.radius, vertical, sizeKey});
 
 	stage.add_child(ring);   // below the digits
