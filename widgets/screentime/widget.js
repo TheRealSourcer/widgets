@@ -50,7 +50,6 @@ const GRID_LINE_ALPHA = 0.3;
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // ── 2x2 stack card constants ───────────────────────────────────────────────
-const AVATAR_SIZE_PX = 26;
 const LEGEND_FONT_SIZE_PX = 11;   // colored top-app chips under the chart
 const LEGEND_TOP_APPS = 3;
 const APP_BAND_FONT_SIZE_PX = 12; // app rows in the bottom two-column band
@@ -66,8 +65,13 @@ const APP_PALETTE_LIGHT = [
 	'#1c71d8', '#9141ac', '#26a269', '#e5a50a',
 	'#e66100', '#c01c28', '#108a9c', '#865e3c',
 ];
+// Buckets with no recognizable app stay neutral gray, not a random hue.
+const OTHER_CATEGORY_DARK = '#9a9996';
+const OTHER_CATEGORY_LIGHT = '#5e5c64';
 
 function appPaletteCss(key, isLight) {
+	if (key === 'other')
+		return isLight ? OTHER_CATEGORY_LIGHT : OTHER_CATEGORY_DARK;
 	const palette = isLight ? APP_PALETTE_LIGHT : APP_PALETTE_DARK;
 	let sum = 0;
 	for (const ch of key)
@@ -84,6 +88,72 @@ function appChartColor(key, isLight) {
 	if (!appChartColors.has(cacheKey))
 		appChartColors.set(cacheKey, parseCssColor(appPaletteCss(key, isLight)));
 	return appChartColors.get(cacheKey);
+}
+
+// ── App categories (2x2 legend + bucket colors) ────────────────────────────
+// Desktop entries carry XDG menu categories; they are mapped onto a friendly
+// summary, checked top-down — a "Network + InstantMessaging" messenger is
+// Social even though it also matches Network (Web).
+const APP_CATEGORY_RULES = [
+	['social', ['instantmessaging', 'chat', 'ircclient', 'telephony', 'news', 'contactmanagement']],
+	['entertainment', ['game', 'audiovideo', 'music', 'video', 'player', 'audio', 'sports']],
+	['development', ['development', 'ide', 'debugger', 'revisioncontrol', 'database', 'building', 'terminalemulator']],
+	['creativity', ['graphics', '2dgraphics', '3dgraphics', 'vectorgraphics', 'rastergraphics', 'photography', 'scanning']],
+	['work', ['office', 'wordprocessor', 'texttools', 'spreadsheet', 'presentation', 'projectmanagement', 'finance', 'calendar', 'education', 'science']],
+	['web', ['network', 'webbrowser', 'filetransfer', 'translation']],
+	['utilities', ['utility', 'system', 'settings', 'archiving', 'filetools', 'filemanager', 'core']],
+];
+
+const appCategoryCache = new Map();
+function resolveAppCategory(appKey) {
+	if (appCategoryCache.size > 512)
+		appCategoryCache.clear();
+	if (!appCategoryCache.has(appKey)) {
+		let category = 'other';
+		try {
+			const info = resolveDesktopAppInfo(appKey);
+			const raw = info ? info.get_categories() : null;
+			if (raw) {
+				const tokens = raw.toLowerCase().split(';').filter(Boolean);
+				for (const [bucket, rules] of APP_CATEGORY_RULES) {
+					if (rules.some(rule => tokens.includes(rule))) {
+						category = bucket;
+						break;
+					}
+				}
+			}
+		} catch (e) {
+			// Unknown app — stays a gray "Other".
+		}
+		appCategoryCache.set(appKey, category);
+	}
+	return appCategoryCache.get(appKey);
+}
+
+// Translations resolve at runtime, when the extension's gettext domain is up.
+function appCategoryLabel(key) {
+	switch (key) {
+		case 'social': return _('Social');
+		case 'entertainment': return _('Entertainment');
+		case 'development': return _('Development');
+		case 'creativity': return _('Creativity');
+		case 'work': return _('Work');
+		case 'web': return _('Web');
+		case 'utilities': return _('Utilities');
+		default: return _('Other');
+	}
+}
+
+// The day's activity rolled up into category buckets, longest first.
+function buildCategorySummary(apps) {
+	const totals = new Map();
+	for (const app of apps) {
+		const category = resolveAppCategory(app.key);
+		totals.set(category, (totals.get(category) || 0) + app.seconds);
+	}
+	return [...totals.entries()]
+		.map(([key, seconds]) => ({ key, seconds }))
+		.sort((a, b) => b.seconds - a.seconds);
 }
 
 const monthNames = () =>
@@ -127,6 +197,15 @@ function computeScaleMaxSeconds(hours) {
 		maxSeconds = Math.max(maxSeconds, seconds);
 	const base = Math.max(MIN_SCALE_SECONDS, maxSeconds);
 	return Math.ceil(base / MIN_SCALE_SECONDS) * MIN_SCALE_SECONDS;
+}
+
+// The chart's y-axis marks need a shorter form than the card total ("1h",
+// not "1h 00m" — the 35px axis box otherwise ellipsizes the top mark).
+function formatAxisDuration(totalSeconds) {
+	const hours = Math.floor(totalSeconds / 3600);
+	if (hours > 0)
+		return _('%sh').format(hours);
+	return _('%sm').format(Math.round((totalSeconds % 3600) / 60));
 }
 
 function shadePanelColor(cssColor, amount) {
@@ -207,6 +286,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		selectedDate: null,
 		snapshot: null,
 		geometry: {},
+		categorySummary: [],
 		engineListener: null,
 		releaseEngine: null,
 		lastAppListSignature: '',
@@ -290,23 +370,6 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		largeRoot.add_child(headerBox);
 	else
 		leftPanel.add_child(headerBox);
-
-	// 2x2 header opens with the small circular avatar badge before the total.
-	let avatarBadge = null;
-	if (isLarge) {
-		avatarBadge = new St.Widget({
-			layout_manager: new Clutter.BinLayout(),
-			width: AVATAR_SIZE_PX,
-			height: AVATAR_SIZE_PX,
-			style: `border-radius: 999px; background-color: ${cssColorToRgba(accentHex, 0.16)};`,
-		});
-		avatarBadge.add_child(new St.Icon({
-			icon_name: 'avatar-default-symbolic',
-			icon_size: 14,
-			style: `color: ${textColor}; opacity: 0.85;`,
-		}));
-		headerBox.add_child(avatarBadge);
-	}
 
 	const totalTimeLabel = new St.Label({
 		text: '0m',
@@ -550,11 +613,12 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const hours = state.snapshot ? state.snapshot.hours : [];
 			const scaleMax = computeScaleMaxSeconds(hours);
 			const accent = parseCssColor(accentHex);
-			// A bucket is painted in its dominant app's stable color; the day's
-			// top app keeps the theme accent (the legend chip matches).
+			// A bucket is painted in its dominant app's CATEGORY color — the
+			// category legend uses the very same palette; the day's leading
+			// category keeps the theme accent.
 			const hourKeys = state.snapshot ? state.snapshot.hourKeys ?? null : null;
-			const topKey = state.snapshot && state.snapshot.apps[0]
-				? state.snapshot.apps[0].key : null;
+			const topCategory = state.categorySummary && state.categorySummary[0]
+				? state.categorySummary[0].key : null;
 			// The compact card fits 24 bars edge-to-edge: the bar width is
 			// derived from the plot with a guaranteed gap, min 3px, so the
 			// bars stay readable at 1x1 instead of hairline-thin.
@@ -571,8 +635,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				const y = canvasHeight - barHeight;
 
 				const bucketKey = hourKeys ? hourKeys[hour] : null;
-				const barColor = (bucketKey && bucketKey !== topKey)
-					? appChartColor(bucketKey, isLightBg) : accent;
+				const bucketCategory = bucketKey ? resolveAppCategory(bucketKey) : null;
+				const barColor = (bucketCategory && bucketCategory !== topCategory)
+					? appChartColor(bucketCategory, isLightBg) : accent;
 				ctx.setSourceRGBA(barColor.r, barColor.g, barColor.b, 1);
 
 				ctx.newSubPath();
@@ -687,14 +752,17 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	// Cheap fingerprint of the visible app list. Durations are rounded to the
 	// minute: seconds change on every engine tick and would otherwise force a
 	// full destroy/rebuild of the rows once per second for the whole day.
+	// The 2x2 category summary aggregates more than the visible slice, so the
+	// fingerprint covers more apps than the band shows.
 	function appListSignature(snapshot) {
-		return JSON.stringify(snapshot.apps.slice(0, config.maxApps).map(app => [app.key, Math.floor(app.seconds / 60)]));
+		return JSON.stringify(snapshot.apps.slice(0, 12).map(app => [app.key, Math.floor(app.seconds / 60)]));
 	}
 
 	function renderDynamic() {
 		if (!state.snapshot) return;
 
 		totalTimeLabel.text = formatCompactDuration(state.snapshot.totalSeconds);
+		state.categorySummary = buildCategorySummary(state.snapshot.apps);
 
 		if (!compactSquare) {
 			dateLabel.text = formatShortDate(state.selectedDate);
@@ -724,8 +792,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	function updateYAxisLabels() {
 		const scaleMax = computeScaleMaxSeconds(state.snapshot.hours);
 		const labels = [
-			formatCompactDuration(scaleMax),
-			formatCompactDuration(scaleMax / 2),
+			formatAxisDuration(scaleMax),
+			formatAxisDuration(scaleMax / 2),
 			'0',
 		];
 		yAxisLabels.forEach((label, index) => label.set_text(labels[index]));
@@ -800,12 +868,13 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		return row;
 	}
 
-	// 2x2 legend: the top apps in their palette colors, spread across the row —
-	// the same colors the hour bars paint for each app's dominant buckets.
+	// 2x2 legend: the top CATEGORIES with their total time, spread across the
+	// row — the same colors the hour bars paint for each app's dominant bucket.
+	// The leading category keeps the theme accent.
 	function rebuildLegend() {
 		legendBox.destroy_all_children();
 		const s = state.geometry.scale || 1;
-		const chips = state.snapshot.apps.slice(0, LEGEND_TOP_APPS);
+		const chips = (state.categorySummary || []).slice(0, LEGEND_TOP_APPS);
 		if (chips.length === 0) {
 			legendBox.add_child(new St.Label({
 				text: _('No activity recorded'),
@@ -821,7 +890,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		];
 		for (let i = 0; i < chips.length; i++) {
 			const chip = new St.Label({
-				text: `${resolveAppName(chips[i].key)}  ${formatCompactDuration(chips[i].seconds)}`,
+				text: `${appCategoryLabel(chips[i].key)}  ${formatCompactDuration(chips[i].seconds)}`,
 				x_expand: true,
 				x_align: chipAligns[i],
 				style: `color: ${i === 0 ? accentHex : appPaletteCss(chips[i].key, isLightBg)}; `
@@ -962,9 +1031,6 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const legendH = Math.round(LEGEND_FONT_SIZE_PX * 1.6 * s);
 
 			headerBox.style = `margin: ${padTop}px ${padSide}px ${headerMargin}px ${padSide}px;`;
-			avatarBadge.set_size(Math.round(AVATAR_SIZE_PX * s), Math.round(AVATAR_SIZE_PX * s));
-			avatarBadge.style = `border-radius: 999px; background-color: ${cssColorToRgba(accentHex, 0.16)};`
-				+ `margin-right: ${Math.round(10 * s)}px;`;
 			// The one-row header centers the big total against the nav arrows.
 			totalTimeLabel.y_align = Clutter.ActorAlign.CENTER;
 			totalTimeLabel.style = `color: ${textColor}; font-size: ${Math.round(HEADER_FONT_SIZE_PX * s * 0.9)}px; font-weight: 600;`;
