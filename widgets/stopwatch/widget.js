@@ -298,18 +298,15 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// BoxLayout semantics have drifted this row too many times (full cross
 	// sizes, ignored child aligns), so nothing depends on alignment anymore:
 	// every child gets exact design offsets and the row centers itself with
-	// a paint-only translation, whatever width the vertical mainBox hands it.
-	// Empirical (journal probe): the vertical BoxLayout does honor child
-	// x_align on the cross axis — center here, translation stays as a
-	// fallback in case some variant ever stretches the row again.
-	const timeBox = new St.Widget({x_align: Clutter.ActorAlign.CENTER});
+	// a paint-only translation fallback. The row is built FROM THE MIDDLE
+	// OUTWARD (see placeRow below).
+	const timeBox = new St.Widget({x_align: Clutter.ActorAlign.CENTER, x_expand: true});
 
 	// One shared digit slot for all three columns plus fixed 16-unit colon
-	// blocks between them: 3*123 + 2*16 + 4*8 = 457 units ≤ 540 canvas.
+	// blocks between them.
 	const digitSlot = px(123);
 	const colonSlot = px(16);
 	const colonGap = px(8);
-	const timeRowW = digitSlot * 3 + colonSlot * 2 + colonGap * 4;
 	const timeRowH = px(88);
 
 	// Minutes
@@ -328,7 +325,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const minutesCaption = new St.Label({
 		text: _('Minutes'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px;`,
 	});
 
 	minutesBox.add_child(minutesLabel);
@@ -375,7 +372,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const secondsCaption = new St.Label({
 		text: _('Seconds'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px;`,
 	});
 
 	secondsBox.add_child(secondsLabel);
@@ -398,39 +395,39 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const centisecondsCaption = new St.Label({
 		text: _('Centiseconds'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px;`,
 	});
 
 	centisecondsBox.add_child(centisecondsLabel);
 	centisecondsBox.add_child(centisecondsCaption);
 	centisecondsBox.set_size(digitSlot, timeRowH);
 
-	// Exact hand offsets: [slot][gap][colon][gap][slot][gap][colon][gap][slot].
-	// A plain parent never repositions children, so these allocations are
-	// final — no BoxLayout packing can move anything.
-	timeBox.set_size(timeRowW, timeRowH);
-	let timeX = 0;
-	const placeAt = (child, w) => {
-		child.set_position(timeX, 0);
-		timeX += w + colonGap;
-	};
-	placeAt(minutesBox, digitSlot);
-	placeAt(separator1, colonSlot);
-	placeAt(secondsBox, digitSlot);
-	placeAt(separator2, colonSlot);
-	placeAt(centisecondsBox, digitSlot);
+	// Fixed child sizes; the plain parent never repositions anything — only
+	// placeRow below decides the coordinates.
 	timeBox.add_child(minutesBox);
 	timeBox.add_child(separator1);
 	timeBox.add_child(secondsBox);
 	timeBox.add_child(separator2);
 	timeBox.add_child(centisecondsBox);
 
-	// The vertical mainBox gives every child the full cross width and
-	// ignores x_align — center the row over its allocation, paint-only.
-	timeBox.connect('notify::allocation', () => {
-		const slack = timeBox.allocation.get_width() - timeRowW;
-		timeBox.translation_x = slack > 0 ? Math.round(slack / 2) : 0;
-	});
+	// The row is built FROM THE MIDDLE OUTWARD: the seconds column is pinned
+	// to the widget's horizontal center on every allocation and both sides
+	// are placed at symmetric offsets from that anchor, so the spacing
+	// around both colons is identical by construction. (Runtime ink
+	// centering keeps every glyph centered inside its slot.)
+	const placeRow = () => {
+		const W = timeBox.allocation.get_width();
+		if (W <= 0) return;
+		const cx = Math.round(W / 2);
+		const start = cx - Math.round(digitSlot / 2);
+		secondsBox.set_position(start, 0);
+		separator2.set_position(start + digitSlot + colonGap, 0);
+		centisecondsBox.set_position(start + digitSlot + colonGap + colonSlot + colonGap, 0);
+		separator1.set_position(start - colonGap - colonSlot, 0);
+		minutesBox.set_position(start - colonGap - colonSlot - colonGap - digitSlot, 0);
+	};
+	timeBox.connect('notify::allocation', placeRow);
+	placeRow();
 
 	// Ink centering from LIVE extents: captions are translated and even the
 	// digit font may resolve differently than the harness numbers, so the
