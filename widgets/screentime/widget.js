@@ -53,7 +53,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 const LEGEND_FONT_SIZE_PX = 11;   // colored top-app chips under the chart
 const LEGEND_TOP_APPS = 3;
 const APP_BAND_FONT_SIZE_PX = 12; // app rows in the bottom two-column band
-const LARGE_APP_ROWS_MAX = 4;
+const LARGE_APP_ROWS_MAX = 4; // 4 rows × 2 columns = 8 apps in the 2×2 band
 
 // Hour bars and legend chips are colored after the bucket's dominant app.
 // Bright variants stay readable on a dark base; regular ones on a light base.
@@ -248,7 +248,7 @@ function resolveDesktopAppInfo(appKey) {
 const SIZE_CONFIGS = {
 	small:      { showChart: true,  maxApps: 0 }, // 1x1 compact: total + hour chart only
 	medium:     { showChart: true,  maxApps: 4 }, // 2×1 split: chart left, app list right
-	large:      { showChart: true,  maxApps: 6 }, // 2×2 stack: legend chips + 2-column band
+	large:      { showChart: true,  maxApps: 8 }, // 2×2 stack: legend chips + 2-column band (4 rows × 2)
 };
 
 const DEFAULT_CONFIG = { showChart: false, maxApps: 3 };
