@@ -6,7 +6,7 @@ import Pango from 'gi://Pango';
 
 import { screenTimeEngine } from '../../utils/screenTimeEngine.js';
 import { isActorDestroyed } from '../../utils/actorLifecycle.js';
-import { attachBounce } from '../../lib/buttonBounce.js';
+import { bounceButton } from '../../lib/buttonBounce.js';
 import { parseCssColor, cssColorToRgba } from '../../utils/ported.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -242,11 +242,14 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		});
 		button.connect('button-press-event', (_actor, event) => {
 			if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+			// The squash starts on the press itself — the release-driven
+			// 'clicked' never fired here because the press handler stops
+			// the event chain before St.Button's click synthesis.
+			bounceButton(button);
 			action();
 			return Clutter.EVENT_STOP;
 		});
-		// Same squash-and-spring on every press as the other widgets.
-		attachBounce(button);
+		button.set_pivot_point(0.5, 0.5);
 		navButtonsRow.add_child(button);
 		return button;
 	};
