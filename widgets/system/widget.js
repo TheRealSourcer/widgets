@@ -584,7 +584,6 @@ function createSparkTile(theme, label, value, unit, accentColor, samples, maxVal
     x_expand: false,
     y_expand: false,
     style: `
-      background-color: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 10px;
       padding: 6px;
@@ -841,8 +840,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       scrollBox = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
-        // Semi-transparent so the glass effect shows through.
-        style: `background-color: ${theme.dark ? 'rgba(0, 0, 0, 0.85)' : 'rgba(255, 255, 255, 0.85)'};`,
+        // No background - glass effect shows through (border only)
+        style: ``,
       }));
 
       const config = metricConfigs[currentMetric];
@@ -1042,8 +1041,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       currentRow = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
-        // Semi-transparent so the glass effect shows through.
-        style: `spacing: 10px; background-color: ${theme.dark ? 'rgba(0, 0, 0, 0.85)' : 'rgba(255, 255, 255, 0.85)'};`,
+        // No background - glass effect shows through (border only)
+        style: `spacing: 10px;`,
       }));
 
       const view = viewConfigs[viewIndex];
