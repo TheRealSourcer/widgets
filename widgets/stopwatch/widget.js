@@ -425,7 +425,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// The vertical mainBox gives every child the full cross width and
 	// ignores x_align — center the row over its allocation, paint-only.
 	timeBox.connect('notify::allocation', () => {
-		const slack = timeBox.get_allocated_width() - timeRowW;
+		const slack = timeBox.allocation.get_width() - timeRowW;
 		timeBox.translation_x = slack > 0 ? Math.round(slack / 2) : 0;
 	});
 
@@ -444,7 +444,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 				};
 				return GLib.SOURCE_REMOVE;
 			};
-			const slotW = label.get_allocated_width();
+			const slotW = label.allocation.get_width();
 			label.translation_x = Math.round((slotW - ink.width) / 2 - ink.x);
 			return GLib.SOURCE_REMOVE;
 		};
@@ -458,12 +458,12 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// verify against the design (slot 123, gap 8, colon 16). Remove after
 	// the next verification round.
 	GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2500, () => {
-		const geo = (c) => `${Math.round(c.x)},${Math.round(c.y)} ${Math.round(c.get_allocated_width())}x${Math.round(c.get_allocated_height())}`;
+		const geo = (c) => `${Math.round(c.x)},${Math.round(c.y)} ${Math.round(c.allocation.get_width())}x${Math.round(c.allocation.get_height())}`;
 		const inkOf = (label) => {
 			const layout = label.get_clutter_text()?.get_layout();
 			return layout ? Math.round(layout.get_pixel_extents()[0].width) : -1;
 		};
-		console.warn(`[stopwatch-debug] row alloc ${Math.round(timeBox.get_allocated_width())}x${Math.round(timeBox.get_allocated_height())} tx ${Math.round(timeBox.translation_x)} | ${[minutesBox, separator1, secondsBox, separator2, centisecondsBox].map(geo).join(' | ')}`);
+		console.warn(`[stopwatch-debug] row alloc ${Math.round(timeBox.allocation.get_width())}x${Math.round(timeBox.allocation.get_height())} tx ${Math.round(timeBox.translation_x)} | ${[minutesBox, separator1, secondsBox, separator2, centisecondsBox].map(geo).join(' | ')}`);
 		console.warn(`[stopwatch-debug] digit tx ${[minutesLabel, secondsLabel, centisecondsLabel].map((l) => Math.round(l.translation_x)).join(' / ')} ink ${inkOf(minutesLabel)} ${inkOf(secondsLabel)} ${inkOf(centisecondsLabel)}`);
 		console.warn(`[stopwatch-debug] caption ink ${inkOf(minutesCaption)} ${inkOf(secondsCaption)} ${inkOf(centisecondsCaption)} | texts: ${[minutesCaption, secondsCaption, centisecondsCaption].map((l) => String(l.text)).join(' / ')}`);
 		return GLib.SOURCE_REMOVE;
