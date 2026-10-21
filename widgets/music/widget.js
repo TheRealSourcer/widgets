@@ -494,6 +494,12 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		style: `spacing: ${gap}px;`,
 	});
 
+	// Bin wrapper so the lyrics overlay can cover the WHOLE widget instead
+	// of only the cover-art preview: the card is the lower layer, the lyrics
+	// feed slides above it while open and closes on a click.
+	card.stage = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true, y_expand: true});
+	card.stage.add_child(card.container);
+
 	const coverRadius = Math.round(cover * 0.1);
 
 	card.coverBox = new St.Widget({
@@ -541,7 +547,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	card._lyricsLabels = [];
 	card._lyricsActive = -1;
 
-	const lyrFont = Math.max(10, Math.round(cover * 0.115));
+	const lyrFont = Math.max(11, Math.round(widgetHeight * 0.09));
 	const lyricStyleInactive = `font-size: ${lyrFont}px; color: ${theme.muted};`;
 	const lyricStyleActive = `font-size: ${lyrFont}px; font-weight: 700; color: ${theme.accent};`;
 
@@ -550,7 +556,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		x_expand: true,
 		y_expand: true,
 		visible: false,
-		style: `background-color: ${theme.background}; border-radius: ${coverRadius}px; padding: 6px 8px; spacing: 4px;`,
+		style: `background-color: ${theme.background}; border-radius: ${coverRadius}px; padding: 10px 14px; spacing: 5px;`,
 	}));
 
 	card._lyricsHint = createLabel('…', 'widget-music-lyric',
@@ -568,7 +574,14 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 
 	card.lyricsPanel.add_child(card._lyricsHint);
 	card.lyricsPanel.add_child(card._lyricsScroll);
-	card.coverBox.add_child(card.lyricsPanel);
+	// The panel covers the whole card, so a click anywhere on it returns to
+	// the normal card (the toggle icon sits beneath the overlay).
+	card.lyricsPanel.reactive = true;
+	card.lyricsPanel.connect('button-press-event', () => {
+		card.toggleLyrics();
+		return Clutter.EVENT_PROPAGATE;
+	});
+	card.stage.add_child(card.lyricsPanel);
 
 	card._setLyricsHint = function (text) {
 		card._lyricsHint.text = text;
@@ -1942,7 +1955,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	card._settings = settings;
 	const controller = new Controller(card, sessionBus(), settings);
 
-	body.add_child(card.container);
+	body.add_child(card.stage);
 	body.connect('destroy', () => controller.destroy());
 	controller.start();
 };
