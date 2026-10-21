@@ -1049,6 +1049,7 @@ card.artist.text = _('Play something to get going');
 			if (card._lyricsOn) {
 				card._lyricsOn = false;
 				card.lyricsPanel.visible = false;
+				card.container.visible = true; // Show card content when lyrics close
 			};
 		};
 
