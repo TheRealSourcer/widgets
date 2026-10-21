@@ -733,13 +733,18 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
   let unsubscribe = null;
   const animatingActors = new Set();
 
-  const container = new St.BoxLayout(boxLayoutProps({
-    vertical: true,
+  // Pages must OVERLAP during the swipe cross — the outgoing page keeps
+  // sliding to the very edge of the widget while the incoming page already
+  // enters from the opposite side (the calendar page-cross mechanic). A
+  // stacking BoxLayout would split the pane between two rows mid-flight,
+  // so this is a Bin: every page takes the full pane box.
+  const container = new St.Widget({
+    layout: new Clutter.BinLayout(),
     x_expand: true,
     y_expand: true,
     clip_to_allocation: true,
     style: `padding: 3px;`,
-  }));
+  });
 
   // Explicitly size the tiles: one row of two tiles (medium) or two rows of
   // two tiles (large) get equal halves of the inner width. We read the real
@@ -825,9 +830,13 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     });
     const refreshDashes = () => pageDashes.set(currentMetric);
 
-    const rebuild = (enterX = 0) => {
-      container.remove_all_children();
-      
+    const rebuild = (enterX = 0, { keepLeaving = false } = {}) => {
+      // The swipe-timed rebuild must keep the outgoing page in the pane —
+      // it finishes its own slide and removes itself when done, exactly
+      // like the calendar's page cross. Only fresh builds wipe children.
+      if (!keepLeaving)
+        container.remove_all_children();
+
       scrollBox = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
@@ -947,12 +956,12 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         } else {
           currentMetric = (currentMetric + 1) % 5;
         }
-        // Remember the page for the next re-render (theme switch, resize...).
+        // Remember the metric for the next re-render (theme switch...).
         saveWidgetState(statePath, { metric: currentMetric });
         refreshDashes();
-        
+
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
-          rebuild(-exitX);
+          rebuild(-exitX, { keepLeaving: true });
           if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0) {
             onData(monitor.lastData);
           }
@@ -1002,8 +1011,12 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     });
     const refreshDashes = () => pageDashes.set(currentView);
 
-    const rebuild = (enterX = 0) => {
-      container.remove_all_children();
+    const rebuild = (enterX = 0, { keepLeaving = false } = {}) => {
+      // The swipe-timed rebuild must keep the outgoing row in the pane —
+      // it finishes its own slide and removes itself when done, exactly
+      // like the calendar's page cross. Only fresh builds wipe children.
+      if (!keepLeaving)
+        container.remove_all_children();
       currentRow = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
@@ -1133,7 +1146,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         refreshDashes();
 
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, CROSS_DURATION / 2, () => {
-          rebuild(-exitX);
+          rebuild(-exitX, { keepLeaving: true });
           if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0) {
             onData(monitor.lastData);
           }
