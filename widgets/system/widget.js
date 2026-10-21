@@ -969,6 +969,10 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
   } else if (size === 'medium') {
     layoutMode = 'medium';
 
+    // The 2x1 pane is twice the width of the 1x1 card — the calendar-paced
+    // cross needs a longer travel time, or it reads as a fast blink.
+    const CROSS_DURATION = Math.round(ANIMATION_DURATION * 1.6);
+
     const viewConfigs = [
       [
         { label: 'CPU', key: 'cpu', samplesKey: 'cpuSamples', maxValue: 1.0, unit: '%' },
@@ -1030,7 +1034,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         result.tile.ease({
           translation_x: 0,
           opacity: 255,
-          duration: ANIMATION_DURATION,
+          duration: CROSS_DURATION,
           mode: Clutter.AnimationMode.EASE_OUT_QUAD,
         });
       }
@@ -1104,12 +1108,12 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       if (Math.abs(delta) > SWIPE_THRESHOLD) {
         const oldRow = currentRow;
         const exitX = delta < 0 ? -width : width;
-        
+
         animatingActors.add(oldRow);
         oldRow.ease({
           opacity: 0,
           translation_x: exitX,
-          duration: ANIMATION_DURATION,
+          duration: CROSS_DURATION,
           mode: Clutter.AnimationMode.EASE_IN_QUAD,
           onComplete: () => {
             animatingActors.delete(oldRow);
@@ -1127,8 +1131,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         // Remember the page for the next re-render (theme switch, resize...).
         saveWidgetState(statePath, { view: currentView });
         refreshDashes();
-        
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
+
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, CROSS_DURATION / 2, () => {
           rebuild(-exitX);
           if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0) {
             onData(monitor.lastData);
