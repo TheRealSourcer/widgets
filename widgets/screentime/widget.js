@@ -49,6 +49,43 @@ const GRID_LINE_ALPHA = 0.3;
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// ── 2x2 stack card constants ───────────────────────────────────────────────
+const AVATAR_SIZE_PX = 26;
+const LEGEND_FONT_SIZE_PX = 11;   // colored top-app chips under the chart
+const LEGEND_TOP_APPS = 3;
+const APP_BAND_FONT_SIZE_PX = 12; // app rows in the bottom two-column band
+const LARGE_APP_ROWS_MAX = 4;
+
+// Hour bars and legend chips are colored after the bucket's dominant app.
+// Bright variants stay readable on a dark base; regular ones on a light base.
+const APP_PALETTE_DARK = [
+	'#99c1f1', '#dc8add', '#8ff0a4', '#f8e45c',
+	'#ffbe6f', '#f66151', '#99f1e2', '#cdab8f',
+];
+const APP_PALETTE_LIGHT = [
+	'#1c71d8', '#9141ac', '#26a269', '#e5a50a',
+	'#e66100', '#c01c28', '#108a9c', '#865e3c',
+];
+
+function appPaletteCss(key, isLight) {
+	const palette = isLight ? APP_PALETTE_LIGHT : APP_PALETTE_DARK;
+	let sum = 0;
+	for (const ch of key)
+		sum += ch.codePointAt(0);
+	return palette[sum % palette.length];
+}
+
+// Parsed variants for the chart painter (24 setSourceRGBA calls per repaint).
+const appChartColors = new Map();
+function appChartColor(key, isLight) {
+	const cacheKey = (isLight ? 'l:' : 'd:') + key;
+	if (appChartColors.size > 256)
+		appChartColors.clear();
+	if (!appChartColors.has(cacheKey))
+		appChartColors.set(cacheKey, parseCssColor(appPaletteCss(key, isLight)));
+	return appChartColors.get(cacheKey);
+}
+
 const monthNames = () =>
     [_('Jan'), _('Feb'), _('Mar'), _('Apr'), _('May'), _('Jun'),
      _('Jul'), _('Aug'), _('Sep'), _('Oct'), _('Nov'), _('Dec')];
@@ -131,8 +168,8 @@ function resolveDesktopAppInfo(appKey) {
 
 const SIZE_CONFIGS = {
 	small:      { showChart: true,  maxApps: 0 }, // 1x1 compact: total + hour chart only
-	medium:     { showChart: true,  maxApps: 4 }, // 2×1
-	large:      { showChart: true,  maxApps: 8 }, // 2×2
+	medium:     { showChart: true,  maxApps: 4 }, // 2×1 split: chart left, app list right
+	large:      { showChart: true,  maxApps: 6 }, // 2×2 stack: legend chips + 2-column band
 };
 
 const DEFAULT_CONFIG = { showChart: false, maxApps: 3 };
@@ -143,6 +180,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	// 1x1 compact card: total on the top-left + hour chart; no avatar, no
 	// date nav, no side app list.
 	const compactSquare = size === 'small';
+	// 2x2: full-stack card — avatar header, full-width hour chart, colored
+	// top-app legend and a two-column app band pinned to the bottom edge.
+	const isLarge = size === 'large';
 
 	// Get widget dimensions for proper layout sizing
 	const [widgetWidth, widgetHeight] = sizeForWidget(widget);
@@ -154,6 +194,14 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	const accentHex = theme?.accent ?? '#3584e4';
 	const radius = theme?.radius ?? 16;
 	const textRgba = (alpha) => cssColorToRgba(textColor, alpha);
+	// Palette variant selection: light bases need the darker chart colors.
+	let isLightBg = false;
+	try {
+		const bgParsed = parseCssColor(bgColor);
+		isLightBg = (bgParsed.r * 0.299 + bgParsed.g * 0.587 + bgParsed.b * 0.114) >= 0.5;
+	} catch (e) {
+		isLightBg = false;
+	}
 
 	const state = {
 		selectedDate: null,
@@ -174,8 +222,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	state.chartCompact = compactSquare;
 	body.clip_to_allocation = true;
 
-	// ── Split layout: main panel (chart) + side panel (apps) ───────────────
-	const splitBox = new St.BoxLayout({
+	// ── Split layout (2x1): main panel (chart) + side panel (apps) ─────────
+	const splitBox = isLarge ? null : new St.BoxLayout({
 		orientation: Clutter.Orientation.HORIZONTAL,
 		style_class: 'screentime-widget',
 		x_expand: true,
@@ -193,7 +241,15 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			clip_to_allocation: true,
 		})
 		: null;
-	const root = compactSquare ? compactBox : splitBox;
+	// 2x2: vertical stack card — header, full-width chart, top-app legend
+	// and the two-column app band stretched over the remaining bottom.
+	const largeRoot = isLarge
+		? new St.BoxLayout({
+			orientation: Clutter.Orientation.VERTICAL,
+			clip_to_allocation: true,
+		})
+		: null;
+	const root = compactSquare ? compactBox : (isLarge ? largeRoot : splitBox);
 	body.add_child(root);
 
 	// Glass paints a blurred wallpaper backdrop BEHIND the widget and
@@ -206,25 +262,51 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	const sideBase = shadePanelColor(bgColor, SIDE_PANEL_LIGHTEN);
 	const sideBg = isGlass ? cssColorToRgba(sideBase, 0.25) : sideBase;
 
-	const leftPanel = new St.BoxLayout({
+	// The 2x2 stack has no side panels: the widget's own background shows
+	// through above the app band.
+	const leftPanel = !splitBox ? null : new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
 		y_expand: true,
 		clip_to_allocation: true,
 		style: `background-color: ${leftBg}; border-radius: ${radius}px 0 0 ${radius}px;`,
 	});
-	splitBox.add_child(leftPanel);
+	if (splitBox)
+		splitBox.add_child(leftPanel);
 
-	const rightPanel = new St.BoxLayout({
+	const rightPanel = !splitBox ? null : new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
 		y_expand: true,
 		clip_to_allocation: true,
 		style: `background-color: ${sideBg}; border-radius: 0 ${radius}px ${radius}px 0;`,
 	});
-	splitBox.add_child(rightPanel);
+	if (splitBox)
+		splitBox.add_child(rightPanel);
 
-	// ── Header: total time (left) + date/nav (right column) ────────────────
+	// ── Header: avatar (2x2 only) + total time + date/nav (right column) ───
 	const headerBox = new St.BoxLayout({ orientation: Clutter.Orientation.HORIZONTAL });
-	(compactSquare ? compactBox : leftPanel).add_child(headerBox);
+	if (compactSquare)
+		compactBox.add_child(headerBox);
+	else if (isLarge)
+		largeRoot.add_child(headerBox);
+	else
+		leftPanel.add_child(headerBox);
+
+	// 2x2 header opens with the small circular avatar badge before the total.
+	let avatarBadge = null;
+	if (isLarge) {
+		avatarBadge = new St.Widget({
+			layout_manager: new Clutter.BinLayout(),
+			width: AVATAR_SIZE_PX,
+			height: AVATAR_SIZE_PX,
+			style: `border-radius: 999px; background-color: ${cssColorToRgba(accentHex, 0.16)};`,
+		});
+		avatarBadge.add_child(new St.Icon({
+			icon_name: 'avatar-default-symbolic',
+			icon_size: 14,
+			style: `color: ${textColor}; opacity: 0.85;`,
+		}));
+		headerBox.add_child(avatarBadge);
+	}
 
 	const totalTimeLabel = new St.Label({
 		text: '0m',
@@ -234,8 +316,10 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	});
 	headerBox.add_child(totalTimeLabel);
 
+	// Date + arrows form one row on the 2x2 card (a flatter header leaves the
+	// app band three rows); the 2x1 keeps the compact vertical stack.
 	const controlsColumn = new St.BoxLayout({
-		orientation: Clutter.Orientation.VERTICAL,
+		orientation: isLarge ? Clutter.Orientation.HORIZONTAL : Clutter.Orientation.VERTICAL,
 		x_align: Clutter.ActorAlign.END,
 		style: 'spacing: 6px;',
 	});
@@ -245,6 +329,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 	const dateLabel = new St.Label({
 		text: '',
+		y_align: Clutter.ActorAlign.CENTER,
 		style: `color: ${textColor}; font-size: ${DATE_LABEL_FONT_SIZE_PX}px; `
 			+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY};`,
 	});
@@ -365,8 +450,15 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	let xAxisBox = null;
 	let yAxisLabels = null;
 	if (config.showChart) {
-		chartWrap = new St.Widget({ x_expand: true, y_expand: true });
-		(compactSquare ? compactBox : leftPanel).add_child(chartWrap);
+		// The 2x2 stack gives the chart a fixed height in applyLayout (the
+		// app band absorbs the rest), so no y-expansion there.
+		chartWrap = new St.Widget({ x_expand: true, y_expand: !isLarge });
+		if (compactSquare)
+			compactBox.add_child(chartWrap);
+		else if (isLarge)
+			largeRoot.add_child(chartWrap);
+		else
+			leftPanel.add_child(chartWrap);
 
 		chartCanvas = new St.DrawingArea();
 		chartWrap.add_child(chartCanvas);
@@ -389,7 +481,11 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		const xAxisSpec = compactSquare
 			// Compact: same 00/12/24 marks as the wide cards, shortened.
 			? [['00', Clutter.ActorAlign.START], ['12', Clutter.ActorAlign.CENTER], ['24', Clutter.ActorAlign.END]]
-			: [['00:00', Clutter.ActorAlign.START], ['12:00', Clutter.ActorAlign.CENTER], ['24:00', Clutter.ActorAlign.END]];
+			: (isLarge
+				// 2x2: quarter-day marks like the reference design.
+				? [['00', Clutter.ActorAlign.START], ['06', Clutter.ActorAlign.CENTER],
+					['12', Clutter.ActorAlign.CENTER], ['18', Clutter.ActorAlign.END]]
+				: [['00:00', Clutter.ActorAlign.START], ['12:00', Clutter.ActorAlign.CENTER], ['24:00', Clutter.ActorAlign.END]]);
 		const xAxisLabels = xAxisSpec.map(([text, xAlign]) => new St.Label({
 			text,
 			x_expand: true,
@@ -434,12 +530,16 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				ctx.moveTo(x, 0);
 				ctx.lineTo(x, canvasHeight);
 			} else {
-				for (let i = 0; i < 3; i++) {
-					const y = Math.round((canvasHeight / 2) * i) + 0.5;
+				for (const yFrac of [0, 0.5, 1]) {
+					const y = Math.round(canvasHeight * yFrac) + 0.5;
 					ctx.moveTo(0, y);
 					ctx.lineTo(canvasWidth, y);
-
-					const x = Math.round((canvasWidth / 2) * i) + 0.5;
+				}
+				// The 2x2 card marks quarter days (00/06/12/18); the split
+				// layout keeps the old half-day thirds.
+				const xStops = state.geometry.largeChart ? [0.25, 0.5, 0.75] : [0, 0.5, 1];
+				for (const xFrac of xStops) {
+					const x = Math.round(canvasWidth * xFrac) + 0.5;
 					ctx.moveTo(x, 0);
 					ctx.lineTo(x, canvasHeight);
 				}
@@ -450,13 +550,17 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const hours = state.snapshot ? state.snapshot.hours : [];
 			const scaleMax = computeScaleMaxSeconds(hours);
 			const accent = parseCssColor(accentHex);
-			ctx.setSourceRGBA(accent.r, accent.g, accent.b, 1);
+			// A bucket is painted in its dominant app's stable color; the day's
+			// top app keeps the theme accent (the legend chip matches).
+			const hourKeys = state.snapshot ? state.snapshot.hourKeys ?? null : null;
+			const topKey = state.snapshot && state.snapshot.apps[0]
+				? state.snapshot.apps[0].key : null;
 			// The compact card fits 24 bars edge-to-edge: the bar width is
 			// derived from the plot with a guaranteed gap, min 3px, so the
 			// bars stay readable at 1x1 instead of hairline-thin.
 			const barWidth = state.chartCompact
 				? Math.max(3, Math.round((canvasWidth / HOURS_PER_DAY) * 0.62))
-				: Math.round(BAR_WIDTH_PX * s);
+				: Math.round((state.geometry.largeBarWidth || BAR_WIDTH_PX) * s);
 			const barRadius = Math.round(barWidth / 2);
 
 			for (let hour = 0; hour < hours.length; hour++) {
@@ -466,19 +570,50 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				const x = centerX - (barWidth / 2);
 				const y = canvasHeight - barHeight;
 
+				const bucketKey = hourKeys ? hourKeys[hour] : null;
+				const barColor = (bucketKey && bucketKey !== topKey)
+					? appChartColor(bucketKey, isLightBg) : accent;
+				ctx.setSourceRGBA(barColor.r, barColor.g, barColor.b, 1);
+
 				ctx.newSubPath();
 				ctx.arc(x + barRadius, y + barRadius, barRadius, Math.PI, 1.5 * Math.PI);
 				ctx.arc(x + barWidth - barRadius, y + barRadius, barRadius, 1.5 * Math.PI, 2 * Math.PI);
 				ctx.lineTo(x + barWidth, canvasHeight);
 				ctx.lineTo(x, canvasHeight);
 				ctx.closePath();
+				ctx.fill();
 			}
-			ctx.fill();
 			ctx.$dispose();
 		});
 	}
 
-	// ── App list (side panel) ──────────────────────────────────────────────
+	// ── 2x2 stack: top-app legend + two-column bottom band ─────────────────
+	let legendBox = null;
+	let appsBand = null;
+	let bandColumns = null;
+	if (isLarge) {
+		legendBox = new St.BoxLayout({
+			orientation: Clutter.Orientation.HORIZONTAL,
+		});
+		largeRoot.add_child(legendBox);
+
+		// The band stretches over whatever the chart leaves free so its tint
+		// always reaches the widget's bottom edge.
+		appsBand = new St.BoxLayout({
+			orientation: Clutter.Orientation.HORIZONTAL,
+			y_expand: true,
+			clip_to_allocation: true,
+		});
+		bandColumns = [0, 1].map(() => new St.BoxLayout({
+			orientation: Clutter.Orientation.VERTICAL,
+			x_expand: true,
+			y_align: Clutter.ActorAlign.START,
+		}));
+		bandColumns.forEach(column => appsBand.add_child(column));
+		largeRoot.add_child(appsBand);
+	}
+
+	// ── App list (2x1 side panel) ──────────────────────────────────────────
 	const appRowsBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
 		x_expand: true,
@@ -488,7 +623,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		style: 'spacing: 14px;',
 	});
 	// The compact 1x1 card carries no app rows; the box stays detached.
-	if (!compactSquare)
+	// The 2x2 card has the band instead.
+	if (!compactSquare && !isLarge)
 		rightPanel.add_child(appRowsBox);
 
 	// Acquire tracking: engine starts collecting data when first widget acquires
@@ -595,7 +731,141 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		yAxisLabels.forEach((label, index) => label.set_text(labels[index]));
 	}
 
+	function resolveAppName(appKey) {
+		try {
+			const info = resolveDesktopAppInfo(appKey);
+			return info ? (info.get_name() || appKey) : appKey;
+		} catch (e) {
+			return appKey;
+		}
+	}
+
+	// Shared row builder: the 2x1 side panel shows icon + duration only; the
+	// 2x2 band adds the app name between icon and duration.
+	function buildAppRow(app, px, withName) {
+		// Icon pinned left, the label right after it — every value starts at
+		// the same x so short ("6m") and long ("1h 53m") stay aligned.
+		const row = new St.BoxLayout({
+			orientation: Clutter.Orientation.HORIZONTAL,
+			x_align: Clutter.ActorAlign.FILL,
+			style: 'spacing: 10px;',
+		});
+
+		const iconSlot = new St.Widget({
+			layout_manager: new Clutter.BinLayout(),
+			width: px(APP_ICON_SIZE_PX),
+			height: px(APP_ICON_SIZE_PX),
+		});
+		const appIcon = new St.Icon({
+			icon_name: 'application-x-generic',
+			icon_size: px(APP_ICON_SIZE_PX),
+		});
+		const appInfo = resolveDesktopAppInfo(app.key);
+		const gicon = appInfo ? appInfo.get_icon() : null;
+		if (gicon)
+			appIcon.gicon = gicon;
+		iconSlot.add_child(appIcon);
+		row.add_child(iconSlot);
+
+		if (withName) {
+			const nameLabel = new St.Label({
+				text: resolveAppName(app.key),
+				x_expand: true,
+				y_align: Clutter.ActorAlign.CENTER,
+				style: `color: ${textColor}; font-size: ${px(APP_BAND_FONT_SIZE_PX)}px; `
+					+ `font-weight: 600; opacity: 0.92;`,
+			});
+			nameLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+			row.add_child(nameLabel);
+
+			const durationLabel = new St.Label({
+				text: formatCompactDuration(app.seconds),
+				y_align: Clutter.ActorAlign.CENTER,
+				style: `color: ${textColor}; font-size: ${px(APP_BAND_FONT_SIZE_PX)}px; `
+					+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY};`,
+			});
+			row.add_child(durationLabel);
+		} else {
+			const durationLabel = new St.Label({
+				text: formatCompactDuration(app.seconds),
+				x_expand: true,
+				y_align: Clutter.ActorAlign.CENTER,
+				style: `color: ${textColor}; font-size: ${px(APP_TIME_FONT_SIZE_PX)}px; `
+					+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY};`,
+			});
+			durationLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+			row.add_child(durationLabel);
+		}
+
+		return row;
+	}
+
+	// 2x2 legend: the top apps in their palette colors, spread across the row —
+	// the same colors the hour bars paint for each app's dominant buckets.
+	function rebuildLegend() {
+		legendBox.destroy_all_children();
+		const s = state.geometry.scale || 1;
+		const chips = state.snapshot.apps.slice(0, LEGEND_TOP_APPS);
+		if (chips.length === 0) {
+			legendBox.add_child(new St.Label({
+				text: _('No activity recorded'),
+				x_expand: true,
+				x_align: Clutter.ActorAlign.START,
+				style: `color: ${textColor}; font-size: ${Math.max(1, Math.round(LEGEND_FONT_SIZE_PX * s))}px; `
+					+ `font-weight: 700; opacity: ${SECONDARY_TEXT_OPACITY};`,
+			}));
+			return;
+		}
+		const chipAligns = [
+			Clutter.ActorAlign.START, Clutter.ActorAlign.CENTER, Clutter.ActorAlign.END,
+		];
+		for (let i = 0; i < chips.length; i++) {
+			const chip = new St.Label({
+				text: `${resolveAppName(chips[i].key)}  ${formatCompactDuration(chips[i].seconds)}`,
+				x_expand: true,
+				x_align: chipAligns[i],
+				style: `color: ${i === 0 ? accentHex : appPaletteCss(chips[i].key, isLightBg)}; `
+					+ `font-size: ${Math.max(1, Math.round(LEGEND_FONT_SIZE_PX * s))}px; font-weight: 700;`,
+			});
+			chip.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+			legendBox.add_child(chip);
+		}
+	}
+
+	// 2x2 band: two columns, filled left column first (apps 0..n-1 left,
+	// n..2n-1 right), rows of icon + name + duration.
+	function rebuildAppBand() {
+		bandColumns.forEach(column => column.destroy_all_children());
+		const s = state.geometry.scale || 1;
+		const px = (v) => Math.max(1, Math.round(v * s));
+		const rows = state.geometry.bandRows || 1;
+		const apps = state.snapshot.apps.slice(0, Math.min(rows * 2, config.maxApps));
+
+		if (apps.length === 0) {
+			bandColumns[0].add_child(new St.Label({
+				text: _('No activity recorded'),
+				style: `color: ${textColor}; font-size: ${px(APP_BAND_FONT_SIZE_PX)}px; `
+					+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY};`,
+			}));
+			return;
+		}
+
+		for (let i = 0; i < apps.length; i++) {
+			try {
+				const column = bandColumns[i < rows ? 0 : 1];
+				column.add_child(buildAppRow(apps[i], px, true));
+			} catch (e) {
+				// Keep the rest of the band intact if one row fails to build.
+			}
+		}
+	}
+
 	function rebuildAppList() {
+		if (isLarge) {
+			rebuildLegend();
+			rebuildAppBand();
+			return;
+		}
 		appRowsBox.destroy_all_children();
 
 		// Cap the list to the rows that actually fit the side panel's height —
@@ -630,39 +900,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			try {
 				// Icon pinned left, duration immediately after it — every value
 				// starts at the same x so short ("6m") and long ("1h 53m") stay aligned.
-				const row = new St.BoxLayout({
-					orientation: Clutter.Orientation.HORIZONTAL,
-					x_align: Clutter.ActorAlign.FILL,
-					style: 'spacing: 10px;',
-				});
-
-				const iconSlot = new St.Widget({
-					layout_manager: new Clutter.BinLayout(),
-					width: px(APP_ICON_SIZE_PX),
-					height: px(APP_ICON_SIZE_PX),
-				});
-				const appIcon = new St.Icon({
-					icon_name: 'application-x-generic',
-					icon_size: px(APP_ICON_SIZE_PX),
-				});
-				const appInfo = resolveDesktopAppInfo(app.key);
-				const gicon = appInfo ? appInfo.get_icon() : null;
-				if (gicon)
-					appIcon.gicon = gicon;
-				iconSlot.add_child(appIcon);
-				row.add_child(iconSlot);
-
-				const durationLabel = new St.Label({
-					text: formatCompactDuration(app.seconds),
-					x_expand: true,
-					y_align: Clutter.ActorAlign.CENTER,
-					style: `color: ${textColor}; font-size: ${px(APP_TIME_FONT_SIZE_PX)}px; `
-						+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY};`,
-				});
-				durationLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-				row.add_child(durationLabel);
-
-				appRowsBox.add_child(row);
+				appRowsBox.add_child(buildAppRow(app, px, false));
 			} catch (e) {
 				// Keep the rest of the list intact if one row fails to build.
 			}
@@ -704,6 +942,79 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			xAxisBox.set_size(plotWidth, Math.round(X_AXIS_HEIGHT_PX * s));
 
 			totalTimeLabel.style = `color: ${textColor}; font-size: ${Math.round(HEADER_FONT_SIZE_PX * s * 0.9)}px; font-weight: 600;`;
+
+			renderDynamic();
+			return;
+		}
+
+		if (isLarge) {
+			// ── 2x2 stack layout ──────────────────────────────────────────
+			largeRoot.set_size(currentWidth, currentHeight);
+			const padSide = Math.round(16 * s);
+			const padTop = Math.round(12 * s);
+			const yWidth = Math.round(Y_AXIS_WIDTH_PX * s);
+			const axisH = Math.round(X_AXIS_HEIGHT_PX * s);
+			// Header natural height estimate (avatar/total/nav row) — kept
+			// conservative so the band never claims rows that would overflow.
+			const headerEstimate = Math.round(38 * s);
+			const headerMargin = Math.round(6 * s);
+			const legendMargin = Math.round(6 * s);
+			const legendH = Math.round(LEGEND_FONT_SIZE_PX * 1.6 * s);
+
+			headerBox.style = `margin: ${padTop}px ${padSide}px ${headerMargin}px ${padSide}px;`;
+			avatarBadge.set_size(Math.round(AVATAR_SIZE_PX * s), Math.round(AVATAR_SIZE_PX * s));
+			avatarBadge.style = `border-radius: 999px; background-color: ${cssColorToRgba(accentHex, 0.16)};`
+				+ `margin-right: ${Math.round(10 * s)}px;`;
+			// The one-row header centers the big total against the nav arrows.
+			totalTimeLabel.y_align = Clutter.ActorAlign.CENTER;
+			totalTimeLabel.style = `color: ${textColor}; font-size: ${Math.round(HEADER_FONT_SIZE_PX * s * 0.9)}px; font-weight: 600;`;
+			prevButton.style = `width: ${Math.round(NAV_BUTTON_SIZE_PX * s)}px; height: ${Math.round(NAV_BUTTON_SIZE_PX * s)}px;`
+				+ `border: 1px solid ${textRgba(0.14)}; border-radius: ${Math.round(6 * s)}px; background-color: transparent;`;
+			nextButton.style = prevButton.style;
+
+			// The chart keeps a fixed-height zone; the app band absorbs what is
+			// left so its tint always reaches the bottom edge.
+			const chartZoneH = Math.min(170, Math.max(100, Math.round(currentHeight * 0.34)));
+			const xAxisZone = Math.round(4 * s) + axisH;
+			chartWrap.set_height(chartZoneH + xAxisZone);
+			chartWrap.style = `margin: 0 ${padSide}px;`;
+			legendBox.style = `margin: ${legendMargin}px ${padSide}px;`;
+
+			const plotWidth = Math.max(1, currentWidth - padSide * 2 - yWidth);
+			Object.assign(state.geometry, {
+				plotWidth,
+				plotHeight: chartZoneH,
+				largeChart: true,
+				largeBarWidth: Math.min(12, Math.max(5, Math.round(plotWidth / HOURS_PER_DAY * 0.5))),
+			});
+			chartCanvas.set_position(0, 0);
+			chartCanvas.set_size(plotWidth, chartZoneH);
+			yAxisBox.set_position(plotWidth, 0);
+			yAxisBox.set_size(yWidth, chartZoneH);
+			xAxisBox.set_position(0, chartZoneH + Math.round(4 * s));
+			xAxisBox.set_size(plotWidth, axisH);
+
+			const legendBlock = legendMargin * 2 + legendH;
+			const bandH = Math.max(0, currentHeight - padTop - headerEstimate - headerMargin
+				- (chartZoneH + xAxisZone) - legendBlock);
+			const bandPadT = Math.round(10 * s);
+			const bandPadB = Math.round(12 * s);
+			const bandRowH = Math.max(
+				Math.round(APP_ICON_SIZE_PX * s),
+				Math.round(APP_BAND_FONT_SIZE_PX * s * 1.5),
+			);
+			const bandSpacing = Math.round(10 * s);
+			const rowsFit = Math.floor((bandH - bandPadT - bandPadB + bandSpacing) / (bandRowH + bandSpacing));
+			state.geometry.bandRows = Math.min(LARGE_APP_ROWS_MAX, Math.max(1, rowsFit));
+			// The rebuild trigger compares listHeight: the band height stands in
+			// for the side panel's height so the rows rebuild only when the
+			// geometry really moved.
+			state.geometry.listHeight = bandH;
+			appsBand.style = `background-color: ${sideBg}; border-radius: 0 0 ${radius}px ${radius}px;`
+				+ `padding: ${bandPadT}px ${padSide}px ${bandPadB}px ${padSide}px;`;
+			bandColumns.forEach(column => {
+				column.style = `spacing: ${bandSpacing}px;`;
+			});
 
 			renderDynamic();
 			return;

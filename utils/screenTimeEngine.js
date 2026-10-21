@@ -180,14 +180,23 @@ export const screenTimeEngine = {
 
 	_buildSnapshot(dateString, appsMap) {
 		const hoursAggregate = new Array(HOURS_PER_DAY).fill(0);
+		// Per-hour dominant app (null where the hour has no activity) — the
+		// widgets color hour buckets and legends after it.
+		const hourKeys = new Array(HOURS_PER_DAY).fill(null);
+		const hourPeak = new Array(HOURS_PER_DAY).fill(0);
 		const apps = [];
 		let totalSeconds = 0;
 
 		for (const [key, hours] of appsMap) {
 			let appTotal = 0;
 			for (let hour = 0; hour < hours.length; hour++) {
-				appTotal += hours[hour];
-				hoursAggregate[hour] += hours[hour];
+				const bucket = hours[hour] || 0;
+				appTotal += bucket;
+				hoursAggregate[hour] += bucket;
+				if (bucket > hourPeak[hour]) {
+					hourPeak[hour] = bucket;
+					hourKeys[hour] = key;
+				}
 			}
 			totalSeconds += appTotal;
 			if (appTotal > 0)
@@ -195,7 +204,7 @@ export const screenTimeEngine = {
 		}
 
 		apps.sort((a, b) => b.seconds - a.seconds);
-		return { date: dateString, totalSeconds, apps, hours: hoursAggregate };
+		return { date: dateString, totalSeconds, apps, hours: hoursAggregate, hourKeys };
 	},
 
 	_start() {
