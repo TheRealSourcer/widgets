@@ -82,6 +82,13 @@ function dwControlIcon(iconName, suffix, size, fallbackName, fallbackColor) {
 	return icon;
 }
 
+// Ghost controls read against the surface: the white wash was invisible
+// on light cards, so light mode draws an ink wash plus a visible outline;
+// dark keeps the tuned look.
+function ghostBorderColor(theme) {
+	return theme?.dark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.18)';
+}
+
 function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const textColor = theme.text;
 	const mutedColor = theme.muted;
@@ -199,7 +206,10 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			can_focus: true,
 			child: new St.Label({ text, style: `color: ${textColor};` }),
 			style: `font-size: ${px(big ? 20 : 16)}px; width: ${px(42)}px; height: ${px(big ? 36 : 32)}px; ` +
-				`background-color: rgba(255, 255, 255, ${big ? 0.1 : 0.08}); border-radius: ${px(big ? 10 : 8)}px; font-weight: 700;`,
+				(theme.dark
+					? `background-color: rgba(255, 255, 255, ${big ? 0.1 : 0.08}); `
+					: `background-color: rgba(0, 0, 0, 0.05); border: 1px solid ${ghostBorderColor(theme)}; `) +
+				`border-radius: ${px(big ? 10 : 8)}px; font-weight: 700;`,
 		});
 
 		const plusRow = new St.BoxLayout({ style: `spacing: ${px(4)}px;` });

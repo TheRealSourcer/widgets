@@ -70,6 +70,12 @@ function textOnAccentColor(accent) {
 	return lum > 0.55 ? 'rgba(30,30,30,0.92)' : 'rgba(255,255,255,0.92)';
 }
 
+// Ghost buttons read against the surface: the white outline was invisible
+// on light cards, so light mode draws an ink outline instead.
+function ghostBorderColor(theme) {
+	return theme?.dark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.18)';
+}
+
 function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 	const textColor = theme.text;
 	const mutedColor = theme.muted;
@@ -167,7 +173,7 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 			icon_size: px(20),
 			style: `color: ${textColor};`,
 		}),
-		style: `padding: ${px(8)}px ${px(16)}px; border-radius: ${px(8)}px; background-color: transparent; border: 1px solid rgba(255, 255, 255, 0.2);`,
+		style: `padding: ${px(8)}px ${px(16)}px; border-radius: ${px(8)}px; background-color: transparent; border: 1px solid ${ghostBorderColor(theme)};`,
 	});
 
 	buttonsBox.add_child(pauseBtn);
@@ -509,7 +515,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			x_align: Clutter.ActorAlign.CENTER,
 			y_align: Clutter.ActorAlign.CENTER,
 		}),
-		style: `font-size: ${px(19)}px; padding: ${px(12)}px ${px(32)}px; border-radius: ${px(12)}px; background-color: transparent; border: 1px solid rgba(255, 255, 255, 0.2); color: ${textColor}; font-weight: 600;`,
+		style: `font-size: ${px(19)}px; padding: ${px(12)}px ${px(32)}px; border-radius: ${px(12)}px; background-color: transparent; border: 1px solid ${ghostBorderColor(theme)}; color: ${textColor}; font-weight: 600;`,
 	});
 
 	buttonsBox.add_child(pauseBtn);

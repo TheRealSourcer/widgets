@@ -259,6 +259,12 @@ function textOnAccentColor(accent) {
 	return lum > 0.55 ? 'rgba(30,30,30,0.92)' : 'rgba(255,255,255,0.92)';
 };
 
+// Ghost buttons read against the surface: the white outline was invisible
+// on light cards, so light mode draws an ink outline instead.
+function ghostBorderColor(theme) {
+	return theme?.dark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.18)';
+}
+
 function renderSmallTimer({body, theme, sizeForWidget, widget, settings}) {
 	const textColor = theme.text;
 	const mutedColor = theme.muted;
@@ -661,7 +667,7 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 		counterTotalLabel.style = `font-size: ${px(12)}px; color: ${mutedColor}; font-weight: 600;`;
 
 		startBtn.style = `font-size: ${px(13)}px; padding: ${px(10)}px 0; border-radius: ${px(10)}px; background-color: ${accentHex}; color: ${accentTextColor}; font-weight: 600;`;
-		resetBtn.style = `font-size: ${px(13)}px; padding: ${px(10)}px 0; border-radius: ${px(10)}px; background-color: transparent; border: 1px solid rgba(255, 255, 255, 0.2); color: ${textColor}; font-weight: 600;`;
+		resetBtn.style = `font-size: ${px(13)}px; padding: ${px(10)}px 0; border-radius: ${px(10)}px; background-color: transparent; border: 1px solid ${ghostBorderColor(theme)}; color: ${textColor}; font-weight: 600;`;
 
 		timerLabel.style = `font-size: ${px(29)}px; font-weight: 600; color: ${textColor};`;
 		phaseCaption.style = `font-size: ${px(11)}px; color: ${mutedColor}; font-weight: 600; margin-top: ${px(2)}px;`;
