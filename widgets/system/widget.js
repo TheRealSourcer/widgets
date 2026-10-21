@@ -1152,9 +1152,14 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         // is what visibly crosses the pane. Nothing fades, nothing
         // overlaps — at every moment the pane shows page content.
         const oldRow = currentRow;
-        const oldBox = oldRow.get_allocation_box();
-        const pageW = Math.max(1, oldBox.get_width());
-        const pageH = Math.max(1, oldBox.get_height());
+        // The pane box — never the row's own allocation — is authoritative
+        // here: a page handed over an instant ago can still carry a stale
+        // (zero/1px) allocation, and a cross built from it leaves the pane
+        // visually empty until the next layout pass (the journal probe
+        // caught exactly that: handover rowW=0 → next swipe pageW=1).
+        const paneBox = container.get_allocation_box();
+        const pageW = Math.max(1, Math.floor(paneBox.get_width()) - CONTAINER_PAD * 2);
+        const pageH = Math.max(1, Math.floor(paneBox.get_height()) - CONTAINER_PAD * 2);
         console.log(`[debug] sysmon swipe pageW=${pageW} pageH=${pageH} pageKids=${container.get_children().length}`);
 
         if (delta > 0) {
@@ -1178,9 +1183,15 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         strip.x_align = next ? Clutter.ActorAlign.START : Clutter.ActorAlign.END;
         strip.set_size(pageW + base, pageH);
 
-        // The leaving page keeps its card and slides with the strip.
+        // The leaving page keeps its card and slides with the strip. The
+        // strip is a plain fixed-layout Widget — its children keep only
+        // what was set explicitly — so the page gets its full box restated
+        // here exactly like the incoming one; sizing it from the pane's
+        // BinLayout alone would collapse it and its half of the cross
+        // would show nothing at all.
         container.remove_child(oldRow);
         strip.add_child(oldRow);
+        oldRow.set_size(pageW, pageH);
 
         // The incoming page is laid out on the other side of the gap, at
         // the position where it will land — like GNOME's workspaces.
