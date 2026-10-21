@@ -733,16 +733,18 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		current.opacity = 255;
 		current.style = current._styleActive;
 
-		// NOTE: St.ScrollView has no "vscroll" JS property in this runtime —
-		// reading it threw every tick (journaled). The bar comes from the
-		// introspected accessor instead.
-		const scrollBar = typeof card._lyricsScroll.get_vscroll_bar === 'function'
-			? card._lyricsScroll.get_vscroll_bar()
-			: card._lyricsScroll.vscroll;
-		const adjustment = scrollBar ? scrollBar.adjustment : null;
+		// NOTE: St.ScrollView in this runtime answers neither the "vscroll"
+		// JS property nor a get_vscroll_bar() accessor (journaled), while the
+		// St.Scrollable interface exposes the adjustment directly on the
+		// view itself — "vadjustment" (the same field the Shell's own code
+		// reads).
+		const adjustment = card._lyricsScroll.vadjustment ?? null;
 
 		if (!adjustment) {
-			log('[debug] lyrics scroll: no adjustment yet');
+			if (!card._lyricsNoAdjustLogged) {
+				card._lyricsNoAdjustLogged = true;
+				log('[debug] lyrics scroll: no vadjustment on the view');
+			};
 			return;
 		};
 
