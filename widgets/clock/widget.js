@@ -33,7 +33,7 @@ function roundedRectangle(cr, x, y, width, height, radius) {
 
 const AnalogClockFace = GObject.registerClass(
 	class AnalogClockFace extends St.DrawingArea {
-		_init(theme) {
+		_init(theme, smooth = false) {
 			super._init({
 				x_expand: true,
 				y_expand: true,
@@ -42,18 +42,39 @@ const AnalogClockFace = GObject.registerClass(
 			});
 
 			this._dark = theme?.dark ?? false;
+			// Smooth mode (reference clock-analog): the second hand sweeps
+			// continuously and repaints every frame; the default approved
+			// look keeps the 1s step timer below.
+			this._smooth = smooth;
 			const accent = parseCssColor(theme?.accent || DEFAULT_ACCENT);
 			this._accent = [accent.r, accent.g, accent.b];
 
-			this._repaintTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-				if (!this.get_parent()) {
-					this._repaintTimeoutId = 0;
-					return GLib.SOURCE_REMOVE;
-				};
+			if (this._smooth) {
+				this._timeline = new Clutter.Timeline({actor: this, duration: 1000, repeat_count: -1});
+				this._timeline.connect('new-frame', () => this.queue_repaint());
+				this._repaintTimeoutId = 0;
+				// Clutter's map/unmap are vfuncs, not signals — mirror the
+				// digital clock ring's notify::mapped handling.
+				this.connect('notify::mapped', () => {
+					if (!this._timeline)
+						return;
+					if (this.mapped)
+						this._timeline.start();
+					else
+						this._timeline.stop();
+				});
+			} else {
+				this._timeline = null;
+				this._repaintTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+					if (!this.get_parent()) {
+						this._repaintTimeoutId = 0;
+						return GLib.SOURCE_REMOVE;
+					};
 
-				this.queue_repaint();
-				return GLib.SOURCE_CONTINUE;
-			});
+					this.queue_repaint();
+					return GLib.SOURCE_CONTINUE;
+				});
+			}
 
 			this.connect('destroy', this._onDestroy.bind(this));
 		};
@@ -62,6 +83,11 @@ const AnalogClockFace = GObject.registerClass(
 			if (this._repaintTimeoutId) {
 				GLib.Source.remove(this._repaintTimeoutId);
 				this._repaintTimeoutId = 0;
+			};
+
+			if (this._timeline) {
+				this._timeline.stop();
+				this._timeline = null;
 			};
 		};
 
@@ -80,8 +106,10 @@ const AnalogClockFace = GObject.registerClass(
 			const centerY = height / 2;
 			const halfEdge = Math.max(1, size / 2 - TICK_INSET);
 			const hour = now.getHours() % 12;
-			const minute = now.getMinutes();
-			const second = now.getSeconds();
+			// Smooth mode adds the millisecond fraction like the reference
+			// clockAnalog (sec + ms/1000), letting the minute hand follow it.
+			const second = now.getSeconds() + (this._smooth ? now.getMilliseconds() / 1000 : 0);
+			const minute = now.getMinutes() + second / 60;
 			const marks = this._dark ? [0.96, 0.96, 0.96] : [0.14, 0.12, 0.18];
 			const hands = this._dark ? [1, 1, 1] : [0.12, 0.11, 0.16];
 			const centerDot = this._dark ? [0, 0, 0, 0.95] : [1, 1, 1, 0.95];
@@ -117,7 +145,7 @@ const AnalogClockFace = GObject.registerClass(
 			};
 
 			const hourAngle = ((hour + minute / 60) / 12) * Math.PI * 2 - Math.PI / 2;
-			const minuteAngle = ((minute + second / 60) / 60) * Math.PI * 2 - Math.PI / 2;
+			const minuteAngle = (minute / 60) * Math.PI * 2 - Math.PI / 2;
 			const secondAngle = (second / 60) * Math.PI * 2 - Math.PI / 2;
 
 			drawHand(hourAngle, halfEdge * 0.48, 6.2, ...hands);
@@ -139,8 +167,11 @@ export function style(theme) {
   return `background-color: ${theme.background}; border-color: ${theme.border}; border-radius: ${CLOCK_RADIUS}px; padding: 0px;`;
 };
 
-export function render({body, theme}) {
-	const clock = new AnalogClockFace(theme);
+export function render({body, theme, settings}) {
+	const clock = new AnalogClockFace(
+		theme,
+		settings?.get_boolean('clock-smooth-seconds') === true,
+	);
 
 	clock.set_x_expand(true);
 	clock.set_y_expand(true);

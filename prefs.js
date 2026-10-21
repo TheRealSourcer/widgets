@@ -255,6 +255,12 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         weatherPage.set_icon_name('weather-clear-symbolic');
         this._addSidebarPage(weatherPage);
 
+        // Analog Clock page
+        const analogClockPage = this._createAnalogClockPage(settings);
+        analogClockPage.set_title(_('Analog Clock Widget'));
+        analogClockPage.set_icon_name('preferences-system-time-symbolic');
+        this._addSidebarPage(analogClockPage);
+
         // Digital Clock page
         const digitalClockPage = this._createDigitalClockPage(settings);
         digitalClockPage.set_title(_('Digital Clock Widget'));
@@ -1545,6 +1551,30 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             settings.set_boolean('weather-use-accent-color', accentRow.get_active());
         });
         group.add(accentRow);
+
+        page.add(group);
+        return page;
+    }
+
+    _createAnalogClockPage(settings) {
+        const page = new Adw.PreferencesPage();
+        const group = new Adw.PreferencesGroup({
+            title: _('Analog Clock Widget'),
+            description: _('Appearance of the analog clock on your desktop.'),
+            margin_top: 12,
+        });
+
+        // Smooth second hand (reference clock-analog parity): ON sweeps the
+        // hand continuously (ms fraction), OFF keeps the 1s step.
+        const smoothRow = new Adw.SwitchRow({
+            title: _('Smooth second hand'),
+            subtitle: _('Sweep the second hand continuously; off steps once per second'),
+        });
+        smoothRow.set_active(settings.get_boolean('clock-smooth-seconds'));
+        group.add(smoothRow);
+        smoothRow.connect('notify::active', () => {
+            settings.set_boolean('clock-smooth-seconds', smoothRow.get_active());
+        });
 
         page.add(group);
         return page;

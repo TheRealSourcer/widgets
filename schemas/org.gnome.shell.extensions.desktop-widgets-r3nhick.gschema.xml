@@ -141,6 +141,11 @@
       <summary>Smooth second ring</summary>
       <description>Animate the second ring every frame (smooth) or step once per second, like the reference clock-digital toggle's off state.</description>
     </key>
+    <key name="clock-smooth-seconds" type="b">
+      <default>false</default>
+      <summary>Analog clock smooth second hand</summary>
+      <description>When enabled the second hand sweeps continuously (reference clock-analog smooth mode); when disabled it steps once per second.</description>
+    </key>
     <key name="edit-mode-binding" type="as">
       <default>[]</default>
       <summary>Edit mode shortcut</summary>

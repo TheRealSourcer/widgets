@@ -532,6 +532,7 @@ class WidgetController {
       'changed::digitalclock-show-seconds', () => this._scheduleAppearance('refresh'),
       'changed::digitalclock-show-ampm', () => this._scheduleAppearance('refresh'),
       'changed::digitalclock-smooth-seconds', () => this._scheduleAppearance('refresh'),
+      'changed::clock-smooth-seconds', () => this._scheduleAppearance('refresh'),
       'changed::github-use-green', () => this._scheduleAppearance('refresh'),
       'changed::github-username', () => this._scheduleAppearance('refresh'),
       'changed::style-border-radius', () => this._scheduleAppearance('rebuild'),
