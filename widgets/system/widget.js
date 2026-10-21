@@ -1038,10 +1038,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     // whole stripe travels (pages never overlap, nothing fades — the seam
     // between them is the only thing crossing the pane). A plain build
     // (init, theme change) attaches straight to the pane.
-    const rebuild = (attachTo = container) => {
-      if (attachTo === container)
-        container.remove_all_children();
-
+    const buildRow = (attachTo, viewIndex) => {
       currentRow = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
@@ -1050,7 +1047,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         style: `spacing: 10px; background-color: ${theme.background};`,
       }));
 
-      const view = viewConfigs[currentView];
+      const view = viewConfigs[viewIndex];
       tiles = [];
 
       for (const config of view) {
@@ -1071,15 +1068,25 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       }
 
       attachTo.add_child(currentRow);
-      layoutRows = [currentRow];
-      layoutTiles();
 
-      // Falling back to geometry facts from the live logs: report every
-      // allocation change of the active row.
+      // Geometry facts for the live logs: every allocation change of every
+      // built row goes to the journal.
       currentRow.connect('notify::allocation', (actor) => {
         const b = actor.get_allocation_box();
         console.log(`[debug] sysmon rowbox w=${b.get_width()} h=${b.get_height()} x1=${b.x1} y1=${b.y1}`);
       });
+
+      return currentRow;
+    };
+
+    const rebuild = (attachTo = container, viewIndex = currentView) => {
+      if (attachTo === container)
+        container.remove_all_children();
+
+      const row = buildRow(attachTo, viewIndex);
+      layoutRows = [row];
+      layoutTiles();
+      return row;
     };
 
     const onData = (data) => {
@@ -1174,6 +1181,14 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         } else {
           currentView = (currentView + 1) % 3;
         }
+        // Remember the page we are leaving BEFORE currentView moves on.
+        const leavingPageIndex = currentView;
+
+        if (delta > 0) {
+          currentView = (currentView - 1 + 3) % 3;
+        } else {
+          currentView = (currentView + 1) % 3;
+        }
         // Remember the page for the next re-render (theme switch, resize...).
         saveWidgetState(statePath, { view: currentView });
         refreshDashes();
@@ -1190,27 +1205,30 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         strip.x_align = next ? Clutter.ActorAlign.START : Clutter.ActorAlign.END;
         strip.set_size(pageW + base, pageH);
 
-        // The leaving page keeps its card and slides with the strip. The
-        // strip is a plain fixed-layout Widget — its children keep only
-        // what was set explicitly — so the page gets its full box restated
-        // here exactly like the incoming one; sizing it from the pane's
-        // BinLayout alone would collapse it and its half of the cross
-        // would show nothing at all.
-        container.remove_child(oldRow);
-        strip.add_child(oldRow);
-        oldRow.set_size(pageW, pageH);
-
-        // The incoming page is laid out on the other side of the gap, at
-        // the position where it will land — like GNOME's workspaces.
-        rebuild(strip);
-        const newRow = currentRow;
+        // Both pages are twinned fresh inside the strip. Rows built there
+        // always receive a cleanly allocated strip-local box when the strip
+        // gains its allocation, while a row MOVED over from the pane could
+        // keep its stale container box and stay invisible for its half of
+        // the travel (measured on next-direction swipes), so the original
+        // row never travels: it leaves the pane and is destroyed below.
+        const leavingRow = rebuild(strip, leavingPageIndex);
+        leavingRow.set_size(pageW, pageH);
+        const newRow = rebuild(strip);
         newRow.set_size(pageW, pageH);
+
+        // The entering build was the last one, so the live-data loop keeps
+        // pointing at the arriving page. Both pages get tile sizing.
+        container.remove_child(oldRow);
+        oldRow.destroy();
+        layoutRows = [leavingRow, newRow];
+        layoutTiles();
+
         if (next) {
-          oldRow.set_position(0, 0);
+          leavingRow.set_position(0, 0);
           newRow.set_position(base, 0);
         } else {
           newRow.set_position(0, 0);
-          oldRow.set_position(base, 0);
+          leavingRow.set_position(base, 0);
         }
 
         container.add_child(strip);
