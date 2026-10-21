@@ -320,12 +320,12 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// harness numbers. Captions are translated, so only live text counts.
 	const minutesLabel = new St.Label({
 		text: '00',
-		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; width: ${digitSlot}px;`,
 	});
 
 	const minutesCaption = new St.Label({
 		text: _('Minutes'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(30)}px;`,
 	});
 
 	minutesBox.add_child(minutesLabel);
@@ -367,12 +367,12 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const secondsLabel = new St.Label({
 		text: '00',
-		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; width: ${digitSlot}px;`,
 	});
 
 	const secondsCaption = new St.Label({
 		text: _('Seconds'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(27)}px;`,
 	});
 
 	secondsBox.add_child(secondsLabel);
@@ -390,12 +390,12 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	const centisecondsLabel = new St.Label({
 		text: '00',
-		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; width: ${digitSlot}px;`,
 	});
 
 	const centisecondsCaption = new St.Label({
 		text: _('Centiseconds'),
-		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(17)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${px(7)}px;`,
 	});
 
 	centisecondsBox.add_child(centisecondsLabel);
@@ -429,30 +429,22 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	timeBox.connect('notify::allocation', placeRow);
 	placeRow();
 
-	// Ink centering from LIVE extents: captions are translated and even the
-	// digit font may resolve differently than the harness numbers, so the
-	// error is measured and corrected with a paint-only translation.
-	const centerInk = (label) => {
-		let attempts = 0;
-		const align = () => {
-			attempts += 1;
-			const layout = label.get_clutter_text()?.get_layout();
-			const ink = layout ? layout.get_pixel_extents()[0] : null;
-			if (!ink || ink.width <= 0) {
-				if (attempts < 6) {
-					GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, align);
-				};
-				return GLib.SOURCE_REMOVE;
-			};
-			const slotW = label.allocation.get_width();
-			label.translation_x = Math.round((slotW - ink.width) / 2 - ink.x);
-			return GLib.SOURCE_REMOVE;
-		};
-		GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, align);
-	};
-	for (const label of [minutesLabel, secondsLabel, centisecondsLabel, minutesCaption, secondsCaption, centisecondsCaption]) {
-		centerInk(label);
-	};
+	// Ink constants — harness-measured and journal-verified in the shell
+	// (digits ink 46 = 69 * scale exactly): digits '00' at 64px bold Ubuntu
+	// ink 69; captions at 17px/700 ink 63 / 69 / 108 (pads in their styles).
+	// The LIVE get_pixel_extents state turned out timing-dependent — ink.x
+	// flipped between +1 and −14 across identical renders, and with the
+	// flipped value the paint lands ~15px right of slot center, gluing the
+	// colon to the digit to its left. Nothing is measured at runtime now:
+	// digits translate by the constant (slot − 69)/2; captions center
+	// through content==ink padding baked into the styles.
+	// (Ubuntu digits aren't tabular — '01' ink 60 vs '00' 69 — while running
+	// the deviation stays within a couple of paint pixels; tabular-nums is
+	// requested in CSS to tighten that when the font supports it.)
+	const digitAlignment = Math.round((digitSlot - px(69)) / 2);
+	minutesLabel.translation_x = digitAlignment;
+	secondsLabel.translation_x = digitAlignment;
+	centisecondsLabel.translation_x = digitAlignment;
 
 	// DEBUG(probe): one-shot journal dump of the row's real numbers, to
 	// verify against the design (slot 123, gap 8, colon 16). Remove after
@@ -469,7 +461,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			const layout = label.get_clutter_text()?.get_layout();
 			if (!layout) return 'no-layout';
 			const ink = layout.get_pixel_extents()[0];
-			const base = Math.round(col.x + label.allocation.x + ink.x + label.translation_x);
+			const base = Math.round(col.x + label.allocation.get_x() + ink.x + label.translation_x);
 			return `${base}..${base + Math.round(ink.width)}`;
 		};
 		console.warn(`[stopwatch-debug] ink map digits ${absInk(minutesBox, minutesLabel)} | ${absInk(secondsBox, secondsLabel)} | ${absInk(centisecondsBox, centisecondsLabel)} vs sep1 box ${Math.round(separator1.x)} (dot cx ${px(8)}±${px(5)}) sep2 box ${Math.round(separator2.x)}`);
