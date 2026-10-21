@@ -1073,6 +1073,13 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       attachTo.add_child(currentRow);
       layoutRows = [currentRow];
       layoutTiles();
+
+      // Falling back to geometry facts from the live logs: report every
+      // allocation change of the active row.
+      currentRow.connect('notify::allocation', (actor) => {
+        const b = actor.get_allocation_box();
+        console.log(`[debug] sysmon rowbox w=${b.get_width()} h=${b.get_height()} x1=${b.x1} y1=${b.y1}`);
+      });
     };
 
     const onData = (data) => {
@@ -1221,10 +1228,21 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
             if (tornDown) return;
             // The incoming page now sits exactly over the pane box: hand
             // it to the pane and dissolve the strip with the leaving page.
+            // The row carries its strip-local position (base,0) and possibly
+            // a stale strip box — restate the pane box explicitly and nudge
+            // the layout, otherwise the Bin may skip the pass and the pane
+            // reads as an empty widget (the rank of the after-swipe bug).
             strip.remove_child(newRow);
             container.add_child(newRow);
+            newRow.set_position(0, 0);
+            newRow.set_size(pageW, pageH);
             strip.destroy();
+            container.queue_relayout();
             layoutTiles();
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 60, () => {
+              if (!tornDown) layoutTiles();
+              return GLib.SOURCE_REMOVE;
+            });
             const b = newRow.get_allocation_box();
             console.log(`[debug] sysmon handover pageKids=${container.get_children().length} rowW=${b.get_width()} rowH=${b.get_height()}`);
           },
