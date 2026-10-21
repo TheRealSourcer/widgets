@@ -551,18 +551,17 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	const lyricStyleInactive = `font-size: ${lyrFont}px; color: ${theme.muted};`;
 	const lyricStyleActive = `font-size: ${lyrFont}px; font-weight: 700; color: ${theme.accent};`;
 
-	card.lyricsPanel = new St.BoxLayout(boxLayoutProps({
-		vertical: true,
+	// Panel = a Bin: the lyrics feed fills it, the hint floats centered,
+	// the music icon stays top-right ABOVE the feed so the area keeps its
+	// corner anchor while the overlay is open.
+	card.lyricsPanel = new St.Widget({
+		layout_manager: new Clutter.BinLayout(),
 		x_expand: true,
 		y_expand: true,
 		visible: false,
-		style: `background-color: ${theme.background}; border-radius: ${coverRadius}px; padding: 10px 14px; spacing: 5px;`,
-	}));
-
-	card._lyricsHint = createLabel('…', 'widget-music-lyric',
-		`font-size: ${Math.max(9, lyrFont - 2)}px; color: ${theme.muted};`);
-	card._lyricsHint.clutter_text.single_line_mode = true;
-	card._lyricsHint.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+		reactive: true,
+		style: `background-color: ${theme.background}; border-radius: ${coverRadius}px; padding: 10px 14px;`,
+	});
 
 	card._lyricsBox = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
@@ -571,12 +570,29 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	card._lyricsScroll = new St.ScrollView({x_expand: true, y_expand: true});
 	card._lyricsScroll.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
 	card._lyricsScroll.add_child(card._lyricsBox);
-
-	card.lyricsPanel.add_child(card._lyricsHint);
 	card.lyricsPanel.add_child(card._lyricsScroll);
+
+	const hintFont = Math.max(14, Math.round(widgetHeight * 0.11));
+	card._lyricsHint = createLabel('…', 'widget-music-lyric',
+		`font-size: ${hintFont}px; font-weight: 700; color: ${theme.text};`);
+	card._lyricsHint.clutter_text.single_line_mode = true;
+	card._lyricsHint.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+	card._lyricsHint.x_align = Clutter.ActorAlign.CENTER;
+	card._lyricsHint.y_align = Clutter.ActorAlign.CENTER;
+	card.lyricsPanel.add_child(card._lyricsHint);
+
+	card._lyricsBadge = new St.Icon({
+		gicon: controlIcon(theme, 'music'),
+		x_align: Clutter.ActorAlign.END,
+		y_align: Clutter.ActorAlign.START,
+		reactive: false,
+		style: 'icon-size: 18px; margin: 2px 2px 0 0;',
+	});
+	card.lyricsPanel.add_child(card._lyricsBadge);
+
 	// The panel covers the whole card, so a click anywhere on it returns to
-	// the normal card (the toggle icon sits beneath the overlay).
-	card.lyricsPanel.reactive = true;
+	// the normal card (including the badge — it is a passive mirror of the
+	// toggle icon beneath).
 	card.lyricsPanel.connect('button-press-event', () => {
 		card.toggleLyrics();
 		return Clutter.EVENT_PROPAGATE;
