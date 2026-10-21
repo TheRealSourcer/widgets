@@ -336,16 +336,16 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// clock's style: fat round dots instead of the thin font glyph. Geometry
 	// from the target look: dot radius 5 units, centers 18 units apart, the
 	// stack leaning toward the digit baseline (center at +33 of the ~49-tall
-	// ink row). Drawn from the row top, unaffected by cross-axis rules.
+	// ink row). Paint coordinates come from the KNOWN design constants, not
+	// the surface size — an undead surface report can't shift the dots.
 	const buildColon = () => {
 		const area = new St.DrawingArea();
 		area.connect('repaint', (canvas) => {
 			const ctx = canvas.get_context();
 			const rgb = parseCssColor(textColor) ?? {r: 1, g: 1, b: 1, a: 1};
 			ctx.setSourceRGBA(rgb.r, rgb.g, rgb.b, 1);
-			const [w] = canvas.get_surface_size();
-			const cx = Math.round(w / 2);
-			const cy = Math.round(px(33));
+			const cx = px(8);
+			const cy = px(33);
 			const r = px(5);
 			for (const dy of [-px(9), px(9)]) {
 				ctx.arc(cx, cy + dy, r, 0, 2 * Math.PI);
@@ -465,6 +465,14 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		};
 		console.warn(`[stopwatch-debug] row alloc ${Math.round(timeBox.allocation.get_width())}x${Math.round(timeBox.allocation.get_height())} tx ${Math.round(timeBox.translation_x)} | ${[minutesBox, separator1, secondsBox, separator2, centisecondsBox].map(geo).join(' | ')}`);
 		console.warn(`[stopwatch-debug] digit tx ${[minutesLabel, secondsLabel, centisecondsLabel].map((l) => Math.round(l.translation_x)).join(' / ')} ink ${inkOf(minutesLabel)} ${inkOf(secondsLabel)} ${inkOf(centisecondsLabel)}`);
+		const absInk = (col, label) => {
+			const layout = label.get_clutter_text()?.get_layout();
+			if (!layout) return 'no-layout';
+			const ink = layout.get_pixel_extents()[0];
+			const base = Math.round(col.x + label.allocation.x + ink.x + label.translation_x);
+			return `${base}..${base + Math.round(ink.width)}`;
+		};
+		console.warn(`[stopwatch-debug] ink map digits ${absInk(minutesBox, minutesLabel)} | ${absInk(secondsBox, secondsLabel)} | ${absInk(centisecondsBox, centisecondsLabel)} vs sep1 box ${Math.round(separator1.x)} (dot cx ${px(8)}±${px(5)}) sep2 box ${Math.round(separator2.x)}`);
 		console.warn(`[stopwatch-debug] caption ink ${inkOf(minutesCaption)} ${inkOf(secondsCaption)} ${inkOf(centisecondsCaption)} | texts: ${[minutesCaption, secondsCaption, centisecondsCaption].map((l) => String(l.text)).join(' / ')}`);
 		return GLib.SOURCE_REMOVE;
 	});
