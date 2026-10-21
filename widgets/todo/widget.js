@@ -225,10 +225,9 @@ export function render({ body, widget, theme, sizeForWidget }) {
 
         const textLabel = new St.Label({
             x_expand: true,
-            // Take the full row height and center the text inside: the
-            // fixed-size circle is what sets a one-line row's height, so a
-            // START-aligned title rode high next to it (user-visible).
-            y_expand: true,
+            // The codebase's own proven idiom (github card): the label
+            // centers itself in the row height — y_expand inflated the row
+            // instead (user-visible).
             y_align: Clutter.ActorAlign.CENTER,
             style: `font-size: ${fontSize}px; color: ${textColor};`,
         });
