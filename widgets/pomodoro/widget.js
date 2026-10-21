@@ -252,11 +252,13 @@ function drawCircularArc(ctx, width, height, progress, accent, track, isRunning)
 	ctx.stroke();
 };
 
-function textOnAccentColor(accent) {
+function textOnAccentColor(accent, theme) {
 	const { r, g, b } = parseCssColor(accent);
 	const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-
-	return lum > 0.45 ? '#000000' : '#ffffff';
+	
+	// Dark theme needs higher threshold to avoid dark text on dark accent
+	const threshold = theme?.dark ? 0.6 : 0.45;
+	return lum > threshold ? '#000000' : '#ffffff';
 };
 
 // Ghost buttons read against the surface: the white outline was invisible
@@ -475,7 +477,7 @@ function renderMediumFocus({body, theme, sizeForWidget, widget, settings}) {
 	const textColor = theme.text;
 	const mutedColor = theme.muted;
 	const accentHex = accentColor(theme);
-	const accentTextColor = textOnAccentColor(accentHex);
+	const accentTextColor = textOnAccentColor(accentHex, theme);
 	const [width, height] = sizeForWidget(widget);
 	const contentW = width - 34;
 	const contentH = height - 34;
