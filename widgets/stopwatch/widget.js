@@ -294,47 +294,43 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 
 	body.add_child(mainBox);
 
-	// Time display container
-	const timeBox = new St.BoxLayout({
-		orientation: Clutter.Orientation.HORIZONTAL,
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: ${px(8)}px;`,
-	});
+	// Time display container — a plain St.Widget with hand-set positions.
+	// BoxLayout semantics have drifted this row too many times (full cross
+	// sizes, ignored child aligns), so nothing depends on alignment anymore:
+	// every child gets exact design offsets and the row centers itself with
+	// a paint-only translation, whatever width the vertical mainBox hands it.
+	const timeBox = new St.Widget();
+
+	// One shared digit slot for all three columns plus fixed 16-unit colon
+	// blocks between them: 3*123 + 2*16 + 4*8 = 457 units ≤ 540 canvas.
+	const digitSlot = px(123);
+	const colonSlot = px(16);
+	const colonGap = px(8);
+	const timeRowW = digitSlot * 3 + colonSlot * 2 + colonGap * 4;
+	const timeRowH = px(88);
 
 	// Minutes
 	const minutesBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
-		x_align: Clutter.ActorAlign.CENTER,
 		style: `spacing: ${px(4)}px;`,
 	});
 
-	// All three digit columns share ONE fixed slot; the ink is centered
-	// INSIDE every slot with exact symmetric padding (slot minus measured
-	// ink, halved) — paint alignment semantics can't drift it. Slot 123
-	// keeps the whole row inside the 540-unit design canvas with air to
-	// spare for the target look.
-	const digitSlot = px(123);
-	// Measured at 64px bold Ubuntu: digits ink 69.
-	const digitPad = px(27);
-	// Captions at 14px 600 (target look): inks 55 / 60 / 95.
-	const minutesCaptionPad = px(34);
-	const secondsCaptionPad = px(31);
-	const centisecondsCaptionPad = px(14);
-
+	// Ink is centered at runtime from the text's measured extents — no
+	// hardcoded pads, nothing to drift if the real font differs from the
+	// harness numbers. Captions are translated, so only live text counts.
 	const minutesLabel = new St.Label({
 		text: '00',
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${digitPad}px;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
 	});
 
 	const minutesCaption = new St.Label({
 		text: _('Minutes'),
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${minutesCaptionPad}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px;`,
 	});
 
 	minutesBox.add_child(minutesLabel);
 	minutesBox.add_child(minutesCaption);
+	minutesBox.set_size(digitSlot, timeRowH);
 
 	// Two-dot colon separators drawn in canvas, in the reference digital
 	// clock's style: fat round dots instead of the thin font glyph. Geometry
@@ -342,10 +338,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// stack leaning toward the digit baseline (center at +33 of the ~49-tall
 	// ink row). Drawn from the row top, unaffected by cross-axis rules.
 	const buildColon = () => {
-		const area = new St.DrawingArea({
-			width: px(16),
-			height: px(50),
-		});
+		const area = new St.DrawingArea();
 		area.connect('repaint', (canvas) => {
 			const ctx = canvas.get_context();
 			const rgb = parseCssColor(textColor) ?? {r: 1, g: 1, b: 1, a: 1};
@@ -360,6 +353,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 			};
 			ctx.$dispose();
 		});
+		area.set_size(colonSlot, timeRowH);
 		return area;
 	};
 
@@ -368,24 +362,22 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// Seconds
 	const secondsBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
-		x_align: Clutter.ActorAlign.CENTER,
 		style: `spacing: ${px(4)}px;`,
 	});
 
 	const secondsLabel = new St.Label({
 		text: '00',
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${digitPad}px;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
 	});
 
 	const secondsCaption = new St.Label({
 		text: _('Seconds'),
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${secondsCaptionPad}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px;`,
 	});
 
 	secondsBox.add_child(secondsLabel);
 	secondsBox.add_child(secondsCaption);
+	secondsBox.set_size(digitSlot, timeRowH);
 
 	// Separator (two-dot canvas, same builder)
 	const separator2 = buildColon();
@@ -393,30 +385,89 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// Centiseconds
 	const centisecondsBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
-		x_align: Clutter.ActorAlign.CENTER,
 		style: `spacing: ${px(4)}px;`,
 	});
 
 	const centisecondsLabel = new St.Label({
 		text: '00',
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px; padding: 0 ${digitPad}px;`,
+		style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(64)}px; font-weight: 700; width: ${digitSlot}px;`,
 	});
 
 	const centisecondsCaption = new St.Label({
 		text: _('Centiseconds'),
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `color: ${mutedColor}; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px; padding: 0 ${centisecondsCaptionPad}px;`,
+		style: `color: ${mutedColor}; font-family: Ubuntu; font-size: ${px(14)}px; font-weight: 600; width: ${digitSlot}px;`,
 	});
 
 	centisecondsBox.add_child(centisecondsLabel);
 	centisecondsBox.add_child(centisecondsCaption);
+	centisecondsBox.set_size(digitSlot, timeRowH);
 
+	// Exact hand offsets: [slot][gap][colon][gap][slot][gap][colon][gap][slot].
+	// A plain parent never repositions children, so these allocations are
+	// final — no BoxLayout packing can move anything.
+	timeBox.set_size(timeRowW, timeRowH);
+	let timeX = 0;
+	const placeAt = (child, w) => {
+		child.set_position(timeX, 0);
+		timeX += w + colonGap;
+	};
+	placeAt(minutesBox, digitSlot);
+	placeAt(separator1, colonSlot);
+	placeAt(secondsBox, digitSlot);
+	placeAt(separator2, colonSlot);
+	placeAt(centisecondsBox, digitSlot);
 	timeBox.add_child(minutesBox);
 	timeBox.add_child(separator1);
 	timeBox.add_child(secondsBox);
 	timeBox.add_child(separator2);
 	timeBox.add_child(centisecondsBox);
+
+	// The vertical mainBox gives every child the full cross width and
+	// ignores x_align — center the row over its allocation, paint-only.
+	timeBox.connect('notify::allocation', () => {
+		const slack = timeBox.get_allocated_width() - timeRowW;
+		timeBox.translation_x = slack > 0 ? Math.round(slack / 2) : 0;
+	});
+
+	// Ink centering from LIVE extents: captions are translated and even the
+	// digit font may resolve differently than the harness numbers, so the
+	// error is measured and corrected with a paint-only translation.
+	const centerInk = (label) => {
+		let attempts = 0;
+		const align = () => {
+			attempts += 1;
+			const layout = label.get_clutter_text()?.get_layout();
+			const ink = layout ? layout.get_pixel_extents()[0] : null;
+			if (!ink || ink.width <= 0) {
+				if (attempts < 6) {
+					GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, align);
+				};
+				return GLib.SOURCE_REMOVE;
+			};
+			const slotW = label.get_allocated_width();
+			label.translation_x = Math.round((slotW - ink.width) / 2 - ink.x);
+			return GLib.SOURCE_REMOVE;
+		};
+		GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, align);
+	};
+	for (const label of [minutesLabel, secondsLabel, centisecondsLabel, minutesCaption, secondsCaption, centisecondsCaption]) {
+		centerInk(label);
+	};
+
+	// DEBUG(probe): one-shot journal dump of the row's real numbers, to
+	// verify against the design (slot 123, gap 8, colon 16). Remove after
+	// the next verification round.
+	GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2500, () => {
+		const geo = (c) => `${Math.round(c.x)},${Math.round(c.y)} ${Math.round(c.get_allocated_width())}x${Math.round(c.get_allocated_height())}`;
+		const inkOf = (label) => {
+			const layout = label.get_clutter_text()?.get_layout();
+			return layout ? Math.round(layout.get_pixel_extents()[0].width) : -1;
+		};
+		console.warn(`[stopwatch-debug] row alloc ${Math.round(timeBox.get_allocated_width())}x${Math.round(timeBox.get_allocated_height())} tx ${Math.round(timeBox.translation_x)} | ${[minutesBox, separator1, secondsBox, separator2, centisecondsBox].map(geo).join(' | ')}`);
+		console.warn(`[stopwatch-debug] digit tx ${[minutesLabel, secondsLabel, centisecondsLabel].map((l) => Math.round(l.translation_x)).join(' / ')} ink ${inkOf(minutesLabel)} ${inkOf(secondsLabel)} ${inkOf(centisecondsLabel)}`);
+		console.warn(`[stopwatch-debug] caption ink ${inkOf(minutesCaption)} ${inkOf(secondsCaption)} ${inkOf(centisecondsCaption)} | texts: ${[minutesCaption, secondsCaption, centisecondsCaption].map((l) => String(l.text)).join(' / ')}`);
+		return GLib.SOURCE_REMOVE;
+	});
 
 	mainBox.add_child(timeBox);
 
