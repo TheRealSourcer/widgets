@@ -579,11 +579,17 @@ function drawSparkline(ctx, width, height, samples, maxValue, color, lineAlpha) 
 }
 
 function createSparkTile(theme, label, value, unit, accentColor, samples, maxValue, extraInfo = null, metricKey = null) {
+  const isGlass = theme?.isGlass ?? false;
+  const tileBackground = isGlass 
+    ? (theme.dark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)')
+    : 'transparent';
+  
   const tile = new St.BoxLayout(boxLayoutProps({
     vertical: true,
     x_expand: false,
     y_expand: false,
     style: `
+      background-color: ${tileBackground};
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 10px;
       padding: 6px;
