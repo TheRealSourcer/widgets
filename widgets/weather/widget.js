@@ -507,9 +507,10 @@ function buildHeader(rendered, theme, createLabel, scale, opts = {}) {
 		'widget-weather-condition',
 		`color: ${theme.text}; font-size: ${scaledFont(condFont, scale)}px; font-weight: ${condWeight};`));
 
-	// H/L matches the condition row's size and carries the Overcast-like
-	// 600 weight across every regime (same treatment as the compact card).
-	const range = temperatureRange(rendered.daily, theme, createLabel, scale, condFont, 600);
+	// H/L matches the condition row minus 2 units (scaled down everywhere
+	// per request) and carries the Overcast-like 600 weight across every
+	// regime.
+	const range = temperatureRange(rendered.daily, theme, createLabel, scale, condFont - 2, 600);
 
 	right.add_child(condRow);
 	if (range) {
@@ -725,7 +726,7 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 
 	// H/L: sized like the Overcast line above it (13 units) so the bottom
 	// block reads as one tidy unit; the 600 weight (Overcast-like) stays.
-	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 13, 600);
+	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 11, 600);
 
 	if (range) {
 		bottom.add_child(range);
