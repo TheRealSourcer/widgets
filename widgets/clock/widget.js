@@ -4,6 +4,10 @@ import GObject from 'gi://GObject';
 import St from 'gi://St';
 
 import { parseCssColor } from '../../utils/ported.js';
+// The analog clock stacks the digital clock's animated seconds ring under
+// its face — the long tick marks for 12/3/6/9 (and the other hour marks)
+// stay on the face above the ring.
+import { DigitalClockRing } from '../digitalclock/widget.js';
 
 export const type = 'clock';
 export const label = 'Clock';
@@ -140,9 +144,18 @@ export function style(theme) {
 };
 
 export function render({body, theme}) {
+	// BinLayout stacks the ring and the face in the same box (a vertical
+	// BoxLayout would hand each of them its own row).
+	const stage = new St.Widget({
+		layout_manager: new Clutter.BinLayout(),
+		x_expand: true,
+		y_expand: true,
+	});
+	const ring = new DigitalClockRing({theme, radius: CLOCK_RADIUS, smoothSeconds: true});
 	const clock = new AnalogClockFace(theme);
 
-	clock.set_x_expand(true);
-	clock.set_y_expand(true);
-	body.add_child(clock);
+	stage.add_child(ring);   // animated seconds below ...
+	stage.add_child(clock);  // ... the face with its long hour ticks
+
+	body.add_child(stage);
 };

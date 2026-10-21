@@ -58,7 +58,9 @@ function escapeMarkup(text) {
 // Port of liquidglass clock-digital's tick ring: 60 ticks that follow the
 // widget's silhouette, the current second lights up (smooth, every frame)
 // and a comet trail fades out behind it over 270 degrees.
-const DigitalClockRing = GObject.registerClass(
+// Exported so the analog clock can stack the same animated seconds ring
+// under its face while keeping its long hour ticks.
+export const DigitalClockRing = GObject.registerClass(
 	class DigitalClockRing extends St.DrawingArea {
 		_init(options) {
 			super._init({
