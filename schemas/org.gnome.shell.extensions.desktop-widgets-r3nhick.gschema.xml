@@ -71,6 +71,16 @@
       <summary>Calendar weekday format</summary>
       <description>How weekday labels appear in the calendar header. Allowed values: short (Mo Tu We) or narrow (M T W).</description>
     </key>
+    <key name="calendar-first-day" type="i">
+      <default>0</default>
+      <summary>First day of the week</summary>
+      <description>Mirror of the reference calendar widget: 0 = from the locale (GNOME setting), 1 = Sunday, 2 = Monday.</description>
+    </key>
+    <key name="calendar-lookahead" type="i">
+      <default>2</default>
+      <summary>How far ahead the event list looks</summary>
+      <description>0 = 7, 1 = 14, 2 = 30, 3 = 60 days ahead.</description>
+    </key>
     <key name="calendar-use-accent-color" type="b">
       <default>false</default>
       <summary>Use accent color for calendar</summary>

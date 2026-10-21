@@ -736,7 +736,14 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	const secondary = theme?.muted ?? SECONDARY;
 	const weekdayFormat = settings?.get_string('calendar-weekday-format') ?? 'short';
 	const useAccentColor = settings?.get_boolean('calendar-use-accent-color') ?? false;
-	const {firstDay, weekend} = localeCalendarInfo();
+	const localeInfo = localeCalendarInfo();
+	// First day of the week: 0 = auto (locale / GNOME setting), otherwise a
+	// reference-enum day (1 = Sunday, 2 = Monday) mapped to JS getDay().
+	const firstDaySetting = settings?.get_int('calendar-first-day') ?? 0;
+	const firstDay = firstDaySetting === 1
+		? 0
+		: firstDaySetting === 2 ? 1 : localeInfo.firstDay;
+	const weekend = localeInfo.weekend;
 	// Dimmed text for weekend days — slightly lighter on dark themes and
 	// darker gray on light ones (reference calendar treatment).
 	const weekendColor = theme?.dark ? 'rgba(255, 255, 255, 0.55)' : '#787680';

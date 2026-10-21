@@ -1451,6 +1451,25 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(hourFormatRow);
 
+        // First day of the week: the reference widget's enum (locale auto /
+        // Sunday / Monday). 0 keeps the locale/GNOME-derived start.
+        const FIRST_DAY_LABELS = [
+            _('From the locale'),
+            _('Sunday'),
+            _('Monday'),
+        ];
+        const firstDayModel = Gtk.StringList.new(FIRST_DAY_LABELS);
+        const firstDayRow = new Adw.ComboRow({
+            title: _('First day of the week'),
+            subtitle: _('Which day starts the calendar weeks'),
+            model: firstDayModel,
+        });
+        firstDayRow.set_selected(settings.get_int('calendar-first-day') ?? 0);
+        firstDayRow.connect('notify::selected', () => {
+            settings.set_int('calendar-first-day', firstDayRow.selected);
+        });
+        group.add(firstDayRow);
+
         const accentRow = new Adw.SwitchRow({
             title: _('Use accent color'),
             subtitle: _('Use system or custom accent color from Appearance settings. When disabled, uses neutral gray.'),
