@@ -561,6 +561,10 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	card.slider = new SeekBar({
 		accent: [accentColor.r, accentColor.g, accentColor.b],
 		fg: [mutedColor.r, mutedColor.g, mutedColor.b],
+		// Light glass needs a stronger track and a higher disabled floor,
+		// or the bar disappears into the milky surface while idle.
+		trackAlpha: theme.dark ? 0.2 : 0.4,
+		disabledOpacity: theme.dark ? 90 : 150,
 		fontSize: Math.round(timeFont * 0.85),
 	});
 	card.slider.x_expand = true;
@@ -687,8 +691,12 @@ card.artist.text = _('Play something to get going');
 		const control = (canControl !== false || canPlay || canPause || canPrev || canNext || canSeek) && trackGate;
 
 		// Fully inactive (no track, not playing) dims the row harder than the
-		// in-session "capability off" state.
-		const dimmed = control ? 100 : 45;
+		// in-session "capability off" state. On light glass the dark icons
+		// at the old 45-level vanished into the milky surface, so the idle
+		// floor is higher there; dark glass keeps the tuned look.
+		const idleDim = theme.dark ? 45 : 120;
+		const loopDim = theme.dark ? 30 : 80;
+		const dimmed = control ? 100 : idleDim;
 
 		const loopOk = loopSupported !== false;
 
@@ -697,7 +705,7 @@ card.artist.text = _('Play something to get going');
 		// feedback on dead buttons). Dead clicks are safe no-ops —
 		// _callMethod bails without this._name, _cycleLoop/_setLoop too.
 		card.btnLoop.button.reactive = loopOk;
-		card.btnLoop.button.opacity = !loopOk ? 30 : (control ? 255 : 45);
+		card.btnLoop.button.opacity = !loopOk ? loopDim : (control ? 255 : idleDim);
 		card.btnPrev.button.reactive = true;
 		card.btnPrev.button.opacity = control && (canPrev || forcePrev) ? 255 : dimmed;
 		card.btnPlay.button.reactive = true;
@@ -726,7 +734,7 @@ card.artist.text = _('Play something to get going');
 			recolorIcon(card.btnLoop);
 		} else {
 			setButtonIcon(card.btnLoop, 'repeat-off', hasTrack);
-			recolorIcon(card.btnLoop, control ? 1 : 0.4);
+			recolorIcon(card.btnLoop, control ? 1 : (theme.dark ? 0.4 : 0.6));
 		}
 		
 		recolorIcon(card.btnPrev);

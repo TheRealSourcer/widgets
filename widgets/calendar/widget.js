@@ -837,8 +837,9 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		: firstDaySetting === 2 ? 1 : localeInfo.firstDay;
 	const weekend = localeInfo.weekend;
 	// Dimmed text for weekend days — slightly lighter on dark themes and
-	// darker gray on light ones (reference calendar treatment).
-	const weekendColor = theme?.dark ? 'rgba(255, 255, 255, 0.55)' : '#787680';
+	// darker gray on light ones (reference calendar treatment). The light
+	// shade is dark enough to hold its own on the milky light glass.
+	const weekendColor = theme?.dark ? 'rgba(255, 255, 255, 0.55)' : 'rgba(36, 31, 49, 0.62)';
 	const weekdays = weekdayLabels(weekdayFormat, firstDay);
 	const now = new Date();
 	const today = now.getDate();
