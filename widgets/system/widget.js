@@ -739,7 +739,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
   // stacking BoxLayout would split the pane between two rows mid-flight,
   // so this is a Bin: every page takes the full pane box.
   const container = new St.Widget({
-    layout: new Clutter.BinLayout(),
+    layout_manager: new Clutter.BinLayout(),
     x_expand: true,
     y_expand: true,
     clip_to_allocation: true,
