@@ -6,6 +6,7 @@ import Pango from 'gi://Pango';
 
 import { screenTimeEngine } from '../../utils/screenTimeEngine.js';
 import { isActorDestroyed } from '../../utils/actorLifecycle.js';
+import { attachBounce } from '../../lib/buttonBounce.js';
 import { parseCssColor, cssColorToRgba } from '../../utils/ported.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
@@ -244,6 +245,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			action();
 			return Clutter.EVENT_STOP;
 		});
+		// Same squash-and-spring on every press as the other widgets.
+		attachBounce(button);
 		navButtonsRow.add_child(button);
 		return button;
 	};

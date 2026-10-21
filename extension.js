@@ -38,8 +38,7 @@ import * as PhotosWidget from './widgets/photos/widget.js';
 import * as WeatherWidget from './widgets/weather/widget.js';
 import * as TodoWidget from './widgets/todo/widget.js';
 import * as GithubWidget from './widgets/github/widget.js';
-import * as ScreenTimeWidget from './widgets/screentime/widget.js';
-import * as SystemWidget from './widgets/system/widget.js';
+import * as ScreenTimeWidget from './widgets/screentime/widget.js';import * as SystemWidget from './widgets/system/widget.js';
 import * as NotesWidget from './widgets/notes/widget.js';
 import * as PomodoroWidget from './widgets/pomodoro/widget.js';
 import * as LavaWidget from './widgets/lava/widget.js';
@@ -50,7 +49,8 @@ import { configureLogger, resetLogger, warn } from './logger.js';
 import { assetPath } from './paths.js';
 import { isActorDestroyed } from './utils/actorLifecycle.js';
 import { LiquidGlass } from './lib/glass.js';
-import { screenTimeEngine } from './utils/screenTimeEngine.js';
+// (The screen-time engine runs inside the screentime widget; extension.js no
+// longer pauses it on fullscreen — fullscreen is real screen time.)
 import { clamp } from './utils.js';
 import { boxLayoutProps } from './utils/gnomeCompat.js';
 import { WorkspaceIntegration } from './workspaceIntegration.js';
@@ -965,14 +965,11 @@ class WidgetController {
     // 🚨 AGGRESSIVE FULLSCREEN OPTIMIZATION
     // Stop every widget and timer completely
 
-    // 1. Pause screen time tracking
-    try {
-      screenTimeEngine.setPaused(true);
-    } catch (e) {
-      warn('screen-time', `Failed to pause screenTimeEngine: ${e}`);
-    }
+    // Screen time is intentionally NOT paused here: a fullscreen video or a
+    // fullscreen app is real screen time, and the old pause dropped it from
+    // the totals and stalled the live chart until unpause.
 
-    // 2. Pause SystemMonitor polling
+    // 1. Pause SystemMonitor polling
     try {
       if (SystemWidget && SystemWidget.monitor && typeof SystemWidget.monitor.pausePolling === 'function') {
         SystemWidget.monitor.pausePolling();
@@ -999,14 +996,10 @@ class WidgetController {
     // 🚨 AGGRESSIVE FULLSCREEN OPTIMIZATION
     // Restore every widget and timer
 
-    // 1. Resume screen time tracking
-    try {
-      screenTimeEngine.setPaused(false);
-    } catch (e) {
-      warn('screen-time', `Failed to resume screenTimeEngine: ${e}`);
-    }
+    // Screen time never paused on fullscreen (see _pauseAnimations):
+    // tracking continues across fullscreen sessions.
 
-    // 2. Resume SystemMonitor polling
+    // 1. Resume SystemMonitor polling
     try {
       if (SystemWidget && SystemWidget.monitor && typeof SystemWidget.monitor.resumePolling === 'function') {
         SystemWidget.monitor.resumePolling();

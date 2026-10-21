@@ -14,6 +14,10 @@ const SECONDS_PER_HOUR = 3600;
 const HOURS_PER_DAY = 24;
 const DEFAULT_RETENTION_DAYS = 30; // Keep data for this many days by default
 
+// Pseudo entry crediting unlocked desktop time (wallpaper, overview,
+// widgets) when no window holds focus. Locked screens never count.
+const DESKTOP_APP_KEY = 'desktop@shell-session';
+
 function getDataDir() {
 	const userDataDir = GLib.get_user_data_dir();
 	const dir = GLib.build_filenamev([userDataDir, 'desktop-widgets', 'screen-time']);
@@ -245,9 +249,19 @@ export const screenTimeEngine = {
 		if (this._paused) {
 			return;
 		}
-		
+
 		const now = GLib.get_real_time();
-		this._flushFocused(now);
+		// Re-resolve every tick: transitions the focus signal cannot see
+		// (lock/unlock, desktop <-> null focus) otherwise stick until the
+		// next real focus change and those stretches went uncounted.
+		const resolved = this._resolveFocusedKey();
+		if (resolved !== this._focusedKey) {
+			this._flushFocused(now);
+			this._focusedKey = resolved;
+			this._focusStartMicro = resolved ? now : null;
+		} else {
+			this._flushFocused(now);
+		}
 		this._maybeRollover();
 		this._scheduleSave();
 		for (const callback of this._listeners)
@@ -296,10 +310,23 @@ export const screenTimeEngine = {
 
 	_resolveFocusedKey() {
 		const focusedWindow = global.display.focus_window;
-		if (!focusedWindow) return null;
-		const app = Shell.WindowTracker.get_default().get_window_app(focusedWindow);
-		if (!app) return null;
-		return app.get_id() || app.get_name() || null;
+
+		if (focusedWindow) {
+			const app = Shell.WindowTracker.get_default().get_window_app(focusedWindow);
+			if (app) {
+				const key = app.get_id() || app.get_name();
+				if (key) return key;
+			}
+			return null;
+		}
+
+		// No window holds focus, yet the session is on: the user lives on the
+		// desktop (wallpaper widgets, overview) — that time is real screen
+		// time too. The previously un-credited stretches were the main reason
+		// the widget showed less time than actually spent. The locked screen
+		// stays exempt.
+		if (global.sessionMode?.isLocked) return null;
+		return DESKTOP_APP_KEY;
 	},
 
 	_scheduleSave() {
