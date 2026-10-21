@@ -561,7 +561,9 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		y_expand: true,
 		visible: false,
 		reactive: true,
-		style: `background-color: ${theme.background}; border-radius: ${coverRadius}px; padding: 8px 12px;`,
+		// Semi-transparent so the card's glass effect shows through; the text
+		// stays readable with 85% opacity (dark mode: white tint, light: black).
+		style: `background-color: ${theme.dark ? 'rgba(0, 0, 0, 0.85)' : 'rgba(255, 255, 255, 0.85)'}; border-radius: ${coverRadius}px; padding: 8px 12px;`,
 	}));
 
 	const badgeRow = new St.BoxLayout({x_expand: true});
