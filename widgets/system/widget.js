@@ -830,7 +830,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     });
     const refreshDashes = () => pageDashes.set(currentMetric);
 
-    const rebuild = (enterX = 0, { keepLeaving = false } = {}) => {
+    const rebuild = (enterX = 0, { keepLeaving = false, enterInPlace = false } = {}) => {
       // The swipe-timed rebuild must keep the outgoing page in the pane —
       // it finishes its own slide and removes itself when done, exactly
       // like the calendar's page cross. Only fresh builds wipe children.
@@ -869,7 +869,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       layoutRows = [scrollBox];
       layoutTiles();
 
-      tile.translation_x = enterX;
+      // In-place entry (swipe): settle at the final position and fade in.
+      tile.translation_x = enterInPlace ? 0 : enterX;
       tile.set_opacity(0);
       tile.ease({
         translation_x: 0,
@@ -975,7 +976,10 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         refreshDashes();
 
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
-          rebuild(-exitX, { keepLeaving: true });
+          rebuild(-exitX, { keepLeaving: true, enterInPlace: true });
+          // The leaving page stays above the settled one during the cross.
+          if (oldTile.get_parent())
+            container.set_child_above_sibling(oldTile, scrollBox);
           if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0) {
             onData(monitor.lastData);
           }
@@ -1025,7 +1029,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     });
     const refreshDashes = () => pageDashes.set(currentView);
 
-    const rebuild = (enterX = 0, { keepLeaving = false } = {}) => {
+    const rebuild = (enterX = 0, { keepLeaving = false, enterInPlace = false } = {}) => {
       // The swipe-timed rebuild keeps the outgoing row in the pane — it
       // finishes its own full-width slide and removes itself afterwards,
       // while the incoming row enters from the opposite side: the calendar
@@ -1060,7 +1064,11 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         tiles.push(result);
         currentRow.add_child(result.tile);
         
-        result.tile.translation_x = enterX;
+        // In-place entry (swipe): the page settles at its final positions
+        // right away and just fades in — during the cross the pane already
+        // shows the information it will hold afterwards, instead of an
+        // empty half waiting for the slide-in.
+        result.tile.translation_x = enterInPlace ? 0 : enterX;
         result.tile.set_opacity(0);
         result.tile.ease({
           translation_x: 0,
@@ -1178,7 +1186,11 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         refreshDashes();
 
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, CROSS_DURATION / 2, () => {
-          rebuild(-exitX, { keepLeaving: true });
+          rebuild(-exitX, { keepLeaving: true, enterInPlace: true });
+          // The leaving page stays ABOVE the settled one, so its sweep is
+          // still visible while the incoming page already holds the pane.
+          if (oldRow.get_parent())
+            container.set_child_above_sibling(oldRow, currentRow);
           if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0) {
             onData(monitor.lastData);
           }
