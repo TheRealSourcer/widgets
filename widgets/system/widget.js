@@ -841,8 +841,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       scrollBox = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
-        // Opaque page background — same cross-overlap rationale as 2x1.
-        style: `background-color: ${theme.background};`,
+        // Semi-transparent so the glass effect shows through.
+        style: `background-color: ${theme.dark ? 'rgba(0, 0, 0, 0.85)' : 'rgba(255, 255, 255, 0.85)'};`,
       }));
 
       const config = metricConfigs[currentMetric];
@@ -1042,9 +1042,8 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       currentRow = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
-        // Opaque page background (the card colour) so the travelling pages
-        // read as solid bars like GNOME's workspaces.
-        style: `spacing: 10px; background-color: ${theme.background};`,
+        // Semi-transparent so the glass effect shows through.
+        style: `spacing: 10px; background-color: ${theme.dark ? 'rgba(0, 0, 0, 0.85)' : 'rgba(255, 255, 255, 0.85)'};`,
       }));
 
       const view = viewConfigs[viewIndex];

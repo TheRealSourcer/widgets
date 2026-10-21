@@ -693,9 +693,15 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	card._buildLyrics = function (result) {
 		card._resetLyricsFeed();
 
-		if (!result || !Array.isArray(result.lines) || result.lines.length === 0) {
+		const hasLyrics = result && Array.isArray(result.lines) && result.lines.length > 0;
+
+		if (!hasLyrics) {
 			card._lyricsLines = null;
 			card._setLyricsHint(_('No lyrics found'));
+			// Grey icon when no lyrics available (inactive state).
+			if (card.statusIcon) {
+				card.statusIcon.gicon = controlIcon(card._theme, 'music', false);
+			};
 			return;
 		};
 
@@ -717,6 +723,10 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		card._lyricsSynced = result.synced;
 		card._lyricsLines = result.lines;
 		card._setLyricsHint('');
+		// White/black icon when lyrics are available (active state).
+		if (card.statusIcon) {
+			card.statusIcon.gicon = controlIcon(card._theme, 'music', true);
+		};
 	};
 
 	card.toggleLyrics = function () {
