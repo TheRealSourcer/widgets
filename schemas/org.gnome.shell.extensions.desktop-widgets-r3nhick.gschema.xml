@@ -46,6 +46,11 @@
       <summary>Screen Time retention (days)</summary>
       <description>Number of days of per-app screen time history to keep. Data files older than this are deleted automatically.</description>
     </key>
+    <key name="screentime-show-nav-buttons" type="b">
+      <default>true</default>
+      <summary>Show Screen Time nav buttons</summary>
+      <description>Controls the visibility of the previous/next day navigation buttons on the screen time widget.</description>
+    </key>
     <key name="arrange-widgets" type="b">
       <default>false</default>
       <summary>Arrange widgets</summary>

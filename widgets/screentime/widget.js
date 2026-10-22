@@ -388,15 +388,15 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	headerBox.add_child(totalTimeLabel);
 
 	// Date + arrows form one row on the 2x2 card (a flatter header leaves the
-	// app band three rows); the 2x1 keeps the compact vertical stack.
+	// app band three rows); the 2x1 keeps the compact vertical stack. The
+	// arrows row can be toggled off from the extension settings.
+	const showNavButtons = settings?.get_boolean('screentime-show-nav-buttons') ?? true;
 	const controlsColumn = new St.BoxLayout({
 		orientation: isLarge ? Clutter.Orientation.HORIZONTAL : Clutter.Orientation.VERTICAL,
 		x_align: Clutter.ActorAlign.END,
+		y_align: Clutter.ActorAlign.START,
 		style: 'spacing: 6px;',
 	});
-	// Every card gets the date/nav controls (the 1x1 compact card has the
-	// arrows stacked under the date on the right side of the total).
-	headerBox.add_child(controlsColumn);
 
 	const dateLabel = new St.Label({
 		text: '',
@@ -404,10 +404,18 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		style: `color: ${textColor}; font-size: ${DATE_LABEL_FONT_SIZE_PX}px; `
 			+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY};`,
 	});
-	controlsColumn.add_child(dateLabel);
+	// The compact 1x1 card shows the arrows only (no date label) — single row
+	// keeps them level with the top of the total.
+	if (!compactSquare)
+		controlsColumn.add_child(dateLabel);
 
 	const navButtonsRow = new St.BoxLayout({ style: 'spacing: 6px;' });
-	controlsColumn.add_child(navButtonsRow);
+	if (showNavButtons)
+		controlsColumn.add_child(navButtonsRow);
+
+	// The compact card keeps no header controls when the arrows are hidden.
+	if (!compactSquare || showNavButtons)
+		headerBox.add_child(controlsColumn);
 
 	const buildNavButton = (iconName, action) => {
 		const button = new St.Button({
@@ -734,6 +742,21 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	state.engineListener = onEngineTick;
 	screenTimeEngine.addListener(onEngineTick);
 
+	// Live toggle for the date-nav arrows: flip their visibility in place —
+	// no widget rebuild needed.
+	const settingsSignals = [];
+	if (settings?.connect) {
+		settingsSignals.push(settings.connect(
+			'changed::screentime-show-nav-buttons',
+			() => {
+				if (isActorDestroyed(body) || !body.get_parent()) return;
+				const show = settings.get_boolean('screentime-show-nav-buttons') ?? true;
+				navButtonsRow.visible = show;
+				controlsColumn.visible = show || !compactSquare;
+			},
+		));
+	}
+
 	let engineCleaned = false;
 	const cleanup = () => {
 		if (engineCleaned) return;
@@ -746,8 +769,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			screenTimeEngine.removeListener(state.engineListener);
 			state.engineListener = null;
 		}
+		settingsSignals.forEach(id => settings.disconnect(id));
+		settingsSignals.length = 0;
 	};
-
 	// The root dies on every refill (theme/style change re-fills the body in
 	// place, destroying only children) — anchor the engine release there or
 	// every re-render leaks one more engine acquire.
@@ -1058,16 +1082,16 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			// ── 1x1 compact layout: total on top, chart fills the rest ──
 			const padTop = Math.round(12 * s);
 			const padSide = Math.round(13 * s);
-			// A generous bottom margin keeps the 00/12/24 axis from crowding
-			// the card edge.
-			const padBottom = Math.round(14 * s);
+			// A slim bottom margin — the 00/12/24 axis labels sit close to
+			// the card's bottom edge.
+			const padBottom = Math.round(6 * s);
 			compactBox.style = `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
 
 			const headerReserve = Math.round(48 * s);
 			const yWidth = Math.round(30 * s);
 			const plotWidth = Math.max(1, currentWidth - padSide * 2 - yWidth);
 			const plotHeight = Math.max(1, currentHeight - padTop - padBottom
-				- headerReserve - Math.round(X_AXIS_HEIGHT_PX * s) - Math.round(4 * s));
+				- headerReserve - Math.round(X_AXIS_HEIGHT_PX * s) - Math.round(12 * s));
 			Object.assign(state.geometry, { plotWidth, plotHeight });
 
 			// chartWrap already stacks below the header inside compactBox, so
@@ -1078,10 +1102,13 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			chartCanvas.set_size(plotWidth, plotHeight);
 			yAxisBox.set_position(plotWidth, 0);
 			yAxisBox.set_size(yWidth, plotHeight);
-			xAxisBox.set_position(0, plotHeight + Math.round(4 * s));
+			xAxisBox.set_position(0, plotHeight + Math.round(12 * s));
 			xAxisBox.set_size(plotWidth, Math.round(X_AXIS_HEIGHT_PX * s));
 
-			totalTimeLabel.style = `color: ${textColor}; font-size: ${Math.round(HEADER_FONT_SIZE_PX * s * 0.9)}px; font-weight: 600;`;
+			// A smaller fixed total size: the longest realistic value —
+			// "1h 53m" — keeps fitting next to the arrows, and every value
+			// ("1h" vs "1h 53m") renders at the SAME size, no jumping.
+			totalTimeLabel.style = `color: ${textColor}; font-size: ${Math.round(21 * s)}px; font-weight: 600;`;
 
 			renderDynamic();
 			return;

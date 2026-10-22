@@ -1293,6 +1293,13 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(retentionRow);
 
+        const navButtonsRow = new Adw.SwitchRow({
+            title: _('Show navigation buttons'),
+            subtitle: _('Previous/next day arrows on the screen time widget.'),
+        });
+        settings.bind('screentime-show-nav-buttons', navButtonsRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(navButtonsRow);
+
         page.add(group);
         return page;
     }
