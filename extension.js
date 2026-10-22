@@ -3621,19 +3621,74 @@ sizeButton.connectObject('destroy', () => {
       y_expand: true,
       hscrollbar_policy: St.PolicyType.NEVER,
       vscrollbar_policy: St.PolicyType.AUTOMATIC,
+      enable_mouse_scrolling: true,  // Більш чутливий scroll
     });
-    const list = new St.BoxLayout(boxLayoutProps({vertical: true, style: 'spacing: 6px;'}));
+    const list = new St.BoxLayout(boxLayoutProps({vertical: true, style: 'spacing: 10px; padding: 4px;'}));
 
     entries.forEach((entry, index) => {
       const row = new St.BoxLayout(boxLayoutProps({x_expand: true, style: 'spacing: 8px;'}));
-      const name = this._label(
-        `${index + 1}. ${_(WIDGET_TYPE_LABELS[entry.type] ?? entry.type)}`,
-        'widget-text',
-        `color: ${theme.text}; font-size: 12px;`,
+      
+      // Замість тексту — LIVE preview віджету
+      const previewW = 120;
+      const previewH = 90;
+      const gap = this._widgetGap ?? WIDGET_GAP;
+      const sizes = widgetSizesFor(gap);
+      const [entryW, entryH] = sizes[entry.size || view.widget.size] ?? sizes.small;
+      const scale = Math.min(previewW / entryW, previewH / entryH, 1);
+      
+      const previewBox = new St.Widget({
+        layout_manager: new Clutter.FixedLayout(),
+        width: previewW,
+        height: previewH,
+        style: `background-color: ${theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'};`
+          + ` border: 1px solid ${theme.accent};`
+          + ` border-radius: 8px;`,
+        clip_to_allocation: true,
+      });
+      
+      const previewStub = {
+        id: `preview-panel-entry-${entry.key || index}`,
+        type: entry.type,
+        size: entry.size || view.widget.size,
+        data: entry.data || {},
+        pinned: true,
+      };
+      
+      const previewSurface = new St.BoxLayout(boxLayoutProps({
+        vertical: true,
+        style_class: `widget widget-${previewStub.type}`,
+        style: `${this._styleForWidget(previewStub) ?? ''} background-color: ${theme.background};`,
+        width: entryW,
+        height: entryH,
+        clip_to_allocation: true,
+      }));
+      
+      const previewBody = new St.BoxLayout(boxLayoutProps({
+        vertical: true,
+        style_class: 'widget-body',
+        x_expand: true,
+        y_expand: true,
+      }));
+      previewSurface.add_child(previewBody);
+      
+      let previewRendered = false;
+      previewSurface.connectObject('notify::mapped', () => {
+        if (previewRendered || !previewSurface.mapped) return;
+        previewRendered = true;
+        try {
+          this._fillWidgetBody(previewStub, previewBody, previewSurface);
+        } catch (error) {
+          console.error(`[debug] panel entry preview failed: ${error.message}`);
+        };
+      }, previewSurface);
+      
+      previewSurface.set_scale(scale, scale);
+      previewSurface.set_position(
+        Math.round((previewW - entryW * scale) / 2),
+        Math.round((previewH - entryH * scale) / 2)
       );
-      name.x_align = Clutter.ActorAlign.START;
-      name.y_align = Clutter.ActorAlign.CENTER;
-      row.add_child(name);
+      previewBox.add_child(previewSurface);
+      row.add_child(previewBox);
 
       const spacer = new St.Widget({x_expand: true});
       row.add_child(spacer);
@@ -3646,6 +3701,9 @@ sizeButton.connectObject('destroy', () => {
         reactive: true,
         can_focus: true,
       });
+      
+      // FIX: зберігаємо entry.key замість index для правильного видалення
+      const entryKey = entry.key || `temp-${index}`;
       let delPressY = null;
       delButton.connect('button-press-event', (_actor, event) => {
         if (event.get_button() === 1) {
@@ -3655,9 +3713,15 @@ sizeButton.connectObject('destroy', () => {
       });
       delButton.connect('button-release-event', (_actor, event) => {
         if (event.get_button() === 1 && delPressY !== null) {
-          console.log(`[debug] delete page ${index} (${entry.type})`);
-          view.widget.stack.splice(index, 1);
-          this._applyStackChange(view);
+          // Знайти актуальний index в масиві по ключу
+          const actualIndex = view.widget.stack.findIndex(e => (e.key || '') === entryKey);
+          if (actualIndex !== -1) {
+            console.log(`[debug] delete page ${actualIndex} key=${entryKey} type=${view.widget.stack[actualIndex].type}`);
+            view.widget.stack.splice(actualIndex, 1);
+            this._applyStackChange(view);
+          } else {
+            console.warn(`[debug] could not find entry with key=${entryKey} to delete`);
+          };
         };
         delPressY = null;
         return Clutter.EVENT_STOP;
@@ -3726,6 +3790,17 @@ sizeButton.connectObject('destroy', () => {
     Main.uiGroup.add_child(overlay);
     view._stackPanel = overlay;
     this._stackPanelView = view;
+    
+    // ESC closes panel
+    overlay.connect('key-press-event', (_actor, event) => {
+      if (event.get_key_symbol() === Clutter.KEY_Escape) {
+        this._closeStackPanel();
+        return Clutter.EVENT_STOP;
+      };
+      return Clutter.EVENT_PROPAGATE;
+    });
+    overlay.grab_key_focus();
+    
     console.log(`[debug] stack panel opened (centered modal) pages=${entries.length} limit=${STACK_PAGE_LIMIT}`);
   };
 
@@ -4104,6 +4179,17 @@ sizeButton.connectObject('destroy', () => {
     overlay.add_child(card);
     Main.uiGroup.add_child(overlay);
     this._galleryPart = overlay;
+    
+    // ESC closes gallery
+    overlay.connect('key-press-event', (_actor, event) => {
+      if (event.get_key_symbol() === Clutter.KEY_Escape) {
+        this._closeStackGallery();
+        return Clutter.EVENT_STOP;
+      };
+      return Clutter.EVENT_PROPAGATE;
+    });
+    overlay.grab_key_focus();
+    
     console.log('[debug] gallery opened (centered modal)');
   };
 
