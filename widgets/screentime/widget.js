@@ -683,6 +683,24 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		}));
 		bandColumns.forEach(column => appsBand.add_child(column));
 		largeRoot.add_child(appsBand);
+
+		// applyLayout can only estimate the band height (header/legend metrics
+		// are guesses, and an undershoot silently dropped the 4th row). Once
+		// the band really allocates, feed its true inner height back so the
+		// row count and gaps are re-fit from facts, not estimates.
+		appsBand.connect('notify::allocation', () => {
+			const pads = (state.geometry.bandPadT ?? 0) + (state.geometry.bandPadB ?? 0);
+			const inner = Math.max(0, appsBand.get_height() - pads);
+			if (inner <= 0 || inner === state.geometry.bandInner)
+				return;
+			state.geometry.bandInner = inner;
+			// Defer: mutating the actor tree during an allocation pass is unsafe.
+			GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+				if (!disposed)
+					renderDynamic();
+				return GLib.SOURCE_REMOVE;
+			});
+		});
 	}
 
 	// ── App list (2x1 side panel) ──────────────────────────────────────────
@@ -925,22 +943,6 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		const rows = state.geometry.bandRows || 1;
 		const apps = state.snapshot.apps.slice(0, Math.min(rows * 2, config.maxApps));
 
-		// Spread the rows actually shown across the whole band (space-between):
-		// eight apps pack edge-to-edge, fewer widen the gaps, a single app
-		// hugs the top instead of floating centered in empty space.
-		const innerH = Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
-		const rowH = Math.max(
-			Math.round(APP_ICON_SIZE_PX * s),
-			Math.round(BAND_ROW_H_PX * s),
-		);
-		const shown = Math.max(1, Math.min(apps.length, rows));
-		const spread = shown > 1
-			? Math.max(0, Math.floor((innerH - shown * rowH) / (shown - 1)))
-			: 0;
-		bandColumns.forEach(column => {
-			column.style = `spacing: ${spread}px;`;
-		});
-
 		if (apps.length === 0) {
 			bandColumns[0].add_child(new St.Label({
 				text: _('No activity recorded'),
@@ -958,6 +960,38 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				// Keep the rest of the band intact if one row fails to build.
 			}
 		}
+
+		// Re-fit from MEASURED values: the estimate-based row fit silently
+		// dropped the 4th row. Take the real height of a built row and the
+		// band's real inner height (fed back by the allocation listener);
+		// grow the row count when more rows genuinely fit, rebuilding once
+		// per step (bounded by the LARGE_APP_ROWS_MAX cap).
+		const sample = bandColumns[0].get_children()[0];
+		const rowH = Math.max(
+			Math.round(APP_ICON_SIZE_PX * s),
+			sample ? Math.ceil(sample.get_preferred_height(-1)[1]) : Math.round(BAND_ROW_H_PX * s),
+		);
+		const innerH = state.geometry.bandInner > 0
+			? state.geometry.bandInner
+			: Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
+
+		const capacity = Math.floor(innerH / rowH);
+		if (capacity > rows && state.snapshot.apps.length > rows * 2) {
+			state.geometry.bandRows = Math.min(LARGE_APP_ROWS_MAX, capacity);
+			rebuildAppBand();
+			return;
+		}
+
+		// Spread the rows actually shown across the whole band (space-between):
+		// eight apps pack edge-to-edge, fewer widen the gaps, a single app
+		// hugs the top instead of floating centered in empty space.
+		const shown = Math.max(1, Math.min(apps.length, rows));
+		const spread = shown > 1
+			? Math.max(0, Math.floor((innerH - shown * rowH) / (shown - 1)))
+			: 0;
+		bandColumns.forEach(column => {
+			column.style = `spacing: ${spread}px;`;
+		});
 	}
 
 	function rebuildAppList() {
@@ -1106,6 +1140,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			// for the side panel's height so the rows rebuild only when the
 			// geometry really moved.
 			state.geometry.listHeight = bandH;
+			state.geometry.bandPadT = bandPadT;
+			state.geometry.bandPadB = bandPadB;
 			appsBand.style = `background-color: ${sideBg}; border-radius: 0 0 ${radius}px ${radius}px;`
 				+ `padding: ${bandPadT}px ${padSide}px ${bandPadB}px ${padSide}px;`;
 
