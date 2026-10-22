@@ -1012,7 +1012,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 		// Compact rows over a fixed gap, with equal top and bottom padding —
 		// any rounding slack after the last row is split evenly between them.
-		const spread = Math.round(6 * s);
+		const spread = Math.round(4 * s);
 		bandColumns.forEach(column => {
 			column.style = `spacing: ${spread}px;`;
 		});
@@ -1020,8 +1020,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		const shownRows = Math.min(apps.length, rows);
 		const used = shownRows * rowH + (shownRows - 1) * spread;
 		const leftover = Math.max(0, innerH - used);
-		const padTop = Math.round(8 * s) + Math.floor(leftover / 2);
-		const padBottom = Math.round(8 * s) + leftover - Math.floor(leftover / 2);
+		const padTop = Math.round(4 * s) + Math.floor(leftover / 2);
+		const padBottom = Math.round(4 * s) + leftover - Math.floor(leftover / 2);
 		const padSide = Math.round(16 * s);
 		appsBand.style = `background-color: ${sideBg}; border-radius: 0 0 ${radius}px ${radius}px;`
 			+ `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
@@ -1144,9 +1144,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			// Content-sized band: the row count derives from the app count, and
 			// the chart absorbs whatever the band does not need.
 			const xAxisZone = Math.round(4 * s) + axisH;
-			const bandPadT = Math.round(8 * s);
-			const bandPadB = Math.round(8 * s);
-			const bandGap = Math.round(6 * s);
+			const bandPadT = Math.round(4 * s);
+			const bandPadB = Math.round(4 * s);
+			const bandGap = Math.round(4 * s);
 			const cachedRow = state.geometry.measuredRowH;
 			const bandRowH = Math.max(
 				Math.round(APP_ICON_SIZE_PX * s),
