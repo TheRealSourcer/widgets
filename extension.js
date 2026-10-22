@@ -3682,10 +3682,20 @@ sizeButton.connectObject('destroy', () => {
         return;
       };
       rendered = true;
+      console.log(`[debug] rendering preview ${record.type}/${size}`);
       try {
         this._fillWidgetBody(stub, body, surface);
+        console.log(`[debug] preview ${record.type}/${size} rendered, bodyKids=${body.get_n_children()}`);
       } catch (error) {
         console.error(`[debug] preview-${record.type}: ${error.message}`);
+        // Fallback: show widget name if render fails
+        const fallback = new St.Label({
+          text: record.label || record.type,
+          style: `font-size: 14px; color: rgba(255,255,255,0.6);`,
+          x_align: Clutter.ActorAlign.CENTER,
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+        body.add_child(fallback);
       };
     }, surface);
 
