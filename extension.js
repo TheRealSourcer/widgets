@@ -2161,7 +2161,7 @@ class WidgetController {
     this._refreshWeather(false);
 
     for (const [id, view] of this._views) {
-      if (!['battery', 'calendar', 'digitalclock', 'photos', 'weather', 'github', 'system', 'clock'].includes(view.widget.type)) {
+      if (!['battery', 'calendar', 'digitalclock', 'photos', 'weather', 'github', 'system', 'clock', 'binaryclock'].includes(view.widget.type)) {
         continue;
       };
 
