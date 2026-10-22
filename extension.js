@@ -3279,7 +3279,18 @@ sizeButton.connectObject('destroy', () => {
       menu.addMenuItem(photoItem);
     };
 
-    // Switch rows mirror the reference's Glass/Lock toggles.
+    // Switch rows mirror the reference's Glass/Lock toggles. Glass is the
+    // global style-mode (0 = glass, 1 = solid) — the same switch that lives
+    // in preferences, now quickly reachable from the widget itself; the
+    // 'changed::appearance' listener above rebuilds styles live.
+    const glassItem = new PopupMenu.PopupSwitchMenuItem(_('Glass'), this._layoutSettings.get_int('style-mode') === 0);
+    glassItem.connectObject('toggled', (_item, on) => {
+      const mode = on ? 0 : 1;
+      if (this._layoutSettings.get_int('style-mode') !== mode)
+        this._layoutSettings.set_int('style-mode', mode);
+    }, this);
+    menu.addMenuItem(glassItem);
+
     const lockItem = new PopupMenu.PopupSwitchMenuItem(_('Lock Position'), Boolean(view.widget.pinned));
     lockItem.connectObject('toggled', (_item, on) => {
       if (Boolean(view.widget.pinned) !== on) {

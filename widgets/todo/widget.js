@@ -460,7 +460,9 @@ export function render({ body, widget, theme, sizeForWidget }) {
             reactive: true,
             can_focus: true,
             style: 'opacity: 0.45;',
-            y_align: Clutter.ActorAlign.START,
+            // CENTRE like the pencil: with multi-line rows y_align START kept
+            // the trash parked at the top of the grown row.
+            y_align: Clutter.ActorAlign.CENTER,
         });
         deleteButton.connect('clicked', () => {
             if (isActorDestroyed(body)) return;
