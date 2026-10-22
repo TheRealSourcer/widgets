@@ -13,6 +13,7 @@ import {ExtensionPreferences, gettext as _}
 import {clearLayout, layoutJson, writeLayout} from './layoutDoc.js';
 import {openWidgetPicker} from './prefs/widgetPickerDialog.js';
 import {settingsIconPath} from './paths.js';
+import {WIDGET_TYPE_LABELS} from './lib/widgetTypes.js';
 
 const WIDGET_TYPES = [
     {type: 'applauncher'},
@@ -36,27 +37,7 @@ const WIDGET_TYPES = [
     {type: 'timer'},
 ];
 
-const widgetTypeLabel = (type) => ({
-    applauncher: _('App Launcher'),
-    clock: _('Clock'),
-    digitalclock: _('Digital Clock'),
-    binaryclock: _('Binary Clock'),
-    calendar: _('Calendar'),
-    weather: _('Weather'),
-    photos: _('Photos'),
-    battery: _('Battery'),
-    music: _('Music'),
-    todo: _('Task'),
-    github: _('GitHub Activity'),
-    screentime: _('Screen Time'),
-    system: _('System Monitor'),
-    notes: _('Notes'),
-    pomodoro: _('Pomodoro'),
-    lava: _('Lava Lamp'),
-    stopwatch: _('Stopwatch'),
-    folder: _('Folder Launcher'),
-    timer: _('Timer'),
-}[type] ?? type);
+const widgetTypeLabel = (type) => _(WIDGET_TYPE_LABELS[type] ?? type);
 
 const DEFAULT_SIZES = {
     applauncher: 'medium',

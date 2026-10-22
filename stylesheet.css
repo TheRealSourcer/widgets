@@ -192,3 +192,49 @@
 .widget-add-button:active {
     transform: scale(0.95);
 }
+/* ── Widget-pages gallery drawer (reference widgets-gallery classes) ── */
+
+.widget-gallery-button,
+.widget-gallery-card,
+.widget-gallery-size-chip {
+	transition-duration: 140ms;
+}
+
+.widget-gallery-button:hover,
+.widget-gallery-button:focus,
+.widget-gallery-size-chip:hover,
+.widget-gallery-size-chip:focus {
+	background-color: rgba(255, 255, 255, 0.10);
+	border-color: rgba(255, 255, 255, 0.22);
+}
+
+.widget-gallery-button:active,
+.widget-gallery-size-chip:active {
+	box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.34);
+}
+
+.widget-gallery-card:hover {
+	background-color: rgba(255, 255, 255, 0.11);
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+.widget-gallery-card-preview {
+	border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.widget-gallery-preview-title {
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.button.widget-gallery-size-chip {
+	background-color: rgba(255, 255, 255, 0.10);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 9px;
+	padding: 4px 7px;
+	font-size: 10px;
+}
+
+.button.widget-gallery-size-chip-selected {
+	color: white;
+}
