@@ -231,16 +231,18 @@ export function attachWidgetStack({
 	let dragStartY = null;
 
 	rail.connect('button-press-event', (_actor, event) => {
-		console.log(`[debug] rail PRESS button=${event.get_button()} crossBusy=${crossBusy} reactive=${rail.reactive}`);
-		if (event.get_button() !== 1 || crossBusy) {
+		const btn = event.get_button();
+		console.log(`[debug] rail PRESS button=${btn} crossBusy=${crossBusy} reactive=${rail.reactive}`);
+		if (crossBusy) {
 			return Clutter.EVENT_PROPAGATE;
 		};
+		// ТИМЧАСОВО: дозволяємо будь-яку кнопку (1=ліва, 2=середня, 3=права)
 		const [stageX, stageY] = event.get_coords();
 		if (!Number.isFinite(stageY)) {
 			return Clutter.EVENT_PROPAGATE;
 		};
 		dragStartY = stageY;
-		console.log(`[debug] rail drag started at Y=${stageY}`);
+		console.log(`[debug] rail drag started at Y=${stageY} with button=${btn}`);
 		return Clutter.EVENT_STOP;
 	});
 
