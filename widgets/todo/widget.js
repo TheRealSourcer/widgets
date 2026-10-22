@@ -283,13 +283,20 @@ export function render({ body, widget, theme, sizeForWidget }) {
         textLabel.opacity = task.done ? 128 : 255;
 
         const toggleTask = () => {
+            if (rowAlive === false) return;
             if (isActorDestroyed(body)) return;
             // Transition plays on the rebuilt row: this one is destroyed in
             // the same frame, animations started here would never run.
             animQueue.set(task, task.done ? 'toUndone' : 'toDone');
             task.done = !task.done;
             save();
-            renderTasks();
+            // The rebuild destroys rows — never do it inside a dispatched
+            // click/emission on this very row; defer to the next idle.
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                if (!isActorDestroyed(body) && body.get_parent())
+                    renderTasks();
+                return GLib.SOURCE_REMOVE;
+            });
         };
 
         checkbox.connect('clicked', toggleTask);
