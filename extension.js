@@ -3858,6 +3858,8 @@ sizeButton.connectObject('destroy', () => {
   // createPreview) and per-card size chips — only sizes that fit within
   // the host's slot: the added page is equal to or smaller than the
   // primary widget, never larger.
+  // ── Gallery: centered modal window with widget grid ────────────────────
+  // Changed from bottom drawer to centered card matching the panel UX.
   _openStackGallery(view) {
     if (this._galleryPart) {
       this._closeStackGallery();
@@ -3865,15 +3867,8 @@ sizeButton.connectObject('destroy', () => {
 
     const theme = this._gnomeTheme();
     const stageSize = global.stage.get_size();
-    const [gx, gy] = view.actor.get_transformed_position();
 
-    // The widget's own monitor wins: the drawer lands bottom-center on it.
-    const monitor =
-      [...Main.layoutManager.monitors]
-        .find(candidate => gx >= candidate.x && gx < candidate.x + candidate.width
-          && gy >= candidate.y && gy < candidate.y + candidate.height)
-      ?? Main.layoutManager.primaryMonitor ?? Main.layoutManager.monitors[0];
-
+    // Backdrop swallows clicks outside
     const overlay = new St.Widget({
       reactive: true,
       can_focus: true,
@@ -3881,30 +3876,25 @@ sizeButton.connectObject('destroy', () => {
       y: 0,
       width: Math.max(320, stageSize[0]),
       height: Math.max(240, stageSize[1]),
-      style: 'background-color: rgba(0, 0, 0, 0.45);',
+      style: 'background-color: rgba(0, 0, 0, 0.55);',
     });
 
-    const margin = 18;
-    const drawerWidth = Math.min(980, Math.max(320, monitor.width - margin * 2));
-    const previewHeight = Math.min(170, Math.max(96, Math.floor(monitor.height * 0.4 * 0.36)));
-    const drawerHeight = Math.min(monitor.height - margin * 2,
-      Math.max(Math.round(monitor.height * 0.62), previewHeight + 240));
-    const drawer = new St.BoxLayout(boxLayoutProps({
+    // Centered card — wide for grid
+    const cardW = Math.min(1100, stageSize[0] - 100);
+    const cardH = Math.min(720, stageSize[1] - 100);
+    const card = new St.BoxLayout(boxLayoutProps({
       vertical: true,
       style: `background-color: ${theme.background};`
         + ` border: 1px solid ${theme.border};`
-        + ` border-radius: 24px 24px 0 0;`
-        + ` padding: 12px 18px;`,
+        + ` border-radius: ${theme.radius + 6}px;`
+        + ` padding: 20px; spacing: 16px;`,
       reactive: true,
       can_focus: true,
     }));
-    drawer.set_size(drawerWidth, drawerHeight);
-    overlay.add_child(drawer);
-    overlay.set_position(monitor.x + Math.round((monitor.width - drawerWidth) / 2),
-      monitor.y + monitor.height - drawerHeight);
+    card.set_size(cardW, cardH);
 
-    // Header: title + search + close — the reference palette rows.
-    const header = new St.BoxLayout(boxLayoutProps({x_expand: true, y_align: Clutter.ActorAlign.CENTER, style: 'spacing: 10px; padding: 0 2px 10px 2px;'}));
+    // Header: title + search + close
+    const header = new St.BoxLayout(boxLayoutProps({x_expand: true, y_align: Clutter.ActorAlign.CENTER, style: 'spacing: 12px;'}));
     header.add_child(this._label(_('Choose a widget'), 'widget-text', `font-size: 18px; font-weight: bold; color: ${theme.text};`));
 
     const search = new St.Entry({
@@ -3924,7 +3914,6 @@ sizeButton.connectObject('destroy', () => {
         x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER}),
       width: 34,
       height: 34,
-      style_class: 'button widget-gallery-button widget-gallery-close-button',
       style: `padding: 0; border-radius: 10px; background-color: rgba(255,255,255,0.10); color: ${theme.text};`,
       track_hover: true,
       reactive: true,
@@ -3947,7 +3936,7 @@ sizeButton.connectObject('destroy', () => {
       return Clutter.EVENT_STOP;
     });
     header.add_child(closeButton);
-    drawer.add_child(header);
+    card.add_child(header);
 
     const scroll = new St.ScrollView({
       x_expand: true,
@@ -3958,12 +3947,12 @@ sizeButton.connectObject('destroy', () => {
       enable_mouse_scrolling: true,
     });
 
-    const sectionsBox = new St.BoxLayout(boxLayoutProps({vertical: true, x_expand: true, style: 'spacing: 18px; padding: 2px 4px 10px 4px;'}));
+    const sectionsBox = new St.BoxLayout(boxLayoutProps({vertical: true, x_expand: true, style: 'spacing: 18px; padding: 4px;'}));
     scroll.set_child(sectionsBox);
-    drawer.add_child(scroll);
+    card.add_child(scroll);
 
     const records = this._stackGalleryCatalog(view.widget);
-    const columns = Math.max(1, Math.floor((drawerWidth - 36 + 16) / (430 + 16)));
+    const columns = Math.max(1, Math.floor((cardW - 60) / (430 + 16)));
     let cards = [];
 
     const rebuildGrid = () => {
@@ -3995,10 +3984,10 @@ sizeButton.connectObject('destroy', () => {
           vertical: true,
           width: 430,
           x_align: Clutter.ActorAlign.CENTER,
-          style_class: 'widget-gallery-preview-item',
           style: 'spacing: 6px;',
         }));
 
+        const previewHeight = 170;
         const previewBox = new St.Widget({
           layout_manager: new Clutter.FixedLayout(),
           width: 430,
@@ -4006,8 +3995,8 @@ sizeButton.connectObject('destroy', () => {
           x_align: Clutter.ActorAlign.CENTER,
           reactive: true,
           track_hover: true,
-          style_class: 'widget-gallery-card-preview',
           style: `background-color: ${theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'};`
+            + ` border: 1px solid rgba(255,255,255,0.10);`
             + ` border-radius: 16px;`,
           clip_to_allocation: true,
         });
@@ -4022,14 +4011,14 @@ sizeButton.connectObject('destroy', () => {
         };
         renderPreview();
 
-        // Pickup = release click on the preview (the reference behavior).
+        // Pickup = release click on preview
         let pressPoint = null;
-        previewBox.connectObject('button-press-event', (_actor, event) => {
+        previewBox.connect('button-press-event', (_actor, event) => {
           const [, py] = event.get_coords();
           pressPoint = Number.isFinite(py) ? py : null;
           return Clutter.EVENT_STOP;
-        }, previewBox);
-        previewBox.connectObject('button-release-event', (_actor, event) => {
+        });
+        previewBox.connect('button-release-event', (_actor, event) => {
           if (event.get_button() === 1 && pressPoint !== null) {
             if (!Array.isArray(view.widget.stack)) {
               view.widget.stack = [];
@@ -4042,7 +4031,7 @@ sizeButton.connectObject('destroy', () => {
           };
           pressPoint = null;
           return Clutter.EVENT_STOP;
-        }, previewBox);
+        });
         cardBox.add_child(previewBox);
 
         const titleRow = new St.BoxLayout(boxLayoutProps({width: 430, x_align: Clutter.ActorAlign.CENTER}));
@@ -4056,21 +4045,24 @@ sizeButton.connectObject('destroy', () => {
         for (const sizeKey of record.sizes) {
           const chip = new St.Button({
             label: widgetSizeLabel(sizeKey),
-            style_class: 'button widget-gallery-size-chip',
             style: `border-radius: 9px; padding: 4px 7px; font-size: 10px;`
               + ` border: 1px solid rgba(255,255,255,0.12); color: ${theme.text};`
               + ` background-color: ${sizeKey === selectedSize ? theme.accent : 'rgba(255,255,255,0.10)'};`,
           });
-          chip.connectObject('clicked', () => {
-            selectedSize = sizeKey;
-            renderPreview();
-            for (const child of chipsRow.get_children()) {
-              if (child instanceof St.Button) {
-                child.style = child.style.replace(`background-color: ${theme.accent};`, 'background-color: rgba(255,255,255,0.10);');
+          chip.connect('button-press-event', () => Clutter.EVENT_STOP);
+          chip.connect('button-release-event', (_actor, event) => {
+            if (event.get_button() === 1) {
+              selectedSize = sizeKey;
+              renderPreview();
+              for (const child of chipsRow.get_children()) {
+                if (child instanceof St.Button) {
+                  child.style = child.style.replace(`background-color: ${theme.accent};`, 'background-color: rgba(255,255,255,0.10);');
+                };
               };
+              chip.style = chip.style.replace(/background-color:\s*[^;]+;/, `background-color: ${theme.accent};`);
             };
-            chip.style = chip.style.replace(/background-color:\s*[^;]+;/, `background-color: ${theme.accent};`);
-          }, chip);
+            return Clutter.EVENT_STOP;
+          });
           chipsRow.add_child(chip);
         };
         chipsRow.add_child(new St.Widget({x_expand: true}));
@@ -4079,7 +4071,6 @@ sizeButton.connectObject('destroy', () => {
         cards.push(cardBox);
       };
 
-      // The reference attaches card grids via a homogeneous GridLayout.
       const layout = new Clutter.GridLayout({
         column_spacing: 16,
         row_spacing: 16,
@@ -4098,26 +4089,22 @@ sizeButton.connectObject('destroy', () => {
     search.clutter_text.connectObject('text-changed', () => rebuildGrid(), search);
     rebuildGrid();
 
-    // The backdrop swells clicks; the drawer stops its own first.
-    drawer.connect('button-press-event', () => Clutter.EVENT_STOP);
-
+    // Card stops bubbling; backdrop closes
+    card.connect('button-press-event', () => Clutter.EVENT_STOP);
     overlay.connect('button-press-event', (_actor, event) => {
       this._closeStackGallery();
       return Clutter.EVENT_STOP;
     });
 
-    // Drawer slide-up with the reference timing.
-    drawer.translation_y = drawerHeight;
-    drawer.opacity = 255;
-    drawer.ease({
-      translation_y: 0,
-      duration: 220,
-      mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-    });
+    // Center card on screen
+    const cardX = Math.max(16, (stageSize[0] - cardW) / 2);
+    const cardY = Math.max(16, (stageSize[1] - cardH) / 2);
+    card.set_position(Math.round(cardX), Math.round(cardY));
 
+    overlay.add_child(card);
     Main.uiGroup.add_child(overlay);
     this._galleryPart = overlay;
-    console.log('[debug] gallery opened (drawer)');
+    console.log('[debug] gallery opened (centered modal)');
   };
 
   _closeStackGallery() {
