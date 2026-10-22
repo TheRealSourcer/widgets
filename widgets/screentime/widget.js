@@ -390,16 +390,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		y_align: Clutter.ActorAlign.START,
 		style: `color: ${textColor}; font-size: ${HEADER_FONT_SIZE_PX}px; font-weight: 600;`,
 	});
-	// Two stacked slots over the total: the LIVE label plus — during the 1x1
-	// day flip — a frozen copy of the leaving page's total. BinLayout centers
-	// its children by default: pin both labels to the left edge.
-	const totalStage = new St.Widget({
-		layout_manager: new Clutter.BinLayout(),
-		x_expand: true,
-	});
-	totalTimeLabel.x_align = Clutter.ActorAlign.START;
-	totalStage.add_child(totalTimeLabel);
-	headerBox.add_child(totalStage);
+	headerBox.add_child(totalTimeLabel);
 
 	// Date + arrows form one row on the 2x2 card (a flatter header leaves the
 	// app band three rows); the 2x1 keeps the compact vertical stack. The
@@ -460,18 +451,10 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	};
 
 	const goToPreviousDay = () => {
-		if (compactSquare) {
-			flipCompactDay(-1);
-			return;
-		}
 		state.selectedDate = addDays(state.selectedDate, -1);
 		refreshData();
 	};
 	const goToNextDay = () => {
-		if (compactSquare) {
-			flipCompactDay(1);
-			return;
-		}
 		if (state.selectedDate === screenTimeEngine.getTodayDate()) return;
 		state.selectedDate = addDays(state.selectedDate, 1);
 		refreshData();
@@ -488,8 +471,15 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	// total duration (EASE_OUT_CUBIC, 500ms), nothing fades. The 1x1 card
 	// has no nav buttons at all; 2x1/2x2 carry the arrows too, the mouse
 	// gesture duplicates them.
-	const bindDaySwipe = (card, threshold) => {
-		const CROSS_DURATION = 500; // system monitor cross: 2 × the base beat
+	// ── Mouse day-flip ────────────────────────────────────────────────────
+	// Right-button press-drag-release shifts one day per gesture.
+	// • 1x1 compact carries the original slide-and-fade flip: the day slides
+	//   out and fades, the data swap happens fully off-stage, and the day
+	//   slides back in from the opposite side.
+	// • 2x1 / 2x2 have NO flip animation at all — a swipe simply jumps the
+	//   day (the arrows never animated either).
+	const bindDaySwipe = (card, threshold, { animate = true } = {}) => {
+		const SWIPE_DURATION = 250; // the compact card's classic beat
 		let swipeStartX = null;
 		let swipeBusy = false;
 
@@ -516,27 +506,34 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			if (dayDelta > 0 && state.selectedDate === screenTimeEngine.getTodayDate())
 				return Clutter.EVENT_STOP;
 
+			// Wide cards: the data swap is the whole story — no motion.
+			if (!animate) {
+				state.selectedDate = addDays(state.selectedDate, dayDelta);
+				refreshData();
+				return Clutter.EVENT_STOP;
+			}
+
 			const pageWidth = Math.max(120, card.get_width() || 180);
 			const exitX = delta < 0 ? -pageWidth : pageWidth;
 			swipeBusy = true;
-			const legDuration = Math.round(CROSS_DURATION / 2);
 
-			// Leaving leg: slide out intact, no fade — the swap lands when
-			// the page is fully off-stage, so it is never visible.
+			// The old day slides out; the data swap and the entry slide both
+			// happen in the complete handler, so the swap is never visible —
+			// the card always arrives from the opposite side.
 			card.ease({
+				opacity: 0,
 				translation_x: exitX,
-				duration: legDuration,
-				mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+				duration: SWIPE_DURATION,
+				mode: Clutter.AnimationMode.EASE_IN_QUAD,
 				onComplete: () => {
 					state.selectedDate = addDays(state.selectedDate, dayDelta);
 					refreshData();
 					card.translation_x = -exitX;
-					// Arriving leg: same curve as the leaving one — the
-					// system cross eases both travellers EASE_OUT_CUBIC.
 					card.ease({
+						opacity: 255,
 						translation_x: 0,
-						duration: legDuration,
-						mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+						duration: SWIPE_DURATION,
+						mode: Clutter.AnimationMode.EASE_OUT_QUAD,
 						onComplete: () => { swipeBusy = false; },
 					});
 				},
@@ -545,143 +542,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		});
 	};
 
-	// ── 1x1 day flip: the system page cross, 1:1 ──────────────────────────
-	// The compact card is a single live page, but the cross needs TWO visible
-	// pages: the live one plays the arriving page — it swaps its day while
-	// off-stage and rides in — while frozen copies of the OLD day (total
-	// label, plot canvas, y-scale numerals) play the leaving page and slide
-	// out in lockstep. Day-identical chrome (card frame, 00/12/24 axis)
-	// stays put, like the pane frame under the system monitor's cross.
-	// No blank space at any moment of the flight.
-	const compactCrossState = { busy: false };
-	const flipCompactDay = (dayDelta) => {
-		if (compactCrossState.busy) return;
-		if (dayDelta > 0 && state.selectedDate === screenTimeEngine.getTodayDate()) return;
-		// Cold start (layout not measured yet, or no chart): flip instantly.
-		if (!chartCanvas || !state.snapshot || state.geometry.plotWidth <= 0
-			|| isActorDestroyed(body) || !body.get_parent()) {
-			state.selectedDate = addDays(state.selectedDate, dayDelta);
-			refreshData();
-			return;
-		}
-		compactCrossState.busy = true;
-
-		// The leaving page's visuals, captured BEFORE the day ref moves.
-		const leaveHours = (state.snapshot.hours ?? []).slice();
-		const leaveHourKeys = state.snapshot.hourKeys ? state.snapshot.hourKeys.slice() : null;
-		const leaveTopKey = state.categorySummary?.[0]?.key ?? null;
-		const leaveTotalText = totalTimeLabel.text;
-		const leaveTotalStyle = totalTimeLabel.style;
-		const leaveScaleTexts = yAxisLabels.map(label => label.text);
-
-		const pageW = Math.max(120, root.get_width() || 180);
-		// pageW + gap = GNOME's baseDistance — the same spacing the system
-		// monitor's cross puts between the adjacent pages.
-		const base = pageW + Math.round(pageW / 16);
-		const exitX = dayDelta > 0 ? -base : base; // next day exits left
-		const DURATION = 500; // the system cross: one lockstep flight, 2×beat
-		const s = state.geometry.scale || 1;
-		const plotOffset = Math.round(12 * s);
-
-		// ── Incoming page (the LIVE actors): jump off-stage first, then swap
-		// the day — the swap lands off-stage, never visible.
-		totalTimeLabel.translation_x = -exitX;
-		chartCanvas.translation_x = -exitX;
-		yAxisBox.translation_x = -exitX;
-		state.selectedDate = addDays(state.selectedDate, dayDelta);
-		refreshData();
-
-		// ── Leaving page: frozen copies of the OLD day over the live one.
-		const ghostCanvas = new St.DrawingArea();
-		ghostCanvas.set_position(0, plotOffset);
-		ghostCanvas.set_size(state.geometry.plotWidth, state.geometry.plotHeight);
-		ghostCanvas.connect('repaint', (area) => {
-			// The same renderer as the live page — but the FROZEN old day.
-			drawDayChart(area, {
-				hours: leaveHours,
-				scaleMax: computeScaleMaxSeconds(leaveHours),
-				hourKeys: leaveHourKeys,
-				topKey: leaveTopKey,
-			});
-		});
-		chartWrap.add_child(ghostCanvas);
-
-		const ghostAxis = new St.BoxLayout({
-			orientation: Clutter.Orientation.VERTICAL,
-			x_align: Clutter.ActorAlign.END,
-			style: yAxisBox.style,
-		});
-		const ghostAlignments = [Clutter.ActorAlign.START, Clutter.ActorAlign.CENTER, Clutter.ActorAlign.END];
-		leaveScaleTexts.forEach((text, index) => {
-			ghostAxis.add_child(new St.Label({
-				text,
-				y_expand: true,
-				y_align: ghostAlignments[index],
-				x_align: Clutter.ActorAlign.END,
-				style: yAxisLabels[index].style,
-			}));
-		});
-		ghostAxis.set_position(state.geometry.plotWidth, plotOffset);
-		ghostAxis.set_size(yAxisBox.get_width(), state.geometry.plotHeight);
-		chartWrap.add_child(ghostAxis);
-
-		const ghostTotal = new St.Label({
-			text: leaveTotalText,
-			x_align: Clutter.ActorAlign.START,
-			style: leaveTotalStyle,
-		});
-		totalStage.add_child(ghostTotal);
-
-		// ── Lockstep flight — the system cross curve and timing, both pages.
-		[ghostCanvas, ghostAxis, ghostTotal].forEach(actor => {
-			actor.ease({
-				translation_x: exitX,
-				duration: DURATION,
-				mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
-				onComplete: () => {
-					if (actor.get_parent())
-						actor.get_parent().remove_child(actor);
-					actor.destroy();
-				},
-			});
-		});
-		[totalTimeLabel, chartCanvas, yAxisBox].forEach(actor => {
-			actor.ease({
-				translation_x: 0,
-				duration: DURATION,
-				mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
-			});
-		});
-		// The arriving canvas is the duty page: even when refreshData's
-		// callback landed before the jump, make sure it paints fresh.
-		chartCanvas.queue_repaint();
-		GLib.timeout_add(GLib.PRIORITY_DEFAULT, DURATION + 16, () => {
-			compactCrossState.busy = false;
-			return GLib.SOURCE_REMOVE;
-		});
-	};
-
-	if (compactSquare) {
-		// 1x1 swipes drive the page cross.
-		root.reactive = true;
-		let crossSwipeStartX = null;
-		root.connect('button-press-event', (_actor, event) => {
-			if (event.get_button() !== 3) return Clutter.EVENT_PROPAGATE;
-			crossSwipeStartX = event.get_coords()[0];
-			return Clutter.EVENT_PROPAGATE;
-		});
-		root.connect('button-release-event', (_actor, event) => {
-			if (crossSwipeStartX === null) return Clutter.EVENT_PROPAGATE;
-			const startX = crossSwipeStartX;
-			crossSwipeStartX = null;
-			const delta = event.get_coords()[0] - startX;
-			if (Math.abs(delta) < 30) return Clutter.EVENT_PROPAGATE;
-			flipCompactDay(delta < 0 ? 1 : -1);
-			return Clutter.EVENT_STOP;
-		});
-	} else {
-		bindDaySwipe(root, 30);
-	}
+	bindDaySwipe(root, 30, { animate: compactSquare });
 
 	// ── Chart (main panel) ─────────────────────────────────────────────────
 	let chartWrap = null;
