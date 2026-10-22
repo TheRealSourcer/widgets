@@ -89,9 +89,10 @@ export function attachWidgetStack({
 		// Stacked pages carry no glass backdrop (glass records key on the
 		// wrapper's widget id); force the solid skin so their content stays
 		// readable over the desktop no matter which style mode is on.
+		const cardSize = entry.size || widget.size || 'default';
 		const cardActor = new St.BoxLayout(boxLayoutProps({
 			vertical: true,
-			style_class: `widget widget-${entry.type} widget-${entry.type}-${entry.size || widget.size ?? 'default'}`,
+			style_class: `widget widget-${entry.type} widget-${entry.type}-${cardSize}`,
 			style: `background-color: ${theme.background};`
 				+ ` border-style: solid;`
 				+ ` border-width: ${theme.borderWidth}px;`
