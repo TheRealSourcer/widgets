@@ -549,6 +549,7 @@ class WidgetController {
       // Re-render the weather cards in place so the temperature flips between
       // accent and neutral text color the moment the toggle flips.
       'changed::weather-use-accent-color', () => this._refreshWeatherViews(),
+      'changed::weather-show-page-dots', () => this._refreshWeatherViews(),
       'changed::digitalclock-hour-format', () => this._scheduleAppearance('refresh'),
       'changed::digitalclock-show-seconds', () => this._scheduleAppearance('refresh'),
       'changed::digitalclock-show-ampm', () => this._scheduleAppearance('refresh'),

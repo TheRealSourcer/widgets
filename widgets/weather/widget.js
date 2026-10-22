@@ -22,6 +22,12 @@ export const supportedSizes = ['small', 'medium', 'large', 'wide'];
 
 const HOUR_MS = 3600 * 1000;
 const HOURS_AHEAD = 24;
+// 1x1 page flip: the calendar's two-leg slide (30px swipe, 250ms beats).
+const WEATHER_SWIPE_THRESHOLD = 30;
+const WEATHER_FLIP_DURATION = 250;
+// The swipe page survives the card's periodic re-renders (module-wide,
+// the same way the calendar keeps its view across event refreshes).
+let weatherCompactPage = 0;
 
 export function style(theme) {
 	return `background-color: ${theme.background}; border-color: ${theme.border}; color: ${theme.text}; border-radius: 16px; padding: 18px 18px 10px 18px;`;
@@ -767,7 +773,196 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 	const compactScale = large || wide ? 1 : Math.max(0.9, Math.min(1.6, Math.min(widgetWidth, widgetHeight) / 170));
 
 	if (!wide && !large) {
-		buildCompactRegime(body, renderedWeather, theme, createLabel, compactScale, tempColor);
+		// ── 1x1 — two swipeable pages, the calendar's flip animation ──────
+		// Page one is the classic compact card (location, temp, icon,
+		// summary, H/L). Page two carries the incoming hours — time, icon
+		// and temperature per column, the wide card's hourly strip scaled
+		// down. The right-button swipe plays the calendar's sequential
+		// leg: the page slides out and fades, the other one waits
+		// off-stage, then slides in from the opposite side. Page dots sit
+		// at the very bottom of both pages.
+		const pages = [];
+
+		const conditionsPage = new St.BoxLayout(boxLayoutProps({
+			vertical: true,
+			x_expand: true,
+			y_expand: true,
+		}));
+		buildCompactRegime(conditionsPage, renderedWeather, theme, createLabel, compactScale, tempColor);
+		pages.push(conditionsPage);
+
+		const hoursPage = new St.BoxLayout(boxLayoutProps({
+			vertical: true,
+			x_expand: true,
+			y_expand: true,
+		}));
+		const hourly = renderedWeather.hourly ?? [];
+		if (hourly.length > 0) {
+			// Fit whole "9:00 PM" labels: count the cells from the widest
+			// measured time label (2–4 cells; the card is only ~220px wide).
+			const hoursTimeFont = 9;
+			const hoursTimeWeight = 700;
+			const widestHourTime = hourly.slice(0, 8).reduce(
+				(maxW, item) => Math.max(maxW, item ? measureLabelWidth(item.label, scaledFont(hoursTimeFont, compactScale), hoursTimeWeight) : 0),
+				0);
+			const hourCellWidth = Math.max(34, widestHourTime + Math.round(6 * compactScale));
+			const hourCount = Math.max(2, Math.min(4, Math.floor((widgetWidth - 12) / hourCellWidth), hourly.length));
+
+			// Vertical centering: BoxLayout stretches its children, namely
+			// filler widgets pin the strip to the middle of the page.
+			hoursPage.add_child(new St.Widget({y_expand: true}));
+			hoursPage.add_child(buildHourlyStrip(hourly, theme, createLabel, compactScale, hourCount, {
+				timeFont: hoursTimeFont,
+				timeWeight: hoursTimeWeight,
+				iconSize: 24,
+				tempFont: 15,
+				tempWeight: 700,
+				timeColor: theme.muted,
+			}));
+			hoursPage.add_child(new St.Widget({y_expand: true}));
+		} else {
+			// No forecast payload: keep the page real but quiet.
+			const emptyLabel = createLabel(
+				_('No forecast'),
+				'widget-weather-hours-empty',
+				`color: ${theme.muted}; font-size: 12px; font-weight: 600;`);
+			emptyLabel.x_align = Clutter.ActorAlign.CENTER;
+
+			hoursPage.add_child(new St.Widget({y_expand: true}));
+			hoursPage.add_child(emptyLabel);
+			hoursPage.add_child(new St.Widget({y_expand: true}));
+		}
+		pages.push(hoursPage);
+		pages.forEach(page => {
+			page.x_align = Clutter.ActorAlign.FILL;
+			page.y_align = Clutter.ActorAlign.FILL;
+		});
+
+		// Page dots (calendar's classic look): toggleable in prefs →
+		// Weather Widget; dash/dot follows the global page-indicator-style,
+		// the color is the accent while the weather accent toggle is on,
+		// otherwise the neutral theme text.
+		const showPageDots = settings?.get_boolean('weather-show-page-dots') ?? true;
+		const dashStyle = (settings?.get_int('page-indicator-style') ?? 0) === 1;
+		const indicatorColor = useAccentColor ? (theme?.accent ?? theme.text) : theme.text;
+		const dotsRow = new St.BoxLayout(boxLayoutProps({
+			x_expand: true,
+			x_align: Clutter.ActorAlign.CENTER,
+			style: 'spacing: 6px; margin-bottom: 2px;',
+		}));
+		const dots = pages.map(() => new St.Widget({
+			width: dashStyle ? 10 : 5,
+			height: dashStyle ? 3 : 5,
+			opacity: 90,
+			style: `border-radius: 999px; background-color: ${indicatorColor};`,
+		}));
+		dots.forEach(dot => dotsRow.add_child(dot));
+
+		const dotsWrap = new St.BoxLayout(boxLayoutProps({
+			vertical: true,
+			x_expand: true,
+			y_expand: true,
+		}));
+		dotsWrap.add_child(new St.Widget({y_expand: true}));
+		dotsWrap.add_child(dotsRow);
+
+		const pageStack = new St.Widget({
+			layout_manager: new Clutter.BinLayout(),
+			x_expand: true,
+			y_expand: true,
+		});
+		pageStack.add_child(pages[weatherCompactPage]);
+		if (showPageDots) {
+			pageStack.add_child(dotsWrap); // dots paint above the pages
+		}
+		body.add_child(pageStack);
+
+		const refreshDots = () => {
+			if (!dotsWrap.get_parent()) {
+				return;
+			};
+
+			dots.forEach((dot, index) => {
+				dot.ease({
+					opacity: index === weatherCompactPage ? 255 : 90,
+					duration: 120,
+					mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+				});
+			});
+		};
+		refreshDots();
+
+		// Dispose safety: re-renders replace this whole page stack; the
+		// late flight timers of a swipe must never touch disposed actors.
+		const stackLifetime = {alive: true};
+		const pageLifetimes = pages.map(page => {
+			const lifetime = {alive: true};
+			page.connect('destroy', () => { lifetime.alive = false; });
+			return lifetime;
+		});
+		pageStack.connect('destroy', () => { stackLifetime.alive = false; });
+
+		// Right-button swipe — the calendar's sequential two-leg flip.
+		let swipeStartX = null;
+		let swipeBusy = false;
+		pageStack.reactive = true;
+		pageStack.connect('button-press-event', (actor, event) => {
+			if (event.get_button() !== 3) return Clutter.EVENT_PROPAGATE;
+			swipeStartX = event.get_coords()[0];
+			return Clutter.EVENT_PROPAGATE;
+		});
+		pageStack.connect('button-release-event', (actor, event) => {
+			if (swipeStartX === null) return Clutter.EVENT_PROPAGATE;
+			const startX = swipeStartX;
+			swipeStartX = null;
+			const delta = event.get_coords()[0] - startX;
+
+			if (Math.abs(delta) < WEATHER_SWIPE_THRESHOLD || swipeBusy)
+				return Clutter.EVENT_STOP;
+
+			swipeBusy = true;
+			const leavingPage = weatherCompactPage;
+			const leaving = pages[leavingPage];
+			const exitX = delta < 0 ? -widgetWidth : widgetWidth;
+
+			// Leg one: the page slides out and fades.
+			leaving.ease({
+				opacity: 0,
+				translation_x: exitX,
+				duration: WEATHER_FLIP_DURATION,
+				mode: Clutter.AnimationMode.EASE_IN_QUAD,
+				onComplete: () => {
+					if (pageLifetimes[leavingPage].alive && leaving.get_parent()) {
+						leaving.get_parent().remove_child(leaving);
+					};
+				},
+			});
+
+			// Any swipe direction switches to the other page.
+			weatherCompactPage = 1 - weatherCompactPage;
+			refreshDots();
+
+			// Leg two starts mid-flight, exactly like the calendar: the
+			// page waits off-stage, then slides in and fades up.
+			GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.round(WEATHER_FLIP_DURATION / 2), () => {
+				swipeBusy = false;
+				if (!stackLifetime.alive || !pageLifetimes[weatherCompactPage].alive)
+					return GLib.SOURCE_REMOVE;
+
+				const entering = pages[weatherCompactPage];
+				entering.translation_x = -exitX;
+				entering.opacity = 0;
+				pageStack.add_child(entering);
+				entering.ease({
+					opacity: 255,
+					translation_x: 0,
+					duration: WEATHER_FLIP_DURATION,
+					mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+				});
+				return GLib.SOURCE_REMOVE;
+			});
+			return Clutter.EVENT_STOP;
+		});
 		return;
 	};
 

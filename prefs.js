@@ -1576,6 +1576,17 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(accentRow);
 
+        // 1x1 weather swipe pages (weather ⇄ hourly): page indicators.
+        const pageDotsRow = new Adw.SwitchRow({
+            title: _('Show page dots'),
+            subtitle: _('Two page-indicator dots at the bottom of the 1x1 weather (weather/hourly swipe pages)'),
+        });
+        pageDotsRow.set_active(settings.get_boolean('weather-show-page-dots'));
+        pageDotsRow.connect('notify::active', () => {
+            settings.set_boolean('weather-show-page-dots', pageDotsRow.get_active());
+        });
+        group.add(pageDotsRow);
+
         page.add(group);
         return page;
     }

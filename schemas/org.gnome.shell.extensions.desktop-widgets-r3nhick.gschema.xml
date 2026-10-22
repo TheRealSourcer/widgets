@@ -126,6 +126,11 @@
       <summary>Use accent color for weather</summary>
       <description>Use system or custom accent color for the main temperature of the Weather widget. When disabled, uses neutral text color (white or black based on theme).</description>
     </key>
+    <key name="weather-show-page-dots" type="b">
+      <default>true</default>
+      <summary>Show weather page dots</summary>
+      <description>Show the two page-indicator dots at the bottom of the 1x1 weather (weather/hourly swipe pages).</description>
+    </key>
     <key name="digitalclock-hour-format" type="s">
       <default>'24'</default>
       <summary>Digital clock time format</summary>
