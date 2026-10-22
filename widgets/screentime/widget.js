@@ -410,12 +410,13 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		controlsColumn.add_child(dateLabel);
 
 	const navButtonsRow = new St.BoxLayout({ style: 'spacing: 6px;' });
-	if (showNavButtons)
-		controlsColumn.add_child(navButtonsRow);
+	controlsColumn.add_child(navButtonsRow);
 
-	// The compact card keeps no header controls when the arrows are hidden.
-	if (!compactSquare || showNavButtons)
-		headerBox.add_child(controlsColumn);
+	// Always attached; visibility handles the toggle (the arrows row plus, on
+	// the compact card, the whole column when nothing else remains).
+	navButtonsRow.visible = showNavButtons;
+	controlsColumn.visible = showNavButtons || !compactSquare;
+	headerBox.add_child(controlsColumn);
 
 	const buildNavButton = (iconName, action) => {
 		const button = new St.Button({
@@ -1087,7 +1088,10 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const padBottom = Math.round(6 * s);
 			compactBox.style = `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
 
-			const headerReserve = Math.round(48 * s);
+			// The header's NATURAL height (~28px: the 21px total label, the
+			// arrows are no taller). An inflated estimate here leaves dead
+			// space under the axis — the labels stop hugging the bottom edge.
+			const headerReserve = Math.round(30 * s);
 			const yWidth = Math.round(30 * s);
 			const plotWidth = Math.max(1, currentWidth - padSide * 2 - yWidth);
 			const plotHeight = Math.max(1, currentHeight - padTop - padBottom
