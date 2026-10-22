@@ -361,11 +361,12 @@ function buildHourlyStrip(hours, theme, createLabel, stripScale, cellCount, opts
 	const tempFontBase = opts.tempFont ?? 13;
 	const tempWeight = opts.tempWeight ?? 700;
 	const timeColor = opts.timeColor ?? theme.muted;
+	const spacing = opts.spacing ?? 6;
 	const strip = new St.BoxLayout(boxLayoutProps({
 		style_class: 'widget-weather-hourly',
 		x_expand: true,
 		x_align: Clutter.ActorAlign.FILL,
-		style: `spacing: ${Math.round(6 * stripScale)}px;`,
+		style: `spacing: ${Math.round(spacing * stripScale)}px;`,
 	}));
 
 	for (let index = 0; index < cellCount; index++) {
@@ -666,7 +667,7 @@ function stripDivider() {
 // Compact (1×1) card in the W01 style: location label, a bold accent-colored
 // temperature, then the condition icon, the sky summary and the day's
 // high/low, stacked in a single left-aligned column.
-function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor) {
+function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor, opts = {}) {
 	// City name with navigation icon
 	const cityRow = new St.BoxLayout(boxLayoutProps({
 		vertical: false,
@@ -706,7 +707,10 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 		vertical: true,
 		x_align: Clutter.ActorAlign.START,
 		y_align: Clutter.ActorAlign.END,
-		style: 'spacing: 2px;',
+		// With swipe pages the "lift" frees a strip above the card's bottom
+		// edge — the page dots sit there, clear of the H/L line (the system
+		// monitor's dashes hang below the content the same way).
+		style: `spacing: 2px;${opts.bottomLift ? ` margin-bottom: ${opts.bottomLift}px;` : ''}`,
 	}));
 	const iconParams = {
 		style_class: 'widget-weather-icon',
@@ -781,6 +785,12 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 		// leg: the page slides out and fades, the other one waits
 		// off-stage, then slides in from the opposite side. Page dots sit
 		// at the very bottom of both pages.
+		// Page dots (calendar's classic look): toggleable in prefs →
+		// Weather Widget; dash/dot follows the global page-indicator-style,
+		// the color is the accent while the weather accent toggle is on,
+		// otherwise the neutral theme text.
+		const showPageDots = settings?.get_boolean('weather-show-page-dots') ?? true;
+
 		const pages = [];
 
 		const conditionsPage = new St.BoxLayout(boxLayoutProps({
@@ -788,7 +798,9 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 			x_expand: true,
 			y_expand: true,
 		}));
-		buildCompactRegime(conditionsPage, renderedWeather, theme, createLabel, compactScale, tempColor);
+		buildCompactRegime(conditionsPage, renderedWeather, theme, createLabel, compactScale, tempColor, {
+			bottomLift: showPageDots ? 16 : 0,
+		});
 		pages.push(conditionsPage);
 
 		const hoursPage = new St.BoxLayout(boxLayoutProps({
@@ -798,15 +810,11 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 		}));
 		const hourly = renderedWeather.hourly ?? [];
 		if (hourly.length > 0) {
-			// Fit whole "9:00 PM" labels: count the cells from the widest
-			// measured time label (2–4 cells; the card is only ~220px wide).
-			const hoursTimeFont = 9;
+			// Always four columns when the data allows (the mockup look);
+			// the time shrinks to fit — full "05:00 PM" per column.
+			const hoursTimeFont = 8;
 			const hoursTimeWeight = 700;
-			const widestHourTime = hourly.slice(0, 8).reduce(
-				(maxW, item) => Math.max(maxW, item ? measureLabelWidth(item.label, scaledFont(hoursTimeFont, compactScale), hoursTimeWeight) : 0),
-				0);
-			const hourCellWidth = Math.max(34, widestHourTime + Math.round(6 * compactScale));
-			const hourCount = Math.max(2, Math.min(4, Math.floor((widgetWidth - 12) / hourCellWidth), hourly.length));
+			const hourCount = Math.min(4, Math.max(1, hourly.length));
 
 			// Vertical centering: BoxLayout stretches its children, namely
 			// filler widgets pin the strip to the middle of the page.
@@ -814,10 +822,11 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 			hoursPage.add_child(buildHourlyStrip(hourly, theme, createLabel, compactScale, hourCount, {
 				timeFont: hoursTimeFont,
 				timeWeight: hoursTimeWeight,
-				iconSize: 24,
-				tempFont: 15,
+				iconSize: 20,
+				tempFont: 14,
 				tempWeight: 700,
 				timeColor: theme.muted,
+				spacing: 4,
 			}));
 			hoursPage.add_child(new St.Widget({y_expand: true}));
 		} else {
@@ -838,11 +847,9 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 			page.y_align = Clutter.ActorAlign.FILL;
 		});
 
-		// Page dots (calendar's classic look): toggleable in prefs →
-		// Weather Widget; dash/dot follows the global page-indicator-style,
+		// dash/dot follows the global page-indicator-style,
 		// the color is the accent while the weather accent toggle is on,
 		// otherwise the neutral theme text.
-		const showPageDots = settings?.get_boolean('weather-show-page-dots') ?? true;
 		const dashStyle = (settings?.get_int('page-indicator-style') ?? 0) === 1;
 		const indicatorColor = useAccentColor ? (theme?.accent ?? theme.text) : theme.text;
 		const dotsRow = new St.BoxLayout(boxLayoutProps({
