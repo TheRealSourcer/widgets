@@ -3514,15 +3514,23 @@ sizeButton.connectObject('destroy', () => {
       can_focus: true,
       track_hover: true,
     });
-    addButton.connect('button-press-event', () => {
-      console.log('[debug] Add page PRESS');
-      return Clutter.EVENT_PROPAGATE;
-    });
     if (canAddMore) {
-      addButton.connectObject('clicked', () => {
-        console.log('[debug] Add page CLICKED');
-        this._openStackGallery(view);
-      }, this);
+      let addPressY = null;
+      addButton.connect('button-press-event', (_actor, event) => {
+        if (event.get_button() === 1) {
+          addPressY = event.get_coords()[1];
+          console.log('[debug] Add page PRESS');
+        };
+        return Clutter.EVENT_STOP;
+      });
+      addButton.connect('button-release-event', (_actor, event) => {
+        if (event.get_button() === 1 && addPressY !== null) {
+          console.log('[debug] Add page RELEASE → opening gallery');
+          this._openStackGallery(view);
+        };
+        addPressY = null;
+        return Clutter.EVENT_STOP;
+      });
     };
     buttonRow.add_child(addButton);
 
@@ -3535,15 +3543,23 @@ sizeButton.connectObject('destroy', () => {
       can_focus: true,
       track_hover: true,
     });
-    doneButton.connect('button-press-event', () => {
-      console.log('[debug] Done PRESS');
-      return Clutter.EVENT_PROPAGATE;
+    let donePressY = null;
+    doneButton.connect('button-press-event', (_actor, event) => {
+      if (event.get_button() === 1) {
+        donePressY = event.get_coords()[1];
+        console.log('[debug] Done PRESS');
+      };
+      return Clutter.EVENT_STOP;
     });
-    doneButton.connectObject('clicked', () => {
-      console.log('[debug] Done CLICKED');
-      this._saveWidgets();
-      this._closeStackPanel();
-    }, this);
+    doneButton.connect('button-release-event', (_actor, event) => {
+      if (event.get_button() === 1 && donePressY !== null) {
+        console.log('[debug] Done RELEASE → closing panel');
+        this._saveWidgets();
+        this._closeStackPanel();
+      };
+      donePressY = null;
+      return Clutter.EVENT_STOP;
+    });
     buttonRow.add_child(doneButton);
     panel.add_child(buttonRow);
 
