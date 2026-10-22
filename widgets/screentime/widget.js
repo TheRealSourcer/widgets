@@ -977,14 +977,20 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			}
 		}
 
-		// Re-fit from MEASURED values: the estimate-based row fit silently
-		// dropped the 4th row. Take the real height of a built row and the
-		// band's real inner height (fed back by the allocation listener);
-		// grow the row count when more rows genuinely fit, rebuilding once
-		// per step (bounded by the LARGE_APP_ROWS_MAX cap).
+		// applyLayout derives the row count from the app count; if the count
+		// changed since the last layout (fresh data arrived), re-layout so the
+		// band re-sizes and the chart re-absorbs the difference.
+		const needed = Math.max(1, Math.min(LARGE_APP_ROWS_MAX,
+			Math.ceil(Math.min(apps.length, config.maxApps) / 2)));
+		if (rows !== needed) {
+			state.geometry.bandRows = needed;
+			scheduleUpdate();
+			return;
+		}
+
+		// Measure one built row: the preferred height under-measures the
+		// painted line boxes, which clipped the last row — pad it a bit.
 		const sample = bandColumns[0].get_children()[0];
-		// The preferred height under-measures the painted line boxes, which
-		// clipped the last row — pad the measured value before fitting.
 		const measuredRow = sample
 			? Math.ceil(sample.get_preferred_height(-1)[1] * 1.2)
 			: Math.round(BAND_ROW_H_PX * s);
@@ -993,32 +999,15 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			? state.geometry.bandInner
 			: Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
 
-		const capacity = Math.floor(innerH / rowH);
-		// Step toward the capacity only while the cap actually moves: once
-		// bandRows equals min(cap, LARGE_APP_ROWS_MAX) the condition below
-		// turns false, so the rebuild cannot recurse forever.
-		const next = Math.min(LARGE_APP_ROWS_MAX, capacity);
-		if (next > rows && state.snapshot.apps.length > rows * 2) {
-			state.geometry.bandRows = next;
-			rebuildAppBand();
-			return;
-		}
-
-		// Spread the rows actually shown across the whole band (space-between):
-		// eight apps pack edge-to-edge, fewer widen the gaps, a single app
-		// hugs the top instead of floating centered in empty space.
-		const shown = Math.max(1, Math.min(apps.length, rows));
-		const spread = shown > 1
-			? Math.max(0, Math.floor((innerH - shown * rowH) / (shown - 1)))
-			: 0;
+		// Compact rows over a fixed gap, with equal top and bottom padding —
+		// any rounding slack after the last row is split evenly between them.
+		const spread = Math.round(6 * s);
 		bandColumns.forEach(column => {
 			column.style = `spacing: ${spread}px;`;
 		});
 
-		// A measurement miss leaves rounding slack after the last row, which
-		// used to pile up entirely at the bottom. Split it evenly so the
-		// visual top and bottom paddings stay identical.
-		const used = shown * rowH + (shown - 1) * spread;
+		const shownRows = Math.min(apps.length, rows);
+		const used = shownRows * rowH + (shownRows - 1) * spread;
 		const leftover = Math.max(0, innerH - used);
 		const padTop = Math.round(8 * s) + Math.floor(leftover / 2);
 		const padBottom = Math.round(8 * s) + leftover - Math.floor(leftover / 2);
@@ -1137,10 +1126,23 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				+ `border: 1px solid ${textRgba(0.14)}; border-radius: ${Math.round(6 * s)}px; background-color: transparent;`;
 			nextButton.style = prevButton.style;
 
-			// The chart keeps a fixed-height zone; the app band absorbs what is
-			// left so its tint always reaches the bottom edge.
-			const chartZoneH = Math.min(170, Math.max(100, Math.round(currentHeight * 0.34)));
+			// Content-sized band: the row count derives from the app count, and
+			// the chart absorbs whatever the band does not need.
 			const xAxisZone = Math.round(4 * s) + axisH;
+			const bandPadT = Math.round(8 * s);
+			const bandPadB = Math.round(8 * s);
+			const bandGap = Math.round(6 * s);
+			const bandRowH = Math.max(
+				Math.round(APP_ICON_SIZE_PX * s),
+				Math.round(BAND_ROW_H_PX * s),
+			);
+			const appsCount = Math.min(state.snapshot?.apps?.length ?? 0, config.maxApps);
+			const bandRowsNeeded = Math.max(1, Math.min(LARGE_APP_ROWS_MAX, Math.ceil(appsCount / 2)));
+			const bandH = bandRowsNeeded * bandRowH + (bandRowsNeeded - 1) * bandGap
+				+ bandPadT + bandPadB;
+			const freeForChart = currentHeight - padTop - headerEstimate - headerMargin
+				- xAxisZone - (legendMargin * 2 + legendH) - bandH;
+			const chartZoneH = Math.max(90, Math.min(170, freeForChart));
 			chartWrap.set_height(chartZoneH + xAxisZone);
 			chartWrap.style = `margin: 0 ${padSide}px;`;
 			legendBox.style = `margin: ${legendMargin}px ${padSide}px;`;
@@ -1159,16 +1161,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			xAxisBox.set_position(0, chartZoneH + Math.round(4 * s));
 			xAxisBox.set_size(plotWidth, axisH);
 
-			const legendBlock = legendMargin * 2 + legendH;			const bandH = Math.max(0, currentHeight - padTop - headerEstimate - headerMargin
-				- (chartZoneH + xAxisZone) - legendBlock);
-			const bandPadT = Math.round(8 * s);
-			const bandPadB = Math.round(8 * s);
-			const bandRowH = Math.max(
-				Math.round(APP_ICON_SIZE_PX * s),
-				Math.round(BAND_ROW_H_PX * s),
-			);
-			const rowsFit = Math.floor((bandH - bandPadT - bandPadB) / bandRowH);
-			state.geometry.bandRows = Math.min(LARGE_APP_ROWS_MAX, Math.max(1, rowsFit));
+			state.geometry.bandRows = bandRowsNeeded;
 			// The rebuild trigger compares listHeight: the band height stands in
 			// for the side panel's height so the rows rebuild only when the
 			// geometry really moved.
@@ -1281,8 +1274,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 	// A size animation (or a size switch) fires notify::width/height every
 	// frame; coalesce them so the (expensive) relayout runs once the size has
-	// settled instead of on each frame.
-	const scheduleUpdate = () => {
+	// settled instead of on each frame. (Declared as a function so rebuilds
+	// that may run inside applyLayout can always reach it.)
+	function scheduleUpdate() {
 		if (disposed) return;
 		if (updateId) GLib.source_remove(updateId);
 		updateId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
@@ -1290,7 +1284,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			update();
 			return GLib.SOURCE_REMOVE;
 		});
-	};
+	}
 
 	body.connect('notify::width', scheduleUpdate);
 	body.connect('notify::height', scheduleUpdate);
