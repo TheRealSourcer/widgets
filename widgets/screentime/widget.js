@@ -922,14 +922,30 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			Clutter.ActorAlign.START, Clutter.ActorAlign.CENTER, Clutter.ActorAlign.END,
 		];
 		for (let i = 0; i < chips.length; i++) {
-			const chip = new St.Label({
-				text: `${appCategoryLabel(chips[i].key)}  ${formatCompactDuration(chips[i].seconds)}`,
+			// Two-line chip (reference design): the colored category on top,
+			// its time right under it in plain theme text color.
+			const chip = new St.BoxLayout({
+				orientation: Clutter.Orientation.VERTICAL,
 				x_expand: true,
 				x_align: chipAligns[i],
+				style: 'spacing: 1px;',
+			});
+
+			const chipName = new St.Label({
+				text: appCategoryLabel(chips[i].key),
 				style: `color: ${i === 0 ? accentHex : appPaletteCss(chips[i].key, isLightBg)}; `
 					+ `font-size: ${Math.max(1, Math.round(LEGEND_FONT_SIZE_PX * s))}px; font-weight: 700;`,
 			});
-			chip.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+			chipName.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+			chip.add_child(chipName);
+
+			const chipTime = new St.Label({
+				text: formatCompactDuration(chips[i].seconds),
+				style: `color: ${textColor}; `
+					+ `font-size: ${Math.max(1, Math.round(LEGEND_FONT_SIZE_PX * 0.92 * s))}px; font-weight: 600;`,
+			});
+			chip.add_child(chipTime);
+
 			legendBox.add_child(chip);
 		}
 	}
@@ -1097,7 +1113,8 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const headerEstimate = Math.round(38 * s);
 			const headerMargin = Math.round(6 * s);
 			const legendMargin = Math.round(6 * s);
-			const legendH = Math.round(LEGEND_FONT_SIZE_PX * 1.6 * s);
+			const legendH = Math.round(LEGEND_FONT_SIZE_PX * 1.25 * s)
+				+ Math.round(LEGEND_FONT_SIZE_PX * 0.92 * 1.25 * s) + Math.round(1 * s);
 
 			headerBox.style = `margin: ${padTop}px ${padSide}px ${headerMargin}px ${padSide}px;`;
 			// The one-row header centers the big total against the nav arrows.
@@ -1129,8 +1146,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			xAxisBox.set_position(0, chartZoneH + Math.round(4 * s));
 			xAxisBox.set_size(plotWidth, axisH);
 
-			const legendBlock = legendMargin * 2 + legendH;
-			const bandH = Math.max(0, currentHeight - padTop - headerEstimate - headerMargin
+			const legendBlock = legendMargin * 2 + legendH;			const bandH = Math.max(0, currentHeight - padTop - headerEstimate - headerMargin
 				- (chartZoneH + xAxisZone) - legendBlock);
 			const bandPadT = Math.round(8 * s);
 			const bandPadB = Math.round(8 * s);
