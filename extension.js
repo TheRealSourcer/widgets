@@ -3419,6 +3419,107 @@ sizeButton.connectObject('destroy', () => {
   // Instead of a small list over the widget, show a large centered window
   // with the current widget in the middle, + buttons above/below to add
   // pages, and a list of added pages at the side. Matches the gallery UX.
+  // Helper: create a widget preview row with delete button
+  _createStackEntryRow(entry, view, theme) {
+    const row = new St.BoxLayout(boxLayoutProps({x_expand: false, style: 'spacing: 8px;'}));
+    
+    // LIVE preview віджету
+    const previewW = 120;
+    const previewH = 90;
+    const gap = this._widgetGap ?? WIDGET_GAP;
+    const sizes = widgetSizesFor(gap);
+    const [entryW, entryH] = sizes[entry.size || view.widget.size] ?? sizes.small;
+    const scale = Math.min(previewW / entryW, previewH / entryH, 1);
+    
+    const previewBox = new St.Widget({
+      layout_manager: new Clutter.FixedLayout(),
+      width: previewW,
+      height: previewH,
+      style: `background-color: ${theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'};`
+        + ` border: 1px solid ${theme.accent};`
+        + ` border-radius: 8px;`,
+      clip_to_allocation: true,
+    });
+    
+    const previewStub = {
+      id: `preview-panel-entry-${entry.key}`,
+      type: entry.type,
+      size: entry.size || view.widget.size,
+      data: entry.data || {},
+      pinned: true,
+    };
+    
+    const previewSurface = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      style_class: `widget widget-${previewStub.type}`,
+      style: `${this._styleForWidget(previewStub) ?? ''} background-color: ${theme.background};`,
+      width: entryW,
+      height: entryH,
+      clip_to_allocation: true,
+    }));
+    
+    const previewBody = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      style_class: 'widget-body',
+      x_expand: true,
+      y_expand: true,
+    }));
+    previewSurface.add_child(previewBody);
+    
+    let previewRendered = false;
+    previewSurface.connectObject('notify::mapped', () => {
+      if (previewRendered || !previewSurface.mapped) return;
+      previewRendered = true;
+      try {
+        this._fillWidgetBody(previewStub, previewBody, previewSurface);
+      } catch (error) {
+        console.error(`[debug] entry preview failed: ${error.message}`);
+      };
+    }, previewSurface);
+    
+    previewSurface.set_scale(scale, scale);
+    previewSurface.set_position(
+      Math.round((previewW - entryW * scale) / 2),
+      Math.round((previewH - entryH * scale) / 2)
+    );
+    previewBox.add_child(previewSurface);
+    row.add_child(previewBox);
+
+    const delButton = new St.Button({
+      label: '✕',
+      style: `padding: 6px 10px; border-radius: 7px;`
+        + ` color: ${theme.text};`
+        + ` background-color: ${theme.dark ? '#453f48' : '#e5e2e6'};`,
+      reactive: true,
+      can_focus: true,
+    });
+    
+    const entryKey = entry.key;
+    let delPressY = null;
+    delButton.connect('button-press-event', (_actor, event) => {
+      if (event.get_button() === 1) {
+        delPressY = event.get_coords()[1];
+      };
+      return Clutter.EVENT_STOP;
+    });
+    delButton.connect('button-release-event', (_actor, event) => {
+      if (event.get_button() === 1 && delPressY !== null) {
+        const actualIndex = view.widget.stack.findIndex(e => (e.key || '') === entryKey);
+        if (actualIndex !== -1) {
+          console.log(`[debug] delete entry key=${entryKey} type=${entry.type}`);
+          view.widget.stack.splice(actualIndex, 1);
+          this._applyStackChange(view);
+        };
+      };
+      delPressY = null;
+      return Clutter.EVENT_STOP;
+    });
+    row.add_child(delButton);
+    
+    return row;
+  };
+
+
   _openStackPanel(view) {
     if (!view?.actor || isActorDestroyed(view.actor)) {
       return;
@@ -3455,17 +3556,31 @@ sizeButton.connectObject('destroy', () => {
     }));
     card.set_size(cardW, cardH);
 
-    // Left column: widget preview with + buttons above/below
+    // Left column: widget preview with + buttons and split lists
     const previewColumn = new St.BoxLayout(boxLayoutProps({
       vertical: true,
       style: 'spacing: 12px;',
       x_align: Clutter.ActorAlign.CENTER,
       y_align: Clutter.ActorAlign.CENTER,
-      y_expand: true,  // Розтягнути по висоті для центрування
+      y_expand: true,
     }));
 
     // Spacer зверху для вертикального центрування
     previewColumn.add_child(new St.Widget({y_expand: true}));
+
+    // Split entries: pages added ABOVE current vs BELOW current
+    // For now, all entries go BELOW (future: track insertion point)
+    const entriesAbove = [];  // TODO: track which were added via top +
+    const entriesBelow = entries;  // For now, all go below
+
+    // List of widgets ABOVE + button (added via top +)
+    const aboveList = new St.BoxLayout(boxLayoutProps({vertical: true, style: 'spacing: 8px;'}));
+    for (const entry of entriesAbove) {
+      aboveList.add_child(this._createStackEntryRow(entry, view, theme));
+    };
+    if (entriesAbove.length > 0) {
+      previewColumn.add_child(aboveList);
+    };
 
     // + button above widget (add page above current)
     const canAddMore = entries.length < STACK_PAGE_LIMIT;
@@ -3504,7 +3619,6 @@ sizeButton.connectObject('destroy', () => {
     const sizes = widgetSizesFor(gap);
     const [widgetW, widgetH] = sizes[view.widget.size] ?? sizes.small;
     
-    // Scale to fit preview area (max 400x300)
     const maxPreviewW = 400;
     const maxPreviewH = 300;
     const previewScale = Math.min(1, maxPreviewW / widgetW, maxPreviewH / widgetH);
@@ -3521,7 +3635,6 @@ sizeButton.connectObject('destroy', () => {
       clip_to_allocation: true,
     });
 
-    // Render actual widget as preview
     const previewStub = {
       id: `preview-panel-${view.widget.id}`,
       type: view.widget.type,
@@ -3548,7 +3661,6 @@ sizeButton.connectObject('destroy', () => {
     }));
     previewSurface.add_child(previewBody);
 
-    // Render widget content when mapped
     let previewRendered = false;
     previewSurface.connectObject('notify::mapped', () => {
       if (previewRendered || !previewSurface.mapped) return;
@@ -3567,9 +3679,7 @@ sizeButton.connectObject('destroy', () => {
       Math.round((previewH - widgetH * previewScale) / 2)
     );
     previewCard.add_child(previewSurface);
-
     previewColumn.add_child(previewCard);
-
 
     // + button below widget (add page below current)
     const addBelowButton = new St.Button({
@@ -3600,6 +3710,15 @@ sizeButton.connectObject('destroy', () => {
       });
     };
     previewColumn.add_child(addBelowButton);
+
+    // List of widgets BELOW + button (added via bottom +)
+    const belowList = new St.BoxLayout(boxLayoutProps({vertical: true, style: 'spacing: 8px;'}));
+    for (const entry of entriesBelow) {
+      belowList.add_child(this._createStackEntryRow(entry, view, theme));
+    };
+    if (entriesBelow.length > 0) {
+      previewColumn.add_child(belowList);
+    };
 
     // Spacer знизу для вертикального центрування
     previewColumn.add_child(new St.Widget({y_expand: true}));
