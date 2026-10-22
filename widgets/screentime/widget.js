@@ -1093,9 +1093,16 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			// space under the axis — the labels stop hugging the bottom edge.
 			const headerReserve = Math.round(30 * s);
 			const yWidth = Math.round(30 * s);
+			const axisH = Math.round(X_AXIS_HEIGHT_PX * s);
 			const plotWidth = Math.max(1, currentWidth - padSide * 2 - yWidth);
 			const plotHeight = Math.max(1, currentHeight - padTop - padBottom
 				- headerReserve - Math.round(X_AXIS_HEIGHT_PX * s) - Math.round(12 * s));
+			// chartWrap is y-expandable inside the compact stack, so all the
+			// rounding slack lands below its content — the axis has to be
+			// pinned to its BOTTOM edge to hug the widget bottom, not at
+			// plotHeight + gap (which floats up wherever slack appears).
+			const chartWrapH = Math.max(axisH + Math.round(20 * s),
+				currentHeight - padTop - padBottom - headerReserve);
 			Object.assign(state.geometry, { plotWidth, plotHeight });
 
 			// chartWrap already stacks below the header inside compactBox, so
@@ -1106,7 +1113,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			chartCanvas.set_size(plotWidth, plotHeight);
 			yAxisBox.set_position(plotWidth, 0);
 			yAxisBox.set_size(yWidth, plotHeight);
-			xAxisBox.set_position(0, plotHeight + Math.round(12 * s));
+			xAxisBox.set_position(0, chartWrapH - Math.round(X_AXIS_HEIGHT_PX * s));
 			xAxisBox.set_size(plotWidth, Math.round(X_AXIS_HEIGHT_PX * s));
 
 			// A smaller fixed total size: the longest realistic value —
