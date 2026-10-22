@@ -988,13 +988,17 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			return;
 		}
 
-		// Measure one built row: the preferred height under-measures the
-		// painted line boxes, which clipped the last row — pad it a bit.
+		// Measure the row's true natural height — the earlier ×1.2 inflation
+		// created phantom slack that piled up under the last row. Cache it so
+		// applyLayout sizes the band from the same ground truth.
 		const sample = bandColumns[0].get_children()[0];
-		const measuredRow = sample
-			? Math.ceil(sample.get_preferred_height(-1)[1] * 1.2)
-			: Math.round(BAND_ROW_H_PX * s);
-		const rowH = Math.max(Math.round(APP_ICON_SIZE_PX * s), measuredRow);
+		const naturalRow = sample ? Math.ceil(sample.get_preferred_height(-1)[1]) : 0;
+		const rowH = Math.max(
+			Math.round(APP_ICON_SIZE_PX * s),
+			naturalRow || Math.round(BAND_ROW_H_PX * s),
+		);
+		if (sample)
+			state.geometry.measuredRowH = { h: rowH, s };
 		const innerH = state.geometry.bandInner > 0
 			? state.geometry.bandInner
 			: Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
@@ -1132,9 +1136,10 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const bandPadT = Math.round(8 * s);
 			const bandPadB = Math.round(8 * s);
 			const bandGap = Math.round(6 * s);
+			const cachedRow = state.geometry.measuredRowH;
 			const bandRowH = Math.max(
 				Math.round(APP_ICON_SIZE_PX * s),
-				Math.round(BAND_ROW_H_PX * s),
+				cachedRow && cachedRow.s === s ? cachedRow.h : Math.round(BAND_ROW_H_PX * s),
 			);
 			const appsCount = Math.min(state.snapshot?.apps?.length ?? 0, config.maxApps);
 			const bandRowsNeeded = Math.max(1, Math.min(LARGE_APP_ROWS_MAX, Math.ceil(appsCount / 2)));
