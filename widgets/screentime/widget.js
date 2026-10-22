@@ -576,7 +576,15 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		}));
 		xAxisBox = new St.BoxLayout({ orientation: Clutter.Orientation.HORIZONTAL });
 		xAxisLabels.forEach(label => xAxisBox.add_child(label));
-		chartWrap.add_child(xAxisBox);
+		// Compact: the axis lives directly in compactBox as the LAST stacked
+		// child — a vertical BoxLayout bottom-aligns it above the padding, so
+		// it hugs the widget's bottom edge no matter how much slack the
+		// y-expanding chartWrap absorbs. The wide cards keep it inside
+		// chartWrap with manual positioning.
+		if (compactSquare)
+			compactBox.add_child(xAxisBox);
+		else
+			chartWrap.add_child(xAxisBox);
 
 		chartCanvas.connect('repaint', (area) => {
 			const ctx = area.get_context();
@@ -1096,25 +1104,20 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const axisH = Math.round(X_AXIS_HEIGHT_PX * s);
 			const plotWidth = Math.max(1, currentWidth - padSide * 2 - yWidth);
 			const plotHeight = Math.max(1, currentHeight - padTop - padBottom
-				- headerReserve - Math.round(X_AXIS_HEIGHT_PX * s) - Math.round(12 * s));
-			// chartWrap is y-expandable inside the compact stack, so all the
-			// rounding slack lands below its content — the axis has to be
-			// pinned to its BOTTOM edge to hug the widget bottom, not at
-			// plotHeight + gap (which floats up wherever slack appears).
-			const chartWrapH = Math.max(axisH + Math.round(20 * s),
-				currentHeight - padTop - padBottom - headerReserve);
+				- headerReserve - axisH - Math.round(12 * s));
 			Object.assign(state.geometry, { plotWidth, plotHeight });
 
-			// chartWrap already stacks below the header inside compactBox, so
-			// canvas positions are relative to chartWrap — the old
-			// headerReserve offset double-counted the header and pushed the
-			// x-axis labels outside the widget.
 			chartCanvas.set_position(0, 0);
 			chartCanvas.set_size(plotWidth, plotHeight);
 			yAxisBox.set_position(plotWidth, 0);
 			yAxisBox.set_size(yWidth, plotHeight);
-			xAxisBox.set_position(0, chartWrapH - Math.round(X_AXIS_HEIGHT_PX * s));
-			xAxisBox.set_size(plotWidth, Math.round(X_AXIS_HEIGHT_PX * s));
+			// The axis is compactBox's last stacked child: the vertical stack
+			// pins it right above the bottom padding regardless of how much
+			// slack the y-expanding chartWrap absorbs. It only needs the
+			// plot's exact width/margins for mark alignment with the plot.
+			xAxisBox.set_size(plotWidth, axisH);
+			xAxisBox.x_expand = true;
+			xAxisBox.style = `margin: 0 ${Math.round(padSide + yWidth)}px 0 ${Math.round(padSide)}px;`;
 
 			// A smaller fixed total size: the longest realistic value —
 			// "1h 53m" — keeps fitting next to the arrows, and every value
