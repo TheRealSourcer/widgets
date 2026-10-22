@@ -307,6 +307,11 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	state.chartCompact = compactSquare;
 	body.clip_to_allocation = true;
 
+	// The root's own death. Declared here — refreshData/renderDynamic/run
+	// earlier in the file, and a TDZ ReferenceError here killed ALL data
+	// loading (the empty-card / invisible-cross bug).
+	let rootAlive = true;
+
 	// ── Split layout (2x1): main panel (chart) + side panel (apps) ─────────
 	const splitBox = isLarge ? null : new St.BoxLayout({
 		orientation: Clutter.Orientation.HORIZONTAL,
@@ -570,7 +575,10 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		const leaveScaleTexts = yAxisLabels.map(label => label.text);
 
 		const pageW = Math.max(120, root.get_width() || 180);
-		const exitX = dayDelta > 0 ? -pageW : pageW; // next day exits left
+		// pageW + gap = GNOME's baseDistance — the same spacing the system
+		// monitor's cross puts between the adjacent pages.
+		const base = pageW + Math.round(pageW / 16);
+		const exitX = dayDelta > 0 ? -base : base; // next day exits left
 		const DURATION = 500; // the system cross: one lockstep flight, 2×beat
 		const s = state.geometry.scale || 1;
 		const plotOffset = Math.round(12 * s);
@@ -1546,12 +1554,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	});
 	// REILLS keep the body alive — destroy_all_children() only kills our
 	// root — while the engine listener and every rebuild keep firing on
-	// root's now-orphanned actors. The body-anchored 'destroy' above NEVER
-	// fires on a refill, and the engine-tick → refreshData guard checked the
-	// still-living body: the old closures kept mutating disposed labels and
-	// canvases once per tick (the 'has been already disposed' flood in the
-	// journal). The root's own death is the only reliable full-stop.
-	let rootAlive = true;
+	// root's now-orphanned actors. The root's own death is the only
+	// reliable full-stop (the flag itself is declared at the top of render;
+	// a TDZ ReferenceError here once killed every data refresh).
 	root.connect('destroy', () => { rootAlive = false; });
 	root.connect('destroy', cleanup);
 	GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
