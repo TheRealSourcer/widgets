@@ -976,8 +976,12 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			: Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
 
 		const capacity = Math.floor(innerH / rowH);
-		if (capacity > rows && state.snapshot.apps.length > rows * 2) {
-			state.geometry.bandRows = Math.min(LARGE_APP_ROWS_MAX, capacity);
+		// Step toward the capacity only while the cap actually moves: once
+		// bandRows equals min(cap, LARGE_APP_ROWS_MAX) the condition below
+		// turns false, so the rebuild cannot recurse forever.
+		const next = Math.min(LARGE_APP_ROWS_MAX, capacity);
+		if (next > rows && state.snapshot.apps.length > rows * 2) {
+			state.geometry.bandRows = next;
 			rebuildAppBand();
 			return;
 		}
