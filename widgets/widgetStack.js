@@ -260,15 +260,24 @@ export function attachWidgetStack({
 		};
 
 		const delta = stageY - startY;
-		console.log(`[debug] rail drag delta=${delta.toFixed(1)} (${delta < 0 ? 'UP' : 'DOWN'}) active=${active}/${pages.length - 1}`);
+		console.log(`[debug] rail drag: startY=${startY.toFixed(1)} endY=${stageY.toFixed(1)} delta=${delta.toFixed(1)} (${delta < 0 ? 'UP' : 'DOWN'}) active=${active}/${pages.length - 1}`);
 		if (Math.abs(delta) <= SWIPE_THRESHOLD) {
+			console.log(`[debug] rail drag too small (threshold=${SWIPE_THRESHOLD})`);
 			return Clutter.EVENT_STOP;
 		};
 
 		// Content follows the finger: an upward drag (delta < 0) reveals
 		// the page below; downward walks back toward page 0. On page 0 a
 		// downward drag targets nothing and does nothing.
-		crossTo(active + (delta < 0 ? 1 : -1));
+		const target = active + (delta < 0 ? 1 : -1);
+		console.log(`[debug] rail drag: attempt crossTo(${target}) from active=${active}, pages=${pages.length}`);
+		
+		// Bounds check: only cross if target is valid
+		if (target >= 0 && target < pages.length) {
+			crossTo(target);
+		} else {
+			console.log(`[debug] rail drag: target ${target} out of bounds [0..${pages.length - 1}]`);
+		};
 		return Clutter.EVENT_STOP;
 	});
 
