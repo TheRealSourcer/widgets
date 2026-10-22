@@ -1158,7 +1158,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				+ bandPadT + bandPadB;
 			const freeForChart = currentHeight - padTop - headerEstimate - headerMargin
 				- xAxisZone - (legendMargin * 2 + legendH) - bandH;
-			const chartZoneH = Math.max(90, Math.min(170, freeForChart));
+			// The chart takes everything above the band's content height (no
+			// upper cap), so the chart top part grows from the leftover space.
+			const chartZoneH = Math.max(90, freeForChart);
 			chartWrap.set_height(chartZoneH + xAxisZone);
 			chartWrap.style = `margin: 0 ${padSide}px;`;
 			legendBox.style = `margin: ${legendMargin}px ${padSide}px;`;
