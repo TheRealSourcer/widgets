@@ -1006,6 +1006,14 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		);
 		if (sample)
 			state.geometry.measuredRowH = { h: rowH, s };
+		// The layout sized the band from the estimate while the cache was
+		// still empty (startup) — once the true row height is known, request
+		// one more layout pass so the band re-sizes from the measurement.
+		if (sample && state.geometry.appliedRowH !== undefined
+			&& Math.abs(state.geometry.appliedRowH - rowH) > 1) {
+			state.geometry.layoutDirty = true;
+			scheduleUpdate();
+		}
 		const innerH = state.geometry.bandInner > 0
 			? state.geometry.bandInner
 			: Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
@@ -1180,6 +1188,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			xAxisBox.set_size(plotWidth, axisH);
 
 			state.geometry.bandRows = bandRowsNeeded;
+			state.geometry.appliedRowH = bandRowH;
 			// The rebuild trigger compares listHeight: the band height stands in
 			// for the side panel's height so the rows rebuild only when the
 			// geometry really moved.
