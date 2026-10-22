@@ -232,8 +232,13 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
     const usernameEntry = new St.Entry({
         can_focus: true,
         y_align: Clutter.ActorAlign.CENTER,
-        style: `font-size: ${layout.username}px; color: ${textColor}; width: ${layout.entryWidth}px;`,
+        // Same compact editor chrome as the todo task editor: translucent
+        // band, tight paddings, left-flushed text (no fat entry frame).
+        style: `font-size: ${layout.username}px; color: ${textColor}; `
+            + `background-color: ${textRgba(0.07)}; border-radius: ${Math.round(layout.username * 0.7)}px; `
+            + `padding: 3px 8px; width: ${layout.entryWidth}px;`,
     });
+    usernameEntry.clutter_text.x_align = Clutter.ActorAlign.START;
     usernameEntry.hide();
 
     // Accent-名为 checkmark next to the entry (same idea as the accent-color
