@@ -361,5 +361,10 @@
       <summary>Open widget picker on preferences launch</summary>
       <description>Internal flag to trigger widget picker dialog when preferences window opens.</description>
     </key>
+    <key name="open-prefs-page" type="s">
+      <default>''</default>
+      <summary>Open this sidebar page on preferences launch</summary>
+      <description>Internal flag: sidebar page id to activate when the preferences window opens (deep link from a widget's context menu).</description>
+    </key>
   </schema>
 </schemalist>

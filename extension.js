@@ -90,6 +90,27 @@ const WIDGET_MODULES = [
 ];
 const WIDGETS = new Map(WIDGET_MODULES.map(widgetModule => [widgetModule.type, widgetModule]));
 
+// Widget type → prefs sidebar page id (derived from the page title in
+// prefs.js: 'Calendar Widget' → 'calendar-widget'). Widgets without their
+// own settings page fall back to the Appearance page.
+const WIDGET_PREFS_PAGES = new Map([
+  ['applauncher', 'app-launcher-widget'],
+  ['battery', 'battery-widget'],
+  ['calendar', 'calendar-widget'],
+  ['clock', 'analog-clock-widget'],
+  ['digitalclock', 'digital-clock-widget'],
+  ['folder', 'folder-launcher-widget'],
+  ['github', 'github-widget'],
+  ['lava', 'lava-lamp-widget'],
+  ['music', 'music-widget'],
+  ['notes', 'notes-widget'],
+  ['photos', 'photos-widget'],
+  ['pomodoro', 'pomodoro-widget'],
+  ['screentime', 'screen-time-widget'],
+  ['system', 'system-monitor-widget'],
+  ['weather', 'weather-widget'],
+]);
+
 const DEFAULT_WIDGETS = WIDGET_MODULES.map(widgetModule => ({
   id: `${widgetModule.type}-default`,
   type: widgetModule.type,
@@ -3298,6 +3319,18 @@ sizeButton.connectObject('destroy', () => {
       };
     }, this);
     menu.addMenuItem(lockItem);
+
+    const settingsItem = new PopupMenu.PopupMenuItem(_('Widget settings'));
+    settingsItem.connectObject('activate', () => {
+      // Deep link: prefs opens straight on this widget's own page; widgets
+      // without one land on Appearance.
+      this._layoutSettings.set_string(
+        'open-prefs-page',
+        WIDGET_PREFS_PAGES.get(view.widget.type) ?? 'appearance',
+      );
+      this._extension.openPreferences();
+    }, this);
+    menu.addMenuItem(settingsItem);
 
     const removeItem = new PopupMenu.PopupMenuItem(_('Remove widget'));
     removeItem.connectObject('activate', () => {

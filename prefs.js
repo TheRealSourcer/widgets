@@ -321,6 +321,21 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         aboutPage.set_icon_name('help-about-symbolic');
         this._addSidebarPage(aboutPage);
 
+        // Deep link from a widget's context menu: activate the widget's own
+        // settings page right after the window is shown; an unknown page id
+        // falls back to Appearance (the 'open-widget-picker' flag uses the
+        // same set-then-read-through-gsettings handoff).
+        const openPage = settings.get_string('open-prefs-page');
+        if (openPage) {
+            settings.set_string('open-prefs-page', '');
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                const row = this._sidebarRows.get(openPage)
+                    ?? this._sidebarRows.get('appearance');
+                row?.emit('activate');
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+
         // Handle window close
         window.connect('close-request', () => {
             for (const page of this._pages)
@@ -359,6 +374,7 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         const sidebarHeader = new Adw.HeaderBar();
         const sidebarBin = new Adw.Bin();
         this._sidebarListBox = new Gtk.ListBox();
+        this._sidebarRows = new Map();
         this._sidebarListBox.add_css_class('navigation-sidebar');
         const sidebarScrolledWindow = new Gtk.ScrolledWindow({
             hscrollbar_policy: Gtk.PolicyType.NEVER,
@@ -425,6 +441,7 @@ export default class WidgetsPrefs extends ExtensionPreferences {
 
         this._stack.add_named(page, row._id);
         this._sidebarListBox.append(row);
+        this._sidebarRows.set(row._id, row);
 
         if (!this._firstPageAdded) {
             this._splitViewContent.set_title(row._title);
