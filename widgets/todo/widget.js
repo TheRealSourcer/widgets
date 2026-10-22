@@ -193,11 +193,15 @@ export function render({ body, widget, theme, sizeForWidget }) {
 
     const save = () => saveJsonToFile(todosFilePath, { tasks });
 
-    // The row being text-edited right now (St.Entry replaces the label).
+    // The row being text-edited right now (editor replaces the label).
     let editingTask = null;
-    const setImmediateRowFocus = (entry) => {
+    const setImmediateRowFocus = (editor) => {
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            entry.grab_key_focus();
+            // global.stage.set_key_focus is the notes widget's proven way to
+            // focus a Clutter.Text; grab_key_focus raced the shell's own
+            // focus routing there.
+            if (!isActorDestroyed(editor))
+                global.stage.set_key_focus(editor);
             return GLib.SOURCE_REMOVE;
         });
     };
@@ -358,6 +362,8 @@ export function render({ body, widget, theme, sizeForWidget }) {
             const entryText = new Clutter.Text({
                 text: String(task.text || ''),
                 editable: true,
+                selectable: true,
+                reactive: true,
                 x_align: Clutter.ActorAlign.FILL,
                 y_align: Clutter.ActorAlign.CENTER,
             });
@@ -420,8 +426,17 @@ export function render({ body, widget, theme, sizeForWidget }) {
                     finishEdit(false);
                     return Clutter.EVENT_STOP;
                 }
-                // 'newline' propagates so Clutter.Text inserts the newline
-                // itself; everything else (typing) propagates too.
+                // 'newline' = Shift+Enter: Clutter.Text never inserts the
+                // break itself (the notes editor learned this the hard way) —
+                // insert_unichar equals typing it and keeps cursor/selection
+                // bookkeeping coherent; the bound collapse removes any stale
+                // selection after the break.
+                if (action === 'newline') {
+                    entryText.insert_unichar('\n');
+                    entryText.set_selection_bound(entryText.get_cursor_position());
+                    return Clutter.EVENT_STOP;
+                }
+                // Everything else (typing) propagates.
                 return Clutter.EVENT_PROPAGATE;
             });
             // NO cancel on key-focus-out: the shell re-routes key focus right
