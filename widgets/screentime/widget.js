@@ -1109,7 +1109,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 			// The plot sits a touch lower than the header (the reference design
 			// leaves breathing room between the total and the top gridline).
-			const plotOffset = Math.round(6 * s);
+			const plotOffset = Math.round(12 * s);
 			chartCanvas.set_position(0, plotOffset);
 			chartCanvas.set_size(plotWidth, plotHeight);
 			yAxisBox.set_position(plotWidth, plotOffset);
