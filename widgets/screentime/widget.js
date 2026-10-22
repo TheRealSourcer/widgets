@@ -54,9 +54,11 @@ const LEGEND_FONT_SIZE_PX = 11;   // colored top-app chips under the chart
 const LEGEND_TOP_APPS = 3;
 const APP_BAND_FONT_SIZE_PX = 12; // app rows in the bottom two-column band
 const LARGE_APP_ROWS_MAX = 4; // 4 rows × 2 columns = 8 apps in the 2×2 band
-// Two-line band row height: name (12px @1.5 line) over duration (~11px) + gap.
-const BAND_ROW_H_PX = Math.round(APP_BAND_FONT_SIZE_PX * 1.5)
-	+ Math.round(APP_BAND_FONT_SIZE_PX * 0.92 * 1.5) + 1;
+// Two-line band row height: name over duration line boxes + 1px gap.
+// St's label line box runs ~1.25× the font size (a 13px label measures 14px),
+// so 1.5× would overestimate and drop real 4-row capacity to 3.
+const BAND_ROW_H_PX = Math.round(APP_BAND_FONT_SIZE_PX * 1.25)
+	+ Math.round(APP_BAND_FONT_SIZE_PX * 0.92 * 1.25) + 1;
 
 // Hour bars and legend chips are colored after the bucket's dominant app.
 // Bright variants stay readable on a dark base; regular ones on a light base.
