@@ -26,7 +26,7 @@ const SWIPE_THRESHOLD = 36;
 const ANIMATION_DURATION = 250;
 const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2); // 500ms
 
-const RAIL_HEIGHT = 20;
+const RAIL_HEIGHT = 40;  // Тимчасово збільшено для діагностики (було 20)
 
 function newPageKey() {
 	return Math.random().toString(36).slice(2, 9);
@@ -205,7 +205,7 @@ export function attachWidgetStack({
 	// The rail is paneRoot-level, so it serves every page id. It must be
 	// NON-reactive in edit mode so panel/gallery overlays catch clicks.
 	const railReactive = !isEditMode();
-	console.log(`[debug] rail created reactive=${railReactive} editMode=${isEditMode()}`);
+	console.log(`[debug] rail created reactive=${railReactive} editMode=${isEditMode()} pageW=${pageW} pageH=${pageH} y=${Math.max(0, pageH - RAIL_HEIGHT)}`);
 	const rail = new St.Widget({
 		reactive: railReactive,
 		x: 0,
@@ -213,8 +213,10 @@ export function attachWidgetStack({
 		width: pageW,
 		height: RAIL_HEIGHT,
 		opacity: 0,
+		style: 'background-color: rgba(255, 0, 0, 0.3);',  // DEBUG: напівпрозорий червоний для візуалізації
 	});
 	paneRoot.add_child(rail);
+	console.log(`[debug] rail added to paneRoot, total children: ${paneRoot.get_n_children()}`);
 
 	// Update rail reactivity when edit mode toggles: panel buttons need
 	// to catch clicks, and the rail must yield to them.
@@ -229,6 +231,7 @@ export function attachWidgetStack({
 	let dragStartY = null;
 
 	rail.connect('button-press-event', (_actor, event) => {
+		console.log(`[debug] rail PRESS button=${event.get_button()} crossBusy=${crossBusy} reactive=${rail.reactive}`);
 		if (event.get_button() !== 1 || crossBusy) {
 			return Clutter.EVENT_PROPAGATE;
 		};
@@ -237,10 +240,12 @@ export function attachWidgetStack({
 			return Clutter.EVENT_PROPAGATE;
 		};
 		dragStartY = stageY;
+		console.log(`[debug] rail drag started at Y=${stageY}`);
 		return Clutter.EVENT_STOP;
 	});
 
 	rail.connect('button-release-event', (_actor, event) => {
+		console.log(`[debug] rail RELEASE dragStartY=${dragStartY}`);
 		if (dragStartY === null) {
 			return Clutter.EVENT_PROPAGATE;
 		};
@@ -253,6 +258,7 @@ export function attachWidgetStack({
 		};
 
 		const delta = stageY - startY;
+		console.log(`[debug] rail drag delta=${delta.toFixed(1)} (${delta < 0 ? 'UP' : 'DOWN'}) active=${active}/${pages.length - 1}`);
 		if (Math.abs(delta) <= SWIPE_THRESHOLD) {
 			return Clutter.EVENT_STOP;
 		};
