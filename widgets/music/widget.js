@@ -1271,6 +1271,8 @@ let Controller = class Controller {
 		this._relisten = false;
 		this._bound = false;
 		this._lastPlayingAt = {};
+		this._fakePlayPause = {};
+		this._playToggleBusy = false;
 		this._chromium = false;
 		this._lockedTrackId = null;
 		this._acceptUntil = 0;
@@ -2110,14 +2112,54 @@ let Controller = class Controller {
 		const call = (m) => this._callRemote(this._name, PLAYER_PATH, PLAYER_IFACE, m, null, null);
 
 		if (method === 'PlayPause') {
-			const reply = await call('PlayPause');
+			// Flatpak Amberol accepts PlayPause, answers it successfully
+			// and silently does nothing (checked by direct busctl: Play
+			// works, PlayPause never toggles). The call returning without
+			// an error meant no fallback ever fired and the card sat there
+			// while "music did not turn on". Read the status back after
+			// the toggle; when it did not change, send the explicit
+			// Play/Pause that such players do honor — and remember the
+			// player so the next click skips the probe entirely.
+			const name = this._name;
 
-			if (reply === null) {
-				if (this._playing) {
-					await call('Pause');
-				} else {
-					await call('Play');
+			if (this._playToggleBusy) {
+				return;
+			};
+
+			this._playToggleBusy = true;
+
+			try {
+				if (this._fakePlayPause?.[name]) {
+					await call(this._playing ? 'Pause' : 'Play');
+					return;
 				};
+
+				const beforeProps = await this._readProps(name);
+				const before = beforeProps ? variantValue(beforeProps.PlaybackStatus) ?? null : null;
+
+				await call('PlayPause');
+
+				// PlaybackStatus changes arrive within milliseconds of the
+				// call; this small wait is only a read-back window.
+				await new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
+					resolve();
+					return GLib.SOURCE_REMOVE;
+				}));
+
+				const afterProps = this._name === name ? await this._readProps(name) : null;
+				const after = afterProps ? variantValue(afterProps.PlaybackStatus) ?? null : null;
+
+				if (!before || !after || before !== after) {
+					return;
+				};
+
+				log(`[debug] music PlayPause ignored by ${name.slice('org.mpris.MediaPlayer2.'.length)}; falling back to explicit ${before === 'Playing' ? 'Pause' : 'Play'}`);
+				this._fakePlayPause = this._fakePlayPause || {};
+				this._fakePlayPause[name] = true;
+
+				await call(before === 'Playing' ? 'Pause' : 'Play');
+			} finally {
+				this._playToggleBusy = false;
 			};
 
 			return;
@@ -2145,6 +2187,7 @@ let Controller = class Controller {
 
 	destroy() {
 		this._relisten = false;
+		this._fakePlayPause = {};
 
 		if (this._timerId) {
 			GLib.source_remove(this._timerId);
