@@ -14,7 +14,7 @@ function destroyActor(actor) {
 
 export class WorkspaceIntegration {
   constructor() {
-    this._enabled = false;
+    this._overview = null;
     this._source = null;
     this._overviewClones = new Map();
     this._overviewSyncId = 0;
@@ -22,7 +22,7 @@ export class WorkspaceIntegration {
   };
 
   enable(source) {
-    this._enabled = true;
+    this._overview = Main.overview;
     this.setSource(source);
 
     Main.uiGroup.connectObject(CHILD_ADDED, (_group, child) => {
@@ -31,7 +31,7 @@ export class WorkspaceIntegration {
       };
     }, this);
 
-    Main.overview.connectObject(
+    this._overview.connectObject(
       'showing', () => {
         this._syncOverviewPreviews();
         this.queueSync();
@@ -51,25 +51,27 @@ export class WorkspaceIntegration {
   };
 
   destroy() {
-    this._enabled = false;
     this._cancelSync();
-    this._clearOverviewClones();
-    this._clearWorkspaceAnimationClones();
-
     Main.uiGroup.disconnectObject(this);
-    Main.overview.disconnectObject(this);
+    if (this._overview) {
+      this._overview.disconnectObject(this);
+      this._overview = null;
+    };
     global.workspace_manager.disconnectObject(this);
     this._source = null;
+    this._clearOverviewClones();
+    this._clearWorkspaceAnimationClones();
   };
 
   setSource(source) {
     if (source === this._source) return;
 
+    this._cancelSync();
     this._clearOverviewClones();
     this._clearWorkspaceAnimationClones();
     this._source = source;
 
-    if (this._enabled && source && (Main.overview.visible || Main.overview.visibleTarget)) {
+    if (source && (Main.overview.visible || Main.overview.visibleTarget)) {
       this.queueSync();
     };
   };
@@ -96,12 +98,16 @@ export class WorkspaceIntegration {
 	};
 
   queueSync() {
-    if (!this._enabled || this._overviewSyncId || (!Main.overview.visible && !Main.overview.visibleTarget)) return;
+    const overview = this._overview;
+    const source = this._source;
+    if (!overview || !source || this._overviewSyncId ||
+        (!overview.visible && !overview.visibleTarget)) return;
 
     this._overviewSyncId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
       this._overviewSyncId = 0;
 
-      if (this._enabled && (Main.overview.visible || Main.overview.visibleTarget)) {
+      if (this._overview === overview && this._source === source &&
+          (overview.visible || overview.visibleTarget)) {
         this._syncOverviewPreviews();
       };
 

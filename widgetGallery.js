@@ -5,179 +5,28 @@ import {accentButtonStyle, setButtonStyle} from './utils/buttonStyle.js';
 
 import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
-import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import {CATEGORY_KEYS, categoryLabel, normalizedCatalog} from './gallery/catalog.js';
+import {CARD_WIDTH, createCard} from './gallery/card.js';
+import {GalleryDrag} from './gallery/drag.js';
+import {DrawerAnimation} from './gallery/animation.js';
+import {GalleryLauncher} from './gallery/launcher.js';
+import {ensureVisible, nextCardIndex} from './gallery/navigation.js';
 
-const CARD_WIDTH = 430;
 const CARD_GAP = 16;
 const DRAWER_MARGIN = 18;
 const ANIMATION_TIME = 220;
 
-const CATEGORY_KEYS = [
-	'time',
-	'information',
-	'media',
-	'productivity',
-	'applications',
-	'finance',
-	'calendar',
-];
-
-const SIZE_ORDER = [
-	'small',
-	'medium',
-	'large',
-];
-
-function categoryLabel(key) {
-	const labels = {
-		time: _('Time/Clocks'),
-		information: _('Information'),
-		media: _('Media'),
-		productivity: _('Productivity'),
-		applications: _('Applications'),
-		finance: _('Finance'),
-		calendar: _('Calendar'),
-	};
-	return labels[key] ?? labels.information;
-};
-
-function categoryKey(record) {
-	const explicit = String(record.categoryKey ?? record.categoryId ?? record.category ?? '')
-		.trim().toLocaleLowerCase();
-	const type = String(record.type ?? record.id ?? '').toLocaleLowerCase();
-	const localizedKey = CATEGORY_KEYS.find(key =>
-		explicit === categoryLabel(key).toLocaleLowerCase());
-
-	if (localizedKey) {
-		return localizedKey;
-	};
-	if (type === 'calendar' || explicit === 'calendar') {
-		return 'calendar';
-	};
-	if (['clock', 'digitalclock', 'binaryclock'].includes(type) ||
-      ['time', 'clock', 'clocks', 'time/clocks'].includes(explicit)) {
-		return 'time';
-	};
-	if (['photos', 'music'].includes(type) || explicit === 'media') {
-		return 'media';
-	};
-	if (type === 'todo' || explicit === 'productivity') {
-		return 'productivity';
-	};
-	if (type === 'applauncher' || ['application', 'applications', 'apps'].includes(explicit)) {
-		return 'applications';
-	};
-	if (explicit === 'finance' || /(finance|stock|market|currency|crypto)/.test(type)) {
-		return 'finance';
-	};
-	return 'information';
-};
-
-function sizeKey(sizeRecord) {
-	const value = typeof sizeRecord === 'object' && sizeRecord !== null
-		? sizeRecord.size ?? sizeRecord.key ?? sizeRecord.id ?? sizeRecord.value
-		: sizeRecord;
-	return String(value ?? '').trim().toLocaleLowerCase();
-};
-
-function sizeLabel(size) {
-	const labels = {
-		small: _('Small'),
-		medium: _('Wide'),
-		large: _('Large'),
-	};
-	return labels[size] ?? size;
-};
-
-function normalizedSizes(record) {
-	const supplied = Array.isArray(record.sizes)
-		? record.sizes
-		: Array.isArray(record.supportedSizes)
-			? record.supportedSizes
-			: [];
-	const unique = new Map();
-
-	for (const sizeRecord of supplied) {
-		const size = sizeKey(sizeRecord);
-		if (!size || unique.has(size)) {
-			continue;
-		};
-
-		unique.set(size, {
-			...(typeof sizeRecord === 'object' && sizeRecord !== null ? sizeRecord : {}),
-			size,
-			label: sizeLabel(size),
-		});
-	};
-
-	const requestedDefault = sizeKey(record.defaultSize ?? record.size);
-	if (unique.size === 0) {
-		const fallback = requestedDefault || 'small';
-		unique.set(fallback, {size: fallback, label: sizeLabel(fallback)});
-	};
-
-	const sizes = [...unique.values()].sort((a, b) => {
-		const aIndex = SIZE_ORDER.indexOf(a.size);
-		const bIndex = SIZE_ORDER.indexOf(b.size);
-		return (aIndex < 0 ? SIZE_ORDER.length : aIndex) -
-      (bIndex < 0 ? SIZE_ORDER.length : bIndex);
-	});
-
-	return {
-		sizes,
-		defaultSize: unique.has(requestedDefault) ? requestedDefault : sizes[0].size,
-	};
-};
-
 function safeCall(callback, fallback = undefined) {
 	try {
-		return typeof callback === 'function' ? callback() : fallback;
+		return callback();
 	} catch (error) {
 		console.error(`[WidgetGallery] Callback failed: ${error.message}`);
 		return fallback;
 	};
 };
 
-function normalizedCatalog(catalog) {
-	if (!Array.isArray(catalog)) {
-		return [];
-	};
-
-	return catalog
-		.filter(record => record && (record.type || record.id))
-		.map(record => {
-			const type = String(record.type ?? record.id);
-			const label = String(record.label ?? record.name ?? type);
-			const category = String(record.category ?? _('Information'));
-			const sectionKey = categoryKey(record);
-			const sectionLabel = categoryLabel(sectionKey);
-			const description = String(record.description ?? '');
-			const rawKeywords = Array.isArray(record.keywords)
-				? record.keywords.join(' ')
-				: String(record.keywords ?? '');
-			const iconName = String(record.iconName ?? record.icon_name ?? record.icon ??
-        'applications-other-symbolic');
-			const sizes = normalizedSizes(record);
-
-			return {
-				...record,
-				type,
-				label,
-				category,
-				sectionKey,
-				sectionLabel,
-				description,
-				keywords: rawKeywords,
-				iconName,
-				...sizes,
-				searchText: `${label} ${type} ${category} ${sectionLabel} ${description} ${rawKeywords} ${sizes.sizes.map(size => size.label).join(' ')}`.toLocaleLowerCase(),
-			};
-		});
-};
-
 export class WidgetGallery {
-	constructor(options = {}) {
+	constructor(options) {
 		this._catalog = normalizedCatalog(options.catalog);
 		this._onAdd = options.onAdd;
 		this._onDrop = options.onDrop;
@@ -190,16 +39,39 @@ export class WidgetGallery {
 
 		this._cards = [];
 		this._isOpen = false;
-		this._destroyed = false;
 		this._resetArmed = false;
-		this._drag = null;
 		this._launcherEnabled = true;
 
-		this._buildOverlay();
-		this.createLauncher();
+		try {
+			this._buildOverlay();
+			this._animation = new DrawerAnimation(this._drawer, this._overlay);
+			this._drag = new GalleryDrag({
+				close: immediate => this.close(immediate),
+				hideLauncher: () => this._launcher.hide(),
+				onDrop: (type, size, x, y) => safeCall(() => this._onDrop(type, size, x, y)),
+				onFinish: () => {
+					if (!this._isOpen) {
+						this._clearCards();
+					};
+					if (this._launcherEnabled) {
+						this._launcher.show();
+					};
+				},
+			});
+			const gallery = this;
+			this._panelLauncher = new GalleryLauncher({
+				toggle: () => this.toggle(),
+				onSettings: () => safeCall(this._onSettings),
+				get isOpen() { return gallery.isOpen; },
+			});
+			this._launcher = this.createLauncher();
 
-		Main.layoutManager.connectObject('monitors-changed', () => this._syncGeometry(), this._overlay);
-		this._syncGeometry();
+			Main.layoutManager.connectObject('monitors-changed', () => this._syncGeometry(), this._overlay);
+			this._syncGeometry();
+		} catch (error) {
+			this.destroy();
+			throw error;
+		};
 	};
 
 
@@ -230,7 +102,7 @@ export class WidgetGallery {
 		this._buildFooter();
 
 		global.stage.connectObject('captured-event', (_stage, event) => {
-			if (!this._isOpen || this._drag || event.type() !== Clutter.EventType.KEY_PRESS) {
+			if (!this._isOpen || this._drag.pending || event.type() !== Clutter.EventType.KEY_PRESS) {
 				return Clutter.EVENT_PROPAGATE;
 			};
 			return this._onKeyPress(event);
@@ -245,25 +117,26 @@ export class WidgetGallery {
 			y_align: Clutter.ActorAlign.CENTER,
 			style_class: 'widget-gallery-header',
 		});
+		this._drawer.add_child(header);
+		this._header = header;
 
 		const titles = new St.BoxLayout({
 			...VERTICAL,
 			x_expand: false,
 			y_align: Clutter.ActorAlign.CENTER,
 		});
+		header.add_child(titles);
 		titles.add_child(new St.Label({
 			text: _('Widgets'),
 			style_class: 'widget-gallery-title',
 			y_align: Clutter.ActorAlign.CENTER,
 		}));
-		header.add_child(titles);
 
-		this._editButton = this._makeTextButton('', () => {
+		this._editButton = this._makeTextButton(header, '', () => {
 			this._disarmReset();
 			safeCall(this._onEditToggle);
 			this._updateEditButton();
 		});
-		header.add_child(this._editButton);
 
 		const closeButton = new St.Button({
 			child: new St.Icon({icon_name: 'window-close-symbolic', icon_size: 16,
@@ -275,12 +148,9 @@ export class WidgetGallery {
 			track_hover: true,
 			accessible_name: _('Close'),
 		});
+		header.add_child(closeButton);
 		setButtonStyle(closeButton, '');
 		closeButton.connectObject('clicked', () => this.close(), closeButton);
-		header.add_child(closeButton);
-
-		this._drawer.add_child(header);
-		this._header = header;
 		this._updateEditButton();
 	};
 
@@ -293,16 +163,16 @@ export class WidgetGallery {
 			accessible_name: _('Search widgets'),
 			primary_icon: new St.Icon({icon_name: 'system-search-symbolic', icon_size: 16}),
 		});
+		this._header.insert_child_at_index(this._searchEntry, 1);
 		this._searchEntry.clutter_text.connectObject('text-changed', () => {
 			this._disarmReset();
 			this._rebuildGrid();
 		}, this._searchEntry);
 		this._searchEntry.clutter_text.connectObject('activate', () => {
 			if (this._cards.length > 0) {
-				this._cards[0].grab_key_focus();
+				this._focusCard(0);
 			};
 		}, this._searchEntry);
-		this._header.insert_child_at_index(this._searchEntry, 1);
 	};
 
 	_buildCatalogArea() {
@@ -315,6 +185,7 @@ export class WidgetGallery {
 			enable_mouse_scrolling: true,
 			style_class: 'widget-gallery-scroll-view',
 		});
+		this._drawer.add_child(this._scrollView);
 
 		this._grid = new St.BoxLayout({
 			...VERTICAL,
@@ -322,7 +193,6 @@ export class WidgetGallery {
 			style_class: 'widget-gallery-sections',
 		});
 		setScrollViewChild(this._scrollView, this._grid);
-		this._drawer.add_child(this._scrollView);
 		this._rebuildGrid();
 	};
 
@@ -331,8 +201,10 @@ export class WidgetGallery {
 			x_expand: true,
 			style_class: 'widget-gallery-footer',
 		});
+		this._drawer.add_child(footer);
+		footer.add_child(new St.Widget({x_expand: true}));
 
-		this._resetButton = this._makeTextButton(_('Reset Layout'), () => {
+		this._resetButton = this._makeTextButton(footer, _('Reset Layout'), () => {
 			if (!this._resetArmed) {
 				this._resetArmed = true;
 				this._resetButton.label = _('Confirm Reset');
@@ -350,10 +222,6 @@ export class WidgetGallery {
 			this._rebuildGrid();
 		});
 
-		const spacer = new St.Widget({x_expand: true});
-		footer.add_child(spacer);
-		footer.add_child(this._resetButton);
-
 		const settingsButton = new St.Button({
 			child: new St.Icon({icon_name: 'emblem-system-symbolic', icon_size: 18,
 				x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER}),
@@ -364,16 +232,15 @@ export class WidgetGallery {
 			style_class: 'button widget-gallery-button widget-gallery-settings-button',
 			accessible_name: _('Open widget settings'),
 		});
+		footer.add_child(settingsButton);
 		setButtonStyle(settingsButton, '');
 		settingsButton.connectObject('clicked', () => {
 			this.close();
 			safeCall(this._onSettings);
 		}, settingsButton);
-		footer.add_child(settingsButton);
-		this._drawer.add_child(footer);
 	};
 
-	_makeTextButton(label, callback, accent = false) {
+	_makeTextButton(parent, label, callback, accent = false) {
 		const button = new St.Button({
 			label,
 			can_focus: true,
@@ -381,6 +248,7 @@ export class WidgetGallery {
 			track_hover: true,
 			style_class: `button widget-gallery-button${accent ? ' widget-gallery-button-accent widget-accent-button' : ''}`,
 		});
+		parent.add_child(button);
 		setButtonStyle(button, accent ? accentButtonStyle(this._accentColor) : '');
 		button.connectObject('clicked', callback, button);
 		return button;
@@ -398,11 +266,10 @@ export class WidgetGallery {
 	};
 
 	_rebuildGrid() {
-		if (!this._grid || this._destroyed || !this._isOpen) return;
+		if (!this._grid || !this._isOpen) return;
 
-		this._finishCardDrag();
-		this._grid.destroy_all_children();
-		this._cards = [];
+		this._drag.finish();
+		this._clearCards();
 
 		const records = this._matchingRecords();
 		if (records.length === 0) {
@@ -439,6 +306,7 @@ export class WidgetGallery {
 				x_expand: true,
 				style_class: `widget-gallery-section widget-gallery-section-${key}`,
 			});
+			this._grid.add_child(section);
 			section.add_child(new St.Label({
 				text: categoryLabel(key),
 				x_expand: true,
@@ -457,269 +325,51 @@ export class WidgetGallery {
 				style_class: 'widget-gallery-section-grid',
 			});
 
+			section.add_child(sectionGrid);
+			const sectionStart = this._cards.length;
 			sectionRecords.forEach((record, index) => {
-				const card = this._createCard(record);
+				const card = createCard(record, {
+					previewHeight: this._previewHeight,
+					accentColor: this._accentColor,
+					createPreview: this._createPreview,
+					drag: this._drag,
+					onAdd: (item, size) => this._addWidget(item, size),
+					onKeyPress: (button, event) => this._onCardKeyPress(button, event),
+				});
 				this._cards.push(card._focusButton);
 				layout.attach(card, index % columns, Math.floor(index / columns), 1, 1);
 			});
-			section.add_child(sectionGrid);
-			this._grid.add_child(section);
-		};
-	};
-
-	_createCard(record) {
-		const card = new St.BoxLayout({
-			...VERTICAL,
-			width: CARD_WIDTH,
-			x_align: Clutter.ActorAlign.CENTER,
-			style_class: 'widget-gallery-preview-item',
-		});
-
-		const content = new St.BoxLayout({
-			...VERTICAL,
-			width: CARD_WIDTH,
-			x_align: Clutter.ActorAlign.CENTER,
-			y_expand: true,
-			style_class: 'widget-gallery-preview-content',
-		});
-
-		const preview = new St.Widget({
-			layout_manager: new Clutter.FixedLayout(),
-			width: CARD_WIDTH,
-			height: this._previewHeight ?? 180,
-			x_align: Clutter.ActorAlign.CENTER,
-			reactive: true,
-			track_hover: true,
-			style_class: 'widget-gallery-card-preview',
-			clip_to_allocation: true,
-		});
-		let selectedSize = record.defaultSize;
-		const renderPreview = size => {
-			selectedSize = size;
-			preview.destroy_all_children();
-			const rendered = this._createPreview?.(record.type, size, CARD_WIDTH, this._previewHeight ?? 180);
-			if (rendered) {
-				preview.add_child(rendered);
+			for (let index = sectionStart; index < this._cards.length; index += columns) {
+				this._rows.push(this._cards.slice(index, Math.min(index + columns, this._cards.length)));
 			};
-		};
-		renderPreview(selectedSize);
-		preview.connectObject('button-press-event', (_actor, event) =>
-			this._beginCardDrag(preview, record, event, selectedSize), preview);
-		preview.connectObject('button-release-event', (_actor, event) => {
-			if (event.get_button() === 1 && !this._suppressClick) {
-				this._addWidget(record, selectedSize);
-			};
-			return Clutter.EVENT_STOP;
-		}, preview);
-		content.add_child(preview);
-
-		const titleRow = new St.BoxLayout({
-			width: CARD_WIDTH,
-			x_align: Clutter.ActorAlign.CENTER,
-		});
-		titleRow.add_child(new St.Widget({x_expand: true}));
-		titleRow.add_child(new St.Label({
-			text: record.label,
-			style_class: 'widget-gallery-preview-title',
-		}));
-		titleRow.add_child(new St.Widget({x_expand: true}));
-
-		content.add_child(titleRow);
-
-		card.add_child(content);
-
-		card.add_child(new St.Label({
-			text: _('Size'),
-			x_align: Clutter.ActorAlign.CENTER,
-			style_class: 'widget-gallery-size-label',
-		}));
-		const chips = new St.BoxLayout({
-			...VERTICAL,
-			width: CARD_WIDTH,
-			x_align: Clutter.ActorAlign.CENTER,
-			style_class: 'widget-gallery-size-options',
-			accessible_name: _('%s size options').replace('%s', record.label),
-		});
-		const chipButtons = [];
-		let chipRow = null;
-		for (const [index, sizeRecord] of record.sizes.entries()) {
-			if (index % 4 === 0) {
-				if (chipRow) {
-					chipRow.add_child(new St.Widget({x_expand: true}));
-				};
-				chipRow = new St.BoxLayout({
-					x_expand: true,
-					x_align: Clutter.ActorAlign.FILL,
-					style_class: 'widget-gallery-size-row',
-				});
-				chipRow.add_child(new St.Widget({x_expand: true}));
-				chips.add_child(chipRow);
-			};
-			const chip = new St.Button({
-				label: sizeRecord.label,
-				can_focus: true,
-				reactive: true,
-				track_hover: true,
-				style_class: 'button widget-gallery-button widget-gallery-size-chip',
-				accessible_name: _('Add %s widget to Desktop at %s size')
-					.replace('%s', record.label)
-					.replace('%s', sizeRecord.label),
-			});
-			setButtonStyle(chip, '');
-			chip.connectObject('clicked', () => {
-				if (!this._suppressClick) {
-					renderPreview(sizeRecord.size);
-					for (const [key, button] of chipButtons) {
-						if (key === sizeRecord.size) {
-							button.add_style_class_name('widget-gallery-size-chip-selected');
-						} else {
-							button.remove_style_class_name('widget-gallery-size-chip-selected');
-						};
-						setButtonStyle(button, key === sizeRecord.size
-							? `background-color: ${this._accentColor};`
-							: '');
-					};
-				};
-			}, chip);
-			chip.connectObject('button-press-event', (_actor, event) =>
-				this._beginCardDrag(chip, record, event, sizeRecord.size), chip);
-			chipButtons.push([sizeRecord.size, chip]);
-			chipRow.add_child(chip);
-
-			if (!card._focusButton) {
-				card._focusButton = chip;
-				chip._widgetGalleryRecord = record;
-				chip.connectObject('key-press-event', (_actor, event) =>
-					this._onCardKeyPress(chip, event), chip);
-			};
-		};
-		if (chipRow) {
-			chipRow.add_child(new St.Widget({x_expand: true}));
-		};
-		for (const [key, button] of chipButtons) {
-			if (key === selectedSize) {
-				button.add_style_class_name('widget-gallery-size-chip-selected');
-				setButtonStyle(button, `background-color: ${this._accentColor};`);
-			};
-		};
-		card.add_child(chips);
-		return card;
-	};
-
-	_beginCardDrag(source, record, event, requestedSize = null) {
-		if ((event.get_button?.() ?? 1) !== 1 || this._drag) {
-			return Clutter.EVENT_PROPAGATE;
-		};
-
-		const [startX, startY] = event.get_coords();
-		this._suppressClick = false;
-		const size = requestedSize ?? record.defaultSize ?? record.sizes?.[0]?.size ?? 'small';
-		this._drag = {source, record, size, startX, startY, active: false, ghost: null};
-		const handleDragEvent = (_stage, capturedEvent) => {
-			if (!this._drag || this._drag.source !== source) {
-				return Clutter.EVENT_PROPAGATE;
-			};
-
-			const type = capturedEvent.type();
-			if (type === Clutter.EventType.KEY_RELEASE &&
-          [Clutter.KEY_Super_L, Clutter.KEY_Super_R].includes(capturedEvent.get_key_symbol())) {
-				return Clutter.EVENT_STOP;
-			};
-			if (type === Clutter.EventType.KEY_PRESS) {
-				const key = capturedEvent.get_key_symbol();
-				if (key === Clutter.KEY_Escape) {
-					this._finishCardDrag();
-					return Clutter.EVENT_STOP;
-				};
-				if (key === Clutter.KEY_Super_L || key === Clutter.KEY_Super_R) {
-					Main.overview.toggle();
-					return Clutter.EVENT_STOP;
-				};
-			};
-			if (type !== Clutter.EventType.MOTION && type !== Clutter.EventType.BUTTON_RELEASE) {
-				return Clutter.EVENT_PROPAGATE;
-			};
-			const [stageX, stageY] = capturedEvent.get_coords();
-			if (type === Clutter.EventType.MOTION || type === Clutter.EventType.MOTION_NOTIFY) {
-				if (!this._drag.active && Math.hypot(stageX - startX, stageY - startY) >= 8) {
-					this._drag.active = true;
-					this._suppressClick = true;
-					this._drag.ghost = new St.BoxLayout({
-						style_class: 'widget-gallery-drag-ghost',
-						reactive: true,
-
-					});
-					this._drag.ghost.add_child(new St.Icon({icon_name: record.iconName, icon_size: 24}));
-					this._drag.ghost.add_child(new St.Label({text: record.label, y_align: Clutter.ActorAlign.CENTER}));
-					Main.uiGroup.add_child(this._drag.ghost);
-					this._drag.ghost.connectObject('event', handleDragEvent, this._drag.ghost);
-					global.stage.disconnectObject(source);
-					this._drag.grab = global.stage.grab(this._drag.ghost);
-					this.close(true);
-					this._launcher?.hide();
-				};
-				if (this._drag.active) {
-					this._drag.ghost?.set_position(Math.round(stageX + 12), Math.round(stageY + 12));
-				};
-				return this._drag.active ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
-			};
-
-			if (type === Clutter.EventType.BUTTON_RELEASE) {
-				const active = this._drag.active;
-				this._finishCardDrag();
-				if (active) {
-					safeCall(() => this._onDrop?.(record.type, size, stageX, stageY));
-					return Clutter.EVENT_STOP;
-				};
-			};
-			return Clutter.EVENT_PROPAGATE;
-		};
-		global.stage.connectObject('captured-event', handleDragEvent, source);
-		return Clutter.EVENT_PROPAGATE;
-	};
-
-	_finishCardDrag() {
-		if (!this._drag) return;
-		global.stage.disconnectObject(this._drag.source);
-		this._drag.grab?.dismiss();
-		this._drag.ghost?.destroy();
-		this._drag = null;
-		if (!this._isOpen) {
-			this._grid?.destroy_all_children();
-			this._cards = [];
-		};
-		if (this._launcherEnabled) {
-			this._launcher?.show();
 		};
 	};
 
 	_addWidget(record, size) {
 		this._disarmReset();
-		safeCall(() => this._onAdd?.(record.type, size));
+		safeCall(() => this._onAdd(record.type, size));
 		this._rebuildGrid();
 	};
 
-	_onCardKeyPress(card, event) {
-		const symbol = event.get_key_symbol();
-		const current = this._cards.indexOf(card);
-		const columns = this._columnCount || 1;
-		let next = current;
+	_clearCards() {
+		this._cards = [];
+		this._rows = [];
+		this._grid?.destroy_all_children();
+	};
 
-		if (symbol === Clutter.KEY_Left) {
-			next--;
-		} else if (symbol === Clutter.KEY_Right) {
-			next++;
-		} else if (symbol === Clutter.KEY_Up) {
-			next -= columns;
-		} else if (symbol === Clutter.KEY_Down) {
-			next += columns;
-		} else {
+	_focusCard(index) {
+		const card = this._cards[index];
+		card.grab_key_focus();
+		ensureVisible(this._scrollView, this._grid, card);
+	};
+
+	_onCardKeyPress(card, event) {
+		const next = nextCardIndex(this._cards, this._rows, card, event.get_key_symbol());
+		if (next === null) {
 			return Clutter.EVENT_PROPAGATE;
 		};
-
 		if (next >= 0 && next < this._cards.length) {
-			this._cards[next].grab_key_focus();
-			this._cards[next].scroll_to_point?.(0, 0);
+			this._focusCard(next);
 		};
 		return Clutter.EVENT_STOP;
 	};
@@ -773,7 +423,6 @@ export class WidgetGallery {
 	};
 
 	_syncGeometry() {
-		if (this._destroyed) return;
 
 		const monitor = this._monitor();
 		if (!monitor) return;
@@ -804,59 +453,7 @@ export class WidgetGallery {
 	};
 
 	createLauncher() {
-		if (this._launcher) {
-			return this._launcher;
-		};
-
-		this._launcher = new PanelMenu.Button(0.5, _('Widgets'), true);
-		this._launcher.add_child(new St.Icon({
-			icon_name: 'view-grid-symbolic',
-			style_class: 'system-status-icon',
-		}));
-		this._launcher.accessible_name = _('Open widget gallery');
-		this._launcher.connectObject('button-release-event', (_actor, event) => {
-			if (event.get_button() === 1) {
-				this.toggle();
-				return Clutter.EVENT_STOP;
-			};
-			if (event.get_button() === 3) {
-				this._openLauncherMenu();
-				return Clutter.EVENT_STOP;
-			};
-			return Clutter.EVENT_PROPAGATE;
-		}, this._launcher);
-		this._launcher.connectObject('key-press-event', (_actor, event) => {
-			const symbol = event.get_key_symbol();
-			if ([Clutter.KEY_Return, Clutter.KEY_KP_Enter, Clutter.KEY_space].includes(symbol)) {
-				this.toggle();
-				return Clutter.EVENT_STOP;
-			};
-			return Clutter.EVENT_PROPAGATE;
-		}, this._launcher);
-		Main.panel.addToStatusArea('widgets-gallery', this._launcher, 0, 'right');
-		return this._launcher;
-	};
-
-	_openLauncherMenu() {
-		if (!this._launcherMenu) {
-			this._launcherMenu = new PopupMenu.PopupMenu(this._launcher, 0.5, St.Side.TOP);
-			this._launcherMenu.actor.add_style_class_name('panel-menu');
-			this._launcherMenu.actor.hide();
-			Main.uiGroup.add_child(this._launcherMenu.actor);
-			this._launcherMenuManager = new PopupMenu.PopupMenuManager(this._launcher);
-			this._launcherMenuManager.addMenu(this._launcherMenu);
-			this._toggleMenuItem = new PopupMenu.PopupMenuItem(_('Open Widget Gallery'));
-			this._toggleMenuItem.connectObject('activate', () => this.toggle(), this._toggleMenuItem);
-			this._launcherMenu.addMenuItem(this._toggleMenuItem);
-			this._launcherMenu.addAction(_('Extension Settings'), () => safeCall(this._onSettings));
-			this._launcherMenu.connectObject('open-state-changed', (_menu, open) => {
-				if (open) {
-					this._toggleMenuItem.label.text = this._isOpen ? _('Close Widget Gallery') : _('Open Widget Gallery');
-				};
-			}, this._launcherMenu.actor);
-		};
-		this._toggleMenuItem.label.text = this._isOpen ? _('Close Widget Gallery') : _('Open Widget Gallery');
-		this._launcherMenu.open();
+		return this._panelLauncher.create();
 	};
 
 	setCatalog(catalog) {
@@ -884,8 +481,9 @@ export class WidgetGallery {
 	};
 
 	open() {
-		if (this._destroyed || this._isOpen) return;
+		if (!this._overlay || this._isOpen) return;
 
+		this._animation.cancel();
 		this._syncGeometry();
 		this._disarmReset();
 		this._updateEditButton();
@@ -893,21 +491,14 @@ export class WidgetGallery {
 		this._rebuildGrid();
 		this._overlay.visible = true;
 		this._overlay.get_parent()?.set_child_above_sibling(this._overlay, null);
-
-		this._drawer.remove_all_transitions();
 		this._drawer.opacity = 255;
 		this._drawer.translation_y = this._drawer.height;
-		this._drawer.ease({
+		this._animation.run({
 			opacity: 255,
 			translation_y: this._drawerRestY,
 			duration: ANIMATION_TIME,
 			mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-			onComplete: () => {
-				if (this._isOpen) {
-					this._searchEntry.grab_key_focus();
-				};
-			},
-		});
+		}, () => this._searchEntry.grab_key_focus());
 	};
 
 	close(immediate = false) {
@@ -916,13 +507,12 @@ export class WidgetGallery {
 		this._isOpen = false;
 		this._disarmReset();
 
-		this._drawer.remove_all_transitions();
+		this._animation.cancel();
 		const finish = () => {
-			if (!this._isOpen && !this._destroyed) {
+			if (!this._isOpen) {
 				this._overlay.hide();
-				if (!this._drag) {
-					this._grid.destroy_all_children();
-					this._cards = [];
+				if (!this._drag.pending) {
+					this._clearCards();
 				};
 				this._drawer.translation_y = this._drawerRestY;
 				if (this._launcherEnabled) {
@@ -939,12 +529,11 @@ export class WidgetGallery {
 			return;
 		};
 
-		this._drawer.ease({
+		this._animation.run({
 			translation_y: this._drawer.height,
 			duration: ANIMATION_TIME,
 			mode: Clutter.AnimationMode.EASE_IN_QUAD,
-			onComplete: finish,
-		});
+		}, finish);
 	};
 
 	toggle() {
@@ -960,26 +549,36 @@ export class WidgetGallery {
 	};
 
 	destroy() {
-		if (this._destroyed) return;
-
-		this._finishCardDrag();
-		this.close(true);
-		this._destroyed = true;
-
-
-		this._launcherMenu?.destroy();
-		this._launcherMenu = null;
-		this._launcherMenuManager = null;
-		if (this._launcher) {
-			this._launcher.destroy();
-			this._launcher = null;
+		this._animation?.destroy();
+		this._animation = null;
+		this._isOpen = false;
+		this._drag?.destroy();
+		this._drag = null;
+		global.stage.disconnectObject(this._overlay);
+		Main.layoutManager.disconnectObject(this._overlay);
+		this._panelLauncher?.destroy();
+		this._panelLauncher = null;
+		this._launcher = null;
+		this._clearCards();
+		if (this._grid && !this._grid.get_parent()) {
+			this._grid.destroy();
 		};
-
-		this._overlay?.destroy();
+		this._overlay.destroy();
 		this._overlay = null;
 		this._drawer = null;
 		this._searchEntry = null;
+		this._scrollView = null;
 		this._grid = null;
-		this._cards = [];
+		this._header = null;
+		this._editButton = null;
+		this._resetButton = null;
+		this._catalog = [];
+		this._onAdd = null;
+		this._onDrop = null;
+		this._onEditToggle = null;
+		this._onReset = null;
+		this._onSettings = null;
+		this._getEditMode = null;
+		this._createPreview = null;
 	};
 };

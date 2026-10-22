@@ -242,7 +242,13 @@ export const screenTimeEngine = {
 		const nowMonotonic = GLib.get_monotonic_time();
 		this._focusStartWall = this._focusedKey ? nowWall : null;
 		this._focusStartMonotonic = this._focusedKey ? nowMonotonic : null;
-		global.display.connectObject('notify::focus-window', () => this._onFocusChanged(), this);
+    global.display.connectObject('notify::focus-window', () => this._onFocusChanged(), this);
+
+    if (this._tickId) {
+      GLib.Source.remove(this._tickId);
+      this._tickId = 0
+    };
+
 		this._tickId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_INTERVAL_MS, () => {
 			this._tick();
 			return GLib.SOURCE_CONTINUE;

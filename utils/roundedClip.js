@@ -54,7 +54,7 @@ if (typeof Clutter.ShaderEffect.prototype.set_shader_source === 'function') {
 		};
 
 		vfunc_get_static_snippet() {
-			return new Cogl.Snippet(Cogl.SnippetHook.FRAGMENT,
+			return Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT,
 				UNIFORMS, `${MASK} cogl_color_out *= coverage;`);
 		};
 	});

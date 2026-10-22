@@ -36,18 +36,33 @@ function loadEdsModules() {
 };
 
 function unwrapResult(value) {
-	if (!Array.isArray(value)) return value;
+	if (!Array.isArray(value)) {
+		return value;
+	};
 
-	if (value.length === 2 && typeof value[0] === 'boolean') return value[1];
+	if (value.length === 2 && typeof value[0] === 'boolean') {
+		return value[1];
+	};
 
 	return value.length === 1 ? value[0] : value;
 };
 
 function asArray(value) {
-	const unwrapped = unwrapResult(value);
+	let unwrapped = value;
+	if (Array.isArray(value)) {
+		if (value.length === 2 && typeof value[0] === 'boolean') {
+			unwrapped = value[1];
+		} else if (value.length === 1 && Array.isArray(value[0])) {
+			unwrapped = value[0];
+		};
+	};
 
-	if (!unwrapped) return [];
-	if (Array.isArray(unwrapped)) return unwrapped;
+	if (!unwrapped) {
+		return [];
+	};
+	if (Array.isArray(unwrapped)) {
+		return unwrapped;
+	};
 
 	try {
 		return Array.from(unwrapped);
@@ -57,7 +72,7 @@ function asArray(value) {
 };
 
 function cancelled(error) {
-	return Boolean(error?.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED));
+	return error instanceof GLib.Error && error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED);
 };
 
 function createSourceRegistry(EDataServer, cancellable) {
@@ -73,26 +88,20 @@ function createSourceRegistry(EDataServer, cancellable) {
 };
 
 function sourceColor(source, EDataServer) {
-	try {
-		const extension = source.get_extension(EDataServer.SOURCE_EXTENSION_CALENDAR);
-		const color = extension?.get_color?.() ?? extension?.color;
+	const extension = source.get_extension(EDataServer.SOURCE_EXTENSION_CALENDAR);
+	const color = extension.get_color();
 
-		return typeof color === 'string' && color.trim() ? color.trim() : DEFAULT_COLOR;
-	} catch (_error) {
-		return DEFAULT_COLOR;
-	};
+	return typeof color === 'string' && color.trim() ? color.trim() : DEFAULT_COLOR;
 };
 
 function sourceName(source) {
-	try {
-		return source.get_display_name?.() ?? source.display_name ?? '';
-	} catch (_error) {
-		return '';
-	};
+	return source.get_display_name() ?? '';
 };
 
 function dateFromInstanceTime(time) {
-	if (!time) return null;
+	if (!time) {
+		return null;
+	};
 
 	try {
 		if (time.is_date()) {
@@ -102,7 +111,7 @@ function dateFromInstanceTime(time) {
 				Number(time.get_day()));
 		};
 
-		const zone = time.get_timezone?.() ?? null;
+		const zone = time.get_timezone();
 		const seconds = zone
 			? Number(time.as_timet_with_zone(zone))
 			: Number(time.as_timet());
@@ -120,29 +129,19 @@ function eventFromInstance(icalComponent, instanceStart, instanceEnd,
 	const start = dateFromInstanceTime(instanceStart);
 	const end = dateFromInstanceTime(instanceEnd);
 
-	if (!start || start >= rangeEnd || (end ?? start) < rangeStart) return null;
-
-	let uid = '';
-	let title = '';
-
-	try {
-		uid = String(icalComponent.get_uid?.() ?? '');
-	} catch (_error) {
-		uid = '';
+	if (!start || start >= rangeEnd || (end ?? start) < rangeStart) {
+		return null;
 	};
 
-	try {
-		title = String(icalComponent.get_summary?.() ?? '').trim();
-	} catch (_error) {
-		title = '';
-	};
+	const uid = String(icalComponent.get_uid() ?? '');
+	const title = String(icalComponent.get_summary() ?? '').trim();
 
 	return {
 		id: `${uid}\u0000${start.getTime()}`,
 		title: title || _('Untitled event'),
 		start,
 		end,
-		allDay: Boolean(instanceStart?.is_date?.()),
+		allDay: instanceStart.is_date(),
 		calendarName: calendar.name,
 		color: calendar.color,
 	};
@@ -179,7 +178,7 @@ function listCalendars(registry, EDataServer) {
 	} catch (_error) {
 		try {
 			sources = asArray(registry.list_sources(extensionName))
-				.filter(source => source.get_enabled?.() !== false);
+				.filter(source => source.get_enabled());
 		} catch (_fallbackError) {
 			sources = [];
 		};
@@ -204,16 +203,24 @@ function formatDay(date) {
 	const today = new Date();
 	const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
 
-	if (sameDay(date, today)) return _('Today');
-	if (sameDay(date, tomorrow)) return _('Tomorrow');
+	if (sameDay(date, today)) {
+		return _('Today');
+	};
+	if (sameDay(date, tomorrow)) {
+		return _('Tomorrow');
+	};
 	return date.toLocaleDateString(undefined, {weekday: 'long', month: 'short', day: 'numeric'});
 };
 
 function formatEventTime(event) {
-	if (event.allDay) return _('All day');
+	if (event.allDay) {
+		return _('All day');
+	};
 
 	const time = event.start.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'});
-	if (!event.end || !sameDay(event.start, event.end)) return time;
+	if (!event.end || !sameDay(event.start, event.end)) {
+		return time;
+	};
 
 	return _('%s – %s').format(time,
 		event.end.toLocaleTimeString(undefined, {hour: 'numeric', minute: '2-digit'}));
@@ -244,7 +251,6 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 	const textColor = theme?.text ?? '#ffffff';
 	const mutedColor = theme?.muted ?? 'rgba(255,255,255,0.62)';
 	const state = {
-		destroyed: false,
 		refreshing: false,
 		refreshAgain: false,
 		generation: 0,
@@ -261,7 +267,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 
 	body.set_clip_to_allocation(true);
 
-	const content = new St.BoxLayout({
+	let content = new St.BoxLayout({
 		...VERTICAL,
 		style_class: `widget-events-content widget-events-size-${size}${compact ? ' widget-events-compact' : ''}`,
 		x_expand: true,
@@ -305,7 +311,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 	body.add_child(content);
 
 	function showMessage(primary, secondary = '') {
-		if (state.destroyed) return;
+		if (!content) return;
 
 		list.destroy_all_children();
 		if (compact) {
@@ -416,7 +422,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 	};
 
 	function showEvents(events) {
-		if (state.destroyed) return;
+		if (!content) return;
 
 		list.destroy_all_children();
 		let previousDay = '';
@@ -436,10 +442,6 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 	};
 
 	function cancelEventStreams(clearEvents = true) {
-		state.cancellable?.cancel();
-		state.cancellable = null;
-		state.clients.clear();
-
 		if (state.publishId) {
 			GLib.source_remove(state.publishId);
 			state.publishId = 0;
@@ -448,17 +450,22 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 			GLib.source_remove(state.emptyTimerId);
 			state.emptyTimerId = 0;
 		};
+		state.cancellable?.cancel();
+		state.cancellable = null;
+		state.clients.clear();
 		if (clearEvents) {
 			state.events.clear();
 		};
 	};
 
 	function publishGeneratedEvents(generation) {
-		if (state.destroyed || generation !== state.generation || state.publishId) return;
+		if (!content || generation !== state.generation || state.publishId) return;
 
 		state.publishId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
 			state.publishId = 0;
-			if (state.destroyed || generation !== state.generation) return GLib.SOURCE_REMOVE;
+			if (!content || generation !== state.generation) {
+				return GLib.SOURCE_REMOVE;
+			};
 
 			const events = [...state.events.values()]
 				.sort((first, second) => first.start - second.start);
@@ -471,7 +478,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 	};
 
 	function addGeneratedEvent(event, generation) {
-		if (state.destroyed || generation !== state.generation) return;
+		if (!content || generation !== state.generation) return;
 
 		const key = `${event.id}\u0000${event.calendarName}`;
 		state.events.set(key, event);
@@ -489,7 +496,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 
 		state.emptyTimerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 4, () => {
 			state.emptyTimerId = 0;
-			if (!state.destroyed && generation === state.generation && state.events.size === 0) {
+			if (content && generation === state.generation && state.events.size === 0) {
 				showMessage(_('No upcoming events'), _('Nothing scheduled in the next 7 days.'));
 			};
 			return GLib.SOURCE_REMOVE;
@@ -503,7 +510,9 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 			Math.floor(rangeEnd.getTime() / 1000),
 			cancellable,
 			(icalComponent, instanceStart, instanceEnd) => {
-				if (state.destroyed || generation !== state.generation || cancellable.is_cancelled()) return false;
+				if (!content || generation !== state.generation || cancellable.is_cancelled()) {
+					return false;
+				};
 
 				const event = eventFromInstance(
 					icalComponent,
@@ -528,7 +537,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 	};
 
 	function scheduleSourceRefresh() {
-		if (state.destroyed || state.sourceTimerId) return;
+		if (!content || state.sourceTimerId) return;
 
 		state.sourceTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SOURCE_REFRESH_DELAY_MS, () => {
 			state.sourceTimerId = 0;
@@ -549,17 +558,23 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 
 	async function startEventStreams(ECal, EDataServer, cancellable, generation) {
 		const registry = await createSourceRegistry(EDataServer, cancellable);
-		if (state.destroyed || generation !== state.generation || cancellable.is_cancelled()) return {hasCalendars: false, successfulCalendars: 0};
+		if (!content || generation !== state.generation || cancellable.is_cancelled()) {
+			return {hasCalendars: false, successfulCalendars: 0};
+		};
 		watchRegistry(registry);
 		const calendars = listCalendars(registry, EDataServer);
-		if (calendars.length === 0) return {hasCalendars: false, successfulCalendars: 0};
+		if (calendars.length === 0) {
+			return {hasCalendars: false, successfulCalendars: 0};
+		};
 
 		const rangeStart = new Date();
 		const rangeEnd = new Date(rangeStart.getTime() + DAYS_AHEAD * 24 * 60 * 60 * 1000);
 		const settled = await Promise.allSettled(calendars.map(async calendar => {
 			const client = await connectCalendar(ECal, calendar.source, cancellable);
 
-			if (state.destroyed || generation !== state.generation || cancellable.is_cancelled()) return false;
+			if (!content || generation !== state.generation || cancellable.is_cancelled()) {
+				return false;
+			};
 
 			startInstanceStream(client, calendar, rangeStart, rangeEnd, cancellable, generation);
 			state.clients.add(client);
@@ -572,7 +587,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 	};
 
 	async function refresh() {
-		if (state.destroyed) return;
+		if (!content) return;
 		if (state.refreshing) {
 			state.refreshAgain = true;
 			return;
@@ -587,7 +602,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 
 		try {
 			const modules = await loadEdsModules();
-			if (state.destroyed || generation !== state.generation) return;
+			if (!content || generation !== state.generation) return;
 			if (!modules) {
 				showMessage(
 					_('Calendar service unavailable'),
@@ -600,7 +615,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 				modules.EDataServer,
 				cancellable,
 				generation);
-			if (state.destroyed || generation !== state.generation) return;
+			if (!content || generation !== state.generation) return;
 			if (!result.hasCalendars) {
 				showMessage(_('No calendars found'), _('Open GNOME Calendar to add a calendar or account.'));
 			} else if (result.successfulCalendars === 0) {
@@ -612,7 +627,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 				publishGeneratedEvents(generation);
 			};
 		} catch (error) {
-			if (!state.destroyed && generation === state.generation && !cancelled(error)) {
+			if (content && generation === state.generation && !cancelled(error)) {
 				showMessage(
 					_('Couldn’t load events'),
 					_('Open GNOME Calendar and check that its calendar service is available.'));
@@ -620,7 +635,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 		} finally {
 			if (generation === state.generation) {
 				state.refreshing = false;
-				if (state.refreshAgain && !state.destroyed) {
+				if (state.refreshAgain && content) {
 					refresh();
 				};
 			};
@@ -630,7 +645,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 	showMessage(_('Loading events…'));
 	refresh();
 	state.timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, REFRESH_SECONDS, () => {
-		if (state.destroyed || content.get_parent() !== body) {
+		if (!content || content.get_parent() !== body) {
 			state.timerId = 0;
 			return GLib.SOURCE_REMOVE;
 		};
@@ -639,11 +654,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 	});
 
 	content.connectObject('destroy', () => {
-		if (state.destroyed) return;
-
-		state.destroyed = true;
 		state.generation++;
-		cancelEventStreams();
 		if (state.timerId) {
 			GLib.Source.remove(state.timerId);
 			state.timerId = 0;
@@ -653,5 +664,7 @@ export function render({body, widget, theme, sizeForWidget, compact = false}) {
 			state.sourceTimerId = 0;
 		};
 		disconnectRegistry();
+		cancelEventStreams();
+		content = null;
 	}, content);
 };

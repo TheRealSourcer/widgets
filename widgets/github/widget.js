@@ -177,11 +177,10 @@ export function render({ body, widget, theme, sizeForWidget, settings, refresh }
 	const state = {
 		timerId: null,
 		editing: false,
-		destroyed: false,
 		requestGeneration: 0,
 		cancellable: new Gio.Cancellable(),
 	};
-	const session = new Soup.Session();
+	let session = new Soup.Session();
 	let latestByDate = new Map();
 	let lastSyncTime = null;
 	let currentStreak = 0;
@@ -242,9 +241,6 @@ export function render({ body, widget, theme, sizeForWidget, settings, refresh }
 		y_align: Clutter.ActorAlign.CENTER,
 		style: `font-size: ${layout.username}px; color: ${textColor}; width: ${layout.entryWidth}px;`,
 	});
-	usernameLabel._desktopWidgetsSelfClick = true;
-	usernameEntry._desktopWidgetsSelfClick = true;
-	avatarWidget._desktopWidgetsSelfClick = true;
 	usernameEntry.hide();
 
 	const headerSpacer = new St.Widget({ x_expand: true });
@@ -311,7 +307,7 @@ export function render({ body, widget, theme, sizeForWidget, settings, refresh }
 		mainBox.add_child(statsBox);
 	};
 
-	// --- FOOTER (medium and large only) ---
+
 	let footerBox = null;
 	if (!isMini) {
 		footerBox = new St.BoxLayout({
@@ -600,7 +596,7 @@ export function render({ body, widget, theme, sizeForWidget, settings, refresh }
 	};
 
 	function fetchContributions() {
-		if (!isValidUsername(username) || state.destroyed) return;
+		if (state.cancellable.is_cancelled() || !isValidUsername(username)) return;
 		setStatus(isMini ? '…' : _('Fetching…'));
 
 		const requestedUsername = username;
@@ -611,7 +607,7 @@ export function render({ body, widget, theme, sizeForWidget, settings, refresh }
 			try {
 				const bytes = s.send_and_read_finish(res);
 
-				if (state.destroyed || requestGeneration !== state.requestGeneration ||
+				if (state.cancellable.is_cancelled() || requestGeneration !== state.requestGeneration ||
                     requestedUsername !== username || mainBox.get_parent() !== body) return;
 				if (message.get_status() !== HTTP_OK) {
 					throw new Error(`HTTP ${message.get_status()}`);
@@ -681,8 +677,8 @@ export function render({ body, widget, theme, sizeForWidget, settings, refresh }
 					renderStats();
 				};
 			} catch (err) {
-				const cancelled = err.matches && err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED);
-				if (!state.destroyed && requestGeneration === state.requestGeneration && !cancelled) {
+				const cancelled = err instanceof GLib.Error && err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED);
+				if (!state.cancellable.is_cancelled() && requestGeneration === state.requestGeneration && !cancelled) {
 					const cached = latestByDate.size > 0;
 					setStatus(isMini
 						? (cached ? _('Cached') : _('Error'))
@@ -693,7 +689,8 @@ export function render({ body, widget, theme, sizeForWidget, settings, refresh }
 	};
 
 	function loadAvatar() {
-		if (!isValidUsername(username) || state.destroyed) {
+		if (state.cancellable.is_cancelled()) return;
+		if (!isValidUsername(username)) {
 			avatarInitialsLabel.text = '?';
 			avatarInitialsLabel.show();
 			avatarWidget.set_style(`background-color: ${textRgba(0.15)}; width: ${avatarSize}px; height: ${avatarSize}px;`);
@@ -839,6 +836,11 @@ export function render({ body, widget, theme, sizeForWidget, settings, refresh }
 	}, mainBox);
 	usernameEntry.clutter_text.connectObject('key-focus-out', () => endEdit(false), mainBox);
 
+	if (state.timerId) {
+    GLib.Source.remove(state.timerId);
+    state.timerId = 0
+  };
+
 	state.timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, REFRESH_INTERVAL, () => {
 		if (state.cancellable.is_cancelled() || mainBox.get_parent() !== body) {
 			state.timerId = null;
@@ -849,15 +851,21 @@ export function render({ body, widget, theme, sizeForWidget, settings, refresh }
 	});
 
 	mainBox.connectObject('destroy', () => {
-		if (state.destroyed) return;
-		state.destroyed = true;
+		if (state.cancellable.is_cancelled()) return;
 		state.requestGeneration++;
-		state.cancellable.cancel();
 		if (state.timerId) {
 			GLib.source_remove(state.timerId);
 			state.timerId = null;
 		};
+		gridCanvas.disconnectObject(mainBox);
+		usernameLabel.disconnectObject(mainBox);
+		avatarWidget.disconnectObject(mainBox);
+		usernameEntry.clutter_text.disconnectObject(mainBox);
+		state.cancellable.cancel();
 		session.abort();
+		session = null;
+		latestByDate.clear();
+		matrixGeometry.cells = [];
 		if (global.stage.get_key_focus() === usernameEntry) {
 			global.stage.set_key_focus(null);
 		};

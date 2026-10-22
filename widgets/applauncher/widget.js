@@ -44,12 +44,8 @@ try {
 };
 
 function resolveDesktopAppInfo(appKey) {
-	try {
-		const DesktopAppInfo = GioUnix?.DesktopAppInfo ?? Gio.DesktopAppInfo;
-		return DesktopAppInfo?.new(appKey) ?? null;
-	} catch (_error) {
-		return null;
-	};
+	const DesktopAppInfo = GioUnix?.DesktopAppInfo ?? Gio.DesktopAppInfo;
+	return DesktopAppInfo.new(appKey);
 };
 
 function defaultApps() {
@@ -66,7 +62,7 @@ function defaultApps() {
 	if (defaults.length < DEFAULT_APP_CANDIDATES.length) {
 		try {
 			const installed = Gio.AppInfo.get_all()
-				.filter(info => info.should_show?.() !== false && info.get_id?.())
+				.filter(info => info.should_show() && info.get_id())
 				.sort((a, b) => String(a.get_display_name()).localeCompare(String(b.get_display_name())));
 			for (const info of installed) {
 				const id = info.get_id();
@@ -87,7 +83,9 @@ function defaultApps() {
 };
 
 function validatedApps(data) {
-	if (!data || !Array.isArray(data.apps)) return null;
+	if (!data || !Array.isArray(data.apps)) {
+		return null;
+	};
 	return data.apps
 		.filter(app => app && typeof app.id === 'string' && app.id.length > 0 && app.id.length <= 512)
 		.slice(0, MAX_APPS)
@@ -105,7 +103,9 @@ function gridContentSize(widgetWidth, widgetHeight) {
 };
 
 function computeGridLayout(appCount, widgetWidth, widgetHeight) {
-	if (appCount <= 0) return { cols: 1, rows: 1 };
+	if (appCount <= 0) {
+		return { cols: 1, rows: 1 };
+	};
 
 	const content = gridContentSize(widgetWidth, widgetHeight);
 	let best = null;
@@ -193,7 +193,7 @@ export function render({ body, widget, theme, sizeForWidget }) {
 
 	body.add_child(container);
 
-	const grid = new St.BoxLayout({
+	let grid = new St.BoxLayout({
 		...VERTICAL,
 		x_expand: true,
 		y_expand: true,
@@ -205,7 +205,7 @@ export function render({ body, widget, theme, sizeForWidget }) {
 	container.add_child(grid);
 
 	const launchApp = (appInfo, app, displayName) => {
-		if (destroyed) return;
+		if (!grid) return;
 
 		if (appInfo) {
 			try {
@@ -220,10 +220,11 @@ export function render({ body, widget, theme, sizeForWidget }) {
 	};
 
 	let scaleIdleId = 0;
-	let destroyed = false;
 	const cancellable = new Gio.Cancellable();
 
 	const buildGrid = () => {
+		if (!grid) return;
+
 		if (scaleIdleId) {
 			GLib.Source.remove(scaleIdleId);
 			scaleIdleId = 0;
@@ -328,7 +329,9 @@ export function render({ body, widget, theme, sizeForWidget }) {
 				}, button);
 
 				button.connectObject('button-press-event', (_actor, event) => {
-					if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+					if (event.get_button() !== 1) {
+						return Clutter.EVENT_PROPAGATE;
+					};
 					const [x, y] = event.get_coords();
 					cell.pressX = x;
 					cell.pressY = y;
@@ -336,7 +339,9 @@ export function render({ body, widget, theme, sizeForWidget }) {
 				}, button);
 
 				button.connectObject('button-release-event', (_actor, event) => {
-					if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+					if (event.get_button() !== 1) {
+						return Clutter.EVENT_PROPAGATE;
+					};
 
 					const [releaseX, releaseY] = event.get_coords();
 					const isClickNotDrag = Math.abs(releaseX - cell.pressX) < DRAG_THRESHOLD_PIXELS
@@ -353,7 +358,7 @@ export function render({ body, widget, theme, sizeForWidget }) {
 		};
 
 		const applyScale = () => {
-			if (destroyed) return;
+			if (!grid) return;
 
 			const preview = String(widget?.id).startsWith('preview-');
 			const currentWidth = preview || body.width < width / 2 ? width : body.width;
@@ -364,7 +369,7 @@ export function render({ body, widget, theme, sizeForWidget }) {
 		};
 
 		const queueScale = () => {
-			if (destroyed || scaleIdleId) return;
+			if (!grid || scaleIdleId) return;
 			scaleIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
 				scaleIdleId = 0;
 				applyScale();
@@ -378,11 +383,15 @@ export function render({ body, widget, theme, sizeForWidget }) {
 
 	let reloadTimer = null;
 	const reload = () => {
-		if (destroyed || reloadTimer) return;
+		if (!grid || reloadTimer) return;
 		reloadTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
 			reloadTimer = null;
+			if (!grid) {
+				return GLib.SOURCE_REMOVE;
+			};
+
 			loadJsonFromFileAsync(dataFilePath, (loaded) => {
-				if (destroyed) return;
+				if (!grid) return;
 				const savedApps = validatedApps(loaded);
 				if (savedApps) {
 					apps = savedApps;
@@ -397,7 +406,7 @@ export function render({ body, widget, theme, sizeForWidget }) {
 	try {
 		fileMonitor = Gio.File.new_for_path(dataDirectory).monitor_directory(Gio.FileMonitorFlags.NONE, null);
 		fileMonitor.connectObject('changed', (_monitor, file, otherFile, eventType) => {
-			if (destroyed || (file?.get_basename() !== dataFileName && otherFile?.get_basename() !== dataFileName)) return;
+			if (!grid || (file?.get_basename() !== dataFileName && otherFile?.get_basename() !== dataFileName)) return;
 			if (eventType === Gio.FileMonitorEvent.CHANGED
                 || eventType === Gio.FileMonitorEvent.CHANGES_DONE_HINT
                 || eventType === Gio.FileMonitorEvent.CREATED
@@ -412,9 +421,6 @@ export function render({ body, widget, theme, sizeForWidget }) {
 	};
 
 	container.connectObject('destroy', () => {
-		destroyed = true;
-		cancellable.cancel();
-
 		if (scaleIdleId) {
 			GLib.Source.remove(scaleIdleId);
 			scaleIdleId = 0;
@@ -432,6 +438,9 @@ export function render({ body, widget, theme, sizeForWidget }) {
 			fileMonitor.cancel();
 			fileMonitor = null;
 		};
+		cancellable.cancel();
+		grid = null;
+		apps = [];
 	}, container);
 
 	buildGrid();

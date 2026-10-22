@@ -4,6 +4,7 @@ import GLib from 'gi://GLib';
 import GWeather from 'gi://GWeather';
 import St from 'gi://St';
 import {surfaceStyle} from '../../utils/widget.js';
+import {ease} from '../../utils/animation.js';
 import {VERTICAL, boxOrientation} from '../../compatibility.js';
 
 import { warn } from '../../logger.js';
@@ -51,7 +52,13 @@ export const weatherService = {
 		const schema = Gio.SettingsSchemaSource.get_default()?.lookup(settingsSchema, true);
 		this.settings = schema ? new Gio.Settings({settings_schema: schema}) : null;
 		this.settings?.connectObject('changed::locations', () => this.refresh(true), this);
-		this.refresh();
+    this.refresh();
+
+    if (this.timerId) {
+      GLib.Source.remove(this.timerId);
+      this.timerId = 0
+    };
+
 		this.timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => {
 			this.refresh();
 			return GLib.SOURCE_CONTINUE;
@@ -448,7 +455,7 @@ function temperatureActor(body, widget, text, createLabel, color, layout) {
 		currentLabel.remove_all_transitions();
 	}, stage);
 
-	previousLabel.ease({
+	ease(previousLabel, {
 		translation_y: travel,
 		opacity: 0,
 		duration: TEMPERATURE_ANIMATION_MS,
@@ -459,7 +466,7 @@ function temperatureActor(body, widget, text, createLabel, color, layout) {
 			};
 		},
 	});
-	currentLabel.ease({
+	ease(currentLabel, {
 		translation_y: 0,
 		opacity: 255,
 		duration: TEMPERATURE_ANIMATION_MS,

@@ -7,10 +7,9 @@ const FILE_MODE = 0o600;
 const ensuredDirectories = new Set();
 
 function setMode(path, mode) {
-	try {
-		GLib.chmod(path, mode);
-	} catch (error) {
-		console.debug(`Could not set private permissions on ${path}: ${error}`);
+	const status = GLib.chmod(path, mode);
+	if (status !== 0) {
+		console.debug(`Could not set private permissions on ${path}: chmod returned ${status}`);
 	};
 };
 
@@ -63,8 +62,9 @@ export function loadJsonFromFileAsync(filePath, callback, cancellable = null) {
 			};
 		} catch (error) {
 			loadError = error;
-			if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND) &&
-				!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+			if (!(error instanceof GLib.Error &&
+				(error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND) ||
+				 error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)))) {
 				console.error(`Error reading JSON from ${filePath}: ${error}`);
 			};
 		};

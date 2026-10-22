@@ -2,7 +2,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Pango from 'gi://Pango';
-import Soup from 'gi://Soup?version=3.0';
+import Soup from 'gi://Soup';
 import St from 'gi://St';
 import {surfaceStyle, watchSettings} from '../../utils/widget.js';
 import {VERTICAL, HORIZONTAL} from '../../compatibility.js';
@@ -244,12 +244,11 @@ export function render({body, createLabel, settings, sizeForWidget, theme, widge
 	]);
 	const state = {
 		cancellable: new Gio.Cancellable(),
-		destroyed: false,
 		generation: 0,
 		quotes: new Map(),
 		timerId: 0,
 	};
-	const session = new Soup.Session({
+	let session = new Soup.Session({
 		timeout: 20,
 		user_agent: 'GNOME-Shell-Stocks-Widget/1.0',
 	});
@@ -447,7 +446,7 @@ export function render({body, createLabel, settings, sizeForWidget, theme, widge
 						const payload = JSON.parse(decoder.decode(bytes.get_data()));
 						received.set(symbol, parseQuote(payload, symbol));
 					} catch (error) {
-						const cancelled = error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED);
+						const cancelled = error instanceof GLib.Error && error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED);
 
 						if (!cancelled) {
 							failures++;
@@ -464,16 +463,16 @@ export function render({body, createLabel, settings, sizeForWidget, theme, widge
 	};
 
 	content.connectObject('destroy', () => {
-		if (state.destroyed) return;
-
-		state.destroyed = true;
 		state.generation++;
-		state.cancellable.cancel();
 		if (state.timerId) {
 			GLib.source_remove(state.timerId);
 			state.timerId = 0;
 		};
+		state.cancellable.cancel();
 		session.abort();
+		session = null;
+		rows.clear();
+		state.quotes.clear();
 	}, content);
 
 	loadJsonFromFileAsync(cachePath, cached => {

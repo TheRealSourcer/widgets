@@ -299,7 +299,13 @@ export const batteryService = {
 			subscribe('org.bluez', 'org.freedesktop.DBus.ObjectManager', 'InterfacesAdded', '/', null, refresh),
 			subscribe('org.bluez', 'org.freedesktop.DBus.ObjectManager', 'InterfacesRemoved', '/', null, refresh),
 			subscribe('org.bluez', 'org.freedesktop.DBus.Properties', 'PropertiesChanged', null, null, refreshBlueZ),
-		];
+    ];
+
+    if (this.timerId) {
+      GLib.Source.remove(this.timerId);
+      this.timerId = 0
+    };
+
 		this.timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => {
 			this.refresh();
 			return GLib.SOURCE_CONTINUE;

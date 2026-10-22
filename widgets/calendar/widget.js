@@ -46,9 +46,7 @@ function localeCalendarInfo() {
 	} catch (_error) {
 	};
 
-	const shellFirstDay = typeof Shell.util_get_week_start === 'function'
-		? Number(Shell.util_get_week_start())
-		: NaN;
+	const shellFirstDay = Number(Shell.util_get_week_start());
 
 	return {
 		firstDay: Number.isInteger(shellFirstDay) && shellFirstDay >= 0 && shellFirstDay <= 6
