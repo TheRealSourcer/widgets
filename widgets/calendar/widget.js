@@ -49,6 +49,11 @@ const ANIMATION_DURATION = 250;
 const VIEW_CALENDAR = 0;
 const VIEW_EVENTS = 1;
 
+// 1x1 view memory. Theme/style changes rebuild the card in place — the
+// open view must survive that instead of snapping back to the calendar
+// page (in-memory only: a shell restart starts on the calendar view).
+let lastCalendarView = VIEW_CALENDAR;
+
 export class CalendarEventsClient {
   constructor() {
     this._events = new Map();
@@ -970,7 +975,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	const cellHeight = (compact ? COMPACT_CELL_BASE_HEIGHT : CELL_BASE_HEIGHT) * scale;
 	const weekdayFont = fitWeekdayFontSize(weekdays, cellWidth, dayFont);
 
-	let currentView = VIEW_CALENDAR;
+	let currentView = lastCalendarView;
 	let viewContainer = null;
 	let currentEventBox = null;
 	const animatingActors = new Set();
@@ -1164,6 +1169,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 
 			// Toggle between views (any swipe direction switches to the other view)
 			currentView = currentView === VIEW_CALENDAR ? VIEW_EVENTS : VIEW_CALENDAR;
+			lastCalendarView = currentView;
 			
 			GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
 				rebuild(-exitX);

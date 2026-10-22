@@ -10,6 +10,11 @@ import { bounceButton, bindHoverShrink } from '../../lib/buttonBounce.js';
 import { parseCssColor, cssColorToRgba } from '../../utils/ported.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
+// Re-render memory: theme/style changes rebuild the card in place — the
+// browsed day must survive that instead of snapping back to today
+// (in-memory only: a shell restart starts fresh at today).
+let lastSelectedDate = null;
+
 export const type = 'screentime';
 export const label = 'Screen Time';
 export const stylesheet = 'widgets/screentime/stylesheet.css';
@@ -783,7 +788,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 	// Acquire tracking: engine starts collecting data when first widget acquires
 	state.releaseEngine = screenTimeEngine.acquire();
-	state.selectedDate = screenTimeEngine.getTodayDate();
+	state.selectedDate = lastSelectedDate ?? screenTimeEngine.getTodayDate();
 
 	const onEngineTick = () => {
 		const today = screenTimeEngine.getTodayDate();
@@ -842,6 +847,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 	function refreshData() {
 		if (!rootAlive || isActorDestroyed(body) || !body.get_parent()) return;
+		// Write-through: every day switch funnels through here, so the
+		// browsed day survives re-renders (theme/style changes).
+		lastSelectedDate = state.selectedDate;
 		if (state.selectedDate === screenTimeEngine.getTodayDate()) {
 			state.snapshot = screenTimeEngine.getTodaySnapshot();
 			renderDynamic();
