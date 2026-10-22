@@ -1047,8 +1047,11 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		});
 	};
 
-	const rebuild = (enterX = 0) => {
-		if (viewContainer) {
+	const rebuild = (enterX = 0, { keepLeaving = false, fade = true } = {}) => {
+		// The swipe cross keeps the leaving page in the pane — it finishes
+		// its own slide and removes itself when done (it is already marked
+		// animating before this call).
+		if (viewContainer && !(keepLeaving && animatingActors.has(viewContainer))) {
 			container.remove_child(viewContainer);
 		}
 
@@ -1102,7 +1105,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		}
 
 		viewContainer.translation_x = enterX;
-		viewContainer.opacity = enterX !== 0 ? 0 : 255;
+		viewContainer.opacity = enterX !== 0 && fade ? 0 : 255;
 
 		if (!animatingActors.has(viewContainer)) {
 			container.add_child(viewContainer);
@@ -1110,15 +1113,17 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 
 		if (enterX !== 0) {
 			animatingActors.add(viewContainer);
-			viewContainer.ease({
-				opacity: 255,
+			const easeProps = {
 				translation_x: 0,
 				duration: ANIMATION_DURATION,
 				mode: Clutter.AnimationMode.EASE_OUT_QUAD,
 				onComplete: () => {
 					animatingActors.delete(viewContainer);
 				},
-			});
+			};
+			if (fade)
+				easeProps.opacity = 255;
+			viewContainer.ease(easeProps);
 		}
 
 		refreshDots();
@@ -1138,6 +1143,9 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		return Clutter.EVENT_PROPAGATE;
 	});
 
+	// A cross is in flight — swipes are swallowed until it settles.
+	let swipeBusy = false;
+
 	container.connect('button-release-event', (actor, event) => {
 		if (!dragging) return Clutter.EVENT_PROPAGATE;
 		dragging = false;
@@ -1145,29 +1153,36 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		const delta = endX - startX;
 
 		if (Math.abs(delta) > SWIPE_THRESHOLD) {
+			// GNOME workspace-switch cross (see the system widgets): both
+			// pages travel in lockstep, nothing fades — with the calendar's
+			// own duration and easing. Swipes are swallowed until the cross
+			// settles.
+			if (swipeBusy) return Clutter.EVENT_STOP;
+
 			const oldView = viewContainer;
 			const exitX = delta < 0 ? -widgetWidth : widgetWidth;
-			
+
 			animatingActors.add(oldView);
+
+			// Toggle between views (any swipe direction switches to the other view)
+			currentView = currentView === VIEW_CALENDAR ? VIEW_EVENTS : VIEW_CALENDAR;
+
+			rebuild(-exitX, { keepLeaving: true, fade: false });
+			// The leaving page rides above the arriving one during the cross.
+			if (oldView.get_parent())
+				container.set_child_above_sibling(oldView, viewContainer);
+
 			oldView.ease({
-				opacity: 0,
 				translation_x: exitX,
 				duration: ANIMATION_DURATION,
 				mode: Clutter.AnimationMode.EASE_IN_QUAD,
 				onComplete: () => {
+					swipeBusy = false;
 					animatingActors.delete(oldView);
 					if (oldView.get_parent()) {
 						oldView.get_parent().remove_child(oldView);
 					}
 				},
-			});
-
-			// Toggle between views (any swipe direction switches to the other view)
-			currentView = currentView === VIEW_CALENDAR ? VIEW_EVENTS : VIEW_CALENDAR;
-			
-			GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
-				rebuild(-exitX);
-				return GLib.SOURCE_REMOVE;
 			});
 		}
 		return Clutter.EVENT_STOP;
