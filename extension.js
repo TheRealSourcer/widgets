@@ -3461,7 +3461,11 @@ sizeButton.connectObject('destroy', () => {
       style: 'spacing: 12px;',
       x_align: Clutter.ActorAlign.CENTER,
       y_align: Clutter.ActorAlign.CENTER,
+      y_expand: true,  // Розтягнути по висоті для центрування
     }));
+
+    // Spacer зверху для вертикального центрування
+    previewColumn.add_child(new St.Widget({y_expand: true}));
 
     // + button above widget (add page above current)
     const canAddMore = entries.length < STACK_PAGE_LIMIT;
@@ -3494,37 +3498,78 @@ sizeButton.connectObject('destroy', () => {
     };
     previewColumn.add_child(addAboveButton);
 
-    // Widget preview — show current page label
+    // Widget preview — render LIVE snapshot of current page
     const [slotW, slotH] = view.actor.get_size();
-    const previewW = Math.min(320, slotW);
-    const previewH = Math.min(240, slotH);
+    const gap = this._widgetGap ?? WIDGET_GAP;
+    const sizes = widgetSizesFor(gap);
+    const [widgetW, widgetH] = sizes[view.widget.size] ?? sizes.small;
+    
+    // Scale to fit preview area (max 400x300)
+    const maxPreviewW = 400;
+    const maxPreviewH = 300;
+    const previewScale = Math.min(1, maxPreviewW / widgetW, maxPreviewH / widgetH);
+    const previewW = Math.floor(widgetW * previewScale);
+    const previewH = Math.floor(widgetH * previewScale);
 
-    const previewCard = new St.BoxLayout(boxLayoutProps({
-      vertical: true,
-      style: `background-color: ${theme.dark ? '#2a2a2e' : '#f5f5f5'};`
+    const previewCard = new St.Widget({
+      layout_manager: new Clutter.FixedLayout(),
+      width: previewW,
+      height: previewH,
+      style: `background-color: ${theme.dark ? '#1a1a1a' : '#f5f5f5'};`
         + ` border: 2px solid ${theme.accent};`
-        + ` border-radius: ${theme.radius}px;`
-        + ` min-width: ${previewW}px; min-height: ${previewH}px;`
-        + ` padding: 20px;`,
-      x_align: Clutter.ActorAlign.CENTER,
-      y_align: Clutter.ActorAlign.CENTER,
+        + ` border-radius: ${theme.radius}px;`,
+      clip_to_allocation: true,
+    });
+
+    // Render actual widget as preview
+    const previewStub = {
+      id: `preview-panel-${view.widget.id}`,
+      type: view.widget.type,
+      size: view.widget.size,
+      data: view.widget.data,
+      pinned: true,
+    };
+    
+    const previewSurface = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      style_class: `widget widget-${previewStub.type} widget-${previewStub.type}-${previewStub.size ?? 'default'}`,
+      style: `${this._styleForWidget(previewStub) ?? ''}`
+        + ` background-color: ${theme.background};`,
+      width: widgetW,
+      height: widgetH,
+      clip_to_allocation: true,
     }));
     
-    const previewLabel = new St.Label({
-      text: _(WIDGET_TYPE_LABELS[view.widget.type] ?? view.widget.type),
-      style: `font-size: 18px; font-weight: 700; color: ${theme.text};`,
-      x_align: Clutter.ActorAlign.CENTER,
-    });
-    previewCard.add_child(previewLabel);
+    const previewBody = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      style_class: 'widget-body',
+      x_expand: true,
+      y_expand: true,
+    }));
+    previewSurface.add_child(previewBody);
 
-    const previewHint = new St.Label({
-      text: _('Current page'),
-      style: `font-size: 13px; color: ${theme.muted}; padding-top: 8px;`,
-      x_align: Clutter.ActorAlign.CENTER,
-    });
-    previewCard.add_child(previewHint);
+    // Render widget content when mapped
+    let previewRendered = false;
+    previewSurface.connectObject('notify::mapped', () => {
+      if (previewRendered || !previewSurface.mapped) return;
+      previewRendered = true;
+      try {
+        this._fillWidgetBody(previewStub, previewBody, previewSurface);
+        console.log(`[debug] panel preview rendered ${previewStub.type}`);
+      } catch (error) {
+        console.error(`[debug] panel preview failed: ${error.message}`);
+      };
+    }, previewSurface);
+
+    previewSurface.set_scale(previewScale, previewScale);
+    previewSurface.set_position(
+      Math.round((previewW - widgetW * previewScale) / 2),
+      Math.round((previewH - widgetH * previewScale) / 2)
+    );
+    previewCard.add_child(previewSurface);
 
     previewColumn.add_child(previewCard);
+
 
     // + button below widget (add page below current)
     const addBelowButton = new St.Button({
@@ -3555,6 +3600,9 @@ sizeButton.connectObject('destroy', () => {
       });
     };
     previewColumn.add_child(addBelowButton);
+
+    // Spacer знизу для вертикального центрування
+    previewColumn.add_child(new St.Widget({y_expand: true}));
 
     card.add_child(previewColumn);
 
