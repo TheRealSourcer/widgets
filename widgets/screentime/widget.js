@@ -1014,6 +1014,17 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		bandColumns.forEach(column => {
 			column.style = `spacing: ${spread}px;`;
 		});
+
+		// A measurement miss leaves rounding slack after the last row, which
+		// used to pile up entirely at the bottom. Split it evenly so the
+		// visual top and bottom paddings stay identical.
+		const used = shown * rowH + (shown - 1) * spread;
+		const leftover = Math.max(0, innerH - used);
+		const padTop = Math.round(8 * s) + Math.floor(leftover / 2);
+		const padBottom = Math.round(8 * s) + leftover - Math.floor(leftover / 2);
+		const padSide = Math.round(16 * s);
+		appsBand.style = `background-color: ${sideBg}; border-radius: 0 0 ${radius}px ${radius}px;`
+			+ `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
 	}
 
 	function rebuildAppList() {
