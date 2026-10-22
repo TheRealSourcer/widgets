@@ -3,6 +3,8 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 
+import { parseCssColor } from '../../utils/ported.js';
+
 export const type = 'binaryclock';
 export const label = 'Binary Clock';
 export const stylesheet = 'widgets/binaryclock/stylesheet.css';
@@ -35,7 +37,7 @@ function clockDigits() {
 
 const BinaryClockFace = GObject.registerClass(
 	class BinaryClockFace extends St.DrawingArea {
-		_init(theme) {
+		_init(theme, accentCss) {
 			super._init({
 				x_expand: true,
 				y_expand: true,
@@ -44,7 +46,12 @@ const BinaryClockFace = GObject.registerClass(
 			});
 
 			this._dark = theme?.dark ?? false;
-			this._active = this._dark ? [1, 1, 1, 1] : [0.14, 0.12, 0.18, 1];
+			// Lit dots: the accent color (system or the custom one from
+			// Appearance settings) when the toggle allows it, otherwise the
+			// neutral theme look (white on dark, near-black on light).
+			this._active = accentCss
+				? {...parseCssColor(accentCss), a: 1}
+				: this._dark ? [1, 1, 1, 1] : [0.14, 0.12, 0.18, 1];
 			this._inactive = this._dark ? [1, 1, 1, 0.2] : [0, 0, 0, 0.1];
 
 			this._scheduleRepaint();
@@ -155,8 +162,11 @@ export function style(theme) {
 	return `background-color: ${theme.background}; border-color: ${theme.border}; border-radius: ${CORNER_RADIUS}px; padding: 8px;`;
 };
 
-export function render({body, theme}) {
-	const clock = new BinaryClockFace(theme);
+export function render({body, theme, settings}) {
+	// The lit dots take the accent color while the toggle in the widget's
+	// preferences allows it; disabled falls back to the neutral look.
+	const useAccentColor = settings?.get_boolean('binaryclock-use-accent-color') ?? true;
+	const clock = new BinaryClockFace(theme, useAccentColor ? theme?.accent : null);
 
 	clock.set_x_expand(true);
 	clock.set_y_expand(true);

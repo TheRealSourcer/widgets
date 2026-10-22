@@ -96,6 +96,7 @@ const WIDGETS = new Map(WIDGET_MODULES.map(widgetModule => [widgetModule.type, w
 const WIDGET_PREFS_PAGES = new Map([
   ['applauncher', 'app-launcher-widget'],
   ['battery', 'battery-widget'],
+  ['binaryclock', 'binary-clock-widget'],
   ['calendar', 'calendar-widget'],
   ['clock', 'analog-clock-widget'],
   ['digitalclock', 'digital-clock-widget'],
@@ -558,6 +559,7 @@ class WidgetController {
       'changed::clock-smooth-seconds', () => this._scheduleAppearance('refresh'),
       'changed::github-use-green', () => this._scheduleAppearance('refresh'),
       'changed::github-username', () => this._scheduleAppearance('refresh'),
+      'changed::binaryclock-use-accent-color', () => this._scheduleAppearance('refresh'),
       'changed::style-border-radius', () => this._scheduleAppearance('rebuild'),
       'changed::style-border-width', () => this._scheduleAppearance('rebuild'),
       'changed::style-background', () => this._scheduleAppearance('rebuild'),

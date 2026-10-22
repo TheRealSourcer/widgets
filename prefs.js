@@ -267,6 +267,12 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         digitalClockPage.set_icon_name('preferences-system-time-symbolic');
         this._addSidebarPage(digitalClockPage);
 
+        // Binary Clock page
+        const binaryClockPage = this._createBinaryClockPage(settings);
+        binaryClockPage.set_title(_('Binary Clock Widget'));
+        binaryClockPage.set_icon_name('preferences-system-time-symbolic');
+        this._addSidebarPage(binaryClockPage);
+
         // GitHub page
         const githubPage = this._createGithubPage(settings);
         githubPage.set_title(_('GitHub Widget'));
@@ -1678,6 +1684,30 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         smoothSecondsRow.connect('notify::active', () => {
             settings.set_boolean('digitalclock-smooth-seconds', smoothSecondsRow.get_active());
         });
+
+        page.add(group);
+        return page;
+    }
+
+    _createBinaryClockPage(settings) {
+        const page = new Adw.PreferencesPage();
+        const group = new Adw.PreferencesGroup({
+            title: _('Binary Clock Widget'),
+            description: _('Appearance of the binary clock on your desktop.'),
+            margin_top: 12,
+        });
+
+        // The lit dots take the accent color (system or the custom one
+        // from Appearance settings), or fall back to the neutral look.
+        const accentRow = new Adw.SwitchRow({
+            title: _('Use accent color'),
+            subtitle: _('Use system or custom accent color from Appearance settings. When disabled, uses neutral color (white on dark, black on light).'),
+        });
+        accentRow.set_active(settings.get_boolean('binaryclock-use-accent-color'));
+        accentRow.connect('notify::active', () => {
+            settings.set_boolean('binaryclock-use-accent-color', accentRow.get_active());
+        });
+        group.add(accentRow);
 
         page.add(group);
         return page;
