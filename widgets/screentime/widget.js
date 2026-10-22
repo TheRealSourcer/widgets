@@ -1165,7 +1165,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	// yet (width 0), and using body.width as both input and output lets layout
 	// feedback run away. The actor's size is set by extension.js and never
 	// reacts to our writes, so these values are stable and idempotent.
-	const CLIP_INSET = 16 + (theme.borderWidth ?? 1); // padding 16 + border width, each side
+	// Widget frame padding is 0 for this widget (style() override) — only the
+	// border still insets the content box on each side.
+	const CLIP_INSET = (theme.borderWidth ?? 1);
 	const actor = body.get_parent();
 	const contentWidth = () => Math.max(1, (actor ? actor.width : widgetWidth) - CLIP_INSET * 2);
 	const contentHeight = () => Math.max(1, (actor ? actor.height : widgetHeight) - CLIP_INSET * 2);
