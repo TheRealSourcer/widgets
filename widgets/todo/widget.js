@@ -4,6 +4,7 @@
  */
 
 import Clutter from 'gi://Clutter';
+import Cogl from 'gi://Cogl';
 import GLib from 'gi://GLib';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
@@ -364,11 +365,19 @@ export function render({ body, widget, theme, sizeForWidget }) {
             entryText.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
             entryText.ellipsize = Pango.EllipsizeMode.NONE;
             entryText.font_name = `Ubuntu ${fontSize - 1}px`;
-            const fg = parseCssColor(textColor);
-            entryText.color = new Clutter.Color({
-                red: fg.r, green: fg.g, blue: fg.b,
-            });
-            entryText.cursor_color = entryText.color;
+            // Clutter.Color is not exposed in this GJS — build a Cogl.Color
+            // the way the notes widget's editor does.
+            const makeColor = () => {
+                const c = parseCssColor(textColor);
+                const color = new Cogl.Color();
+                color.red = Math.round(c.r * 255);
+                color.green = Math.round(c.g * 255);
+                color.blue = Math.round(c.b * 255);
+                color.alpha = 255;
+                return color;
+            };
+            entryText.set_color(makeColor());
+            entryText.set_cursor_color(makeColor());
 
             const taskEntry = new St.Widget({
                 layout_manager: new Clutter.BinLayout(),
