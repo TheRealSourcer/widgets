@@ -371,6 +371,10 @@ export function render({ body, widget, theme, sizeForWidget }) {
             entryText.line_wrap = true;
             entryText.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
             entryText.ellipsize = Pango.EllipsizeMode.NONE;
+            // FILL so the text hugs the left edge: BinLayout centers a
+            // non-expanding child, which visually centered the text.
+            entryText.x_expand = true;
+            entryText.x_align = Clutter.ActorAlign.FILL;
             entryText.font_name = `Ubuntu ${fontSize - 1}px`;
             // Clutter.Color is not exposed in this GJS — build a Cogl.Color
             // the way the notes widget's editor does.
