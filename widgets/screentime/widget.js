@@ -983,10 +983,12 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		// grow the row count when more rows genuinely fit, rebuilding once
 		// per step (bounded by the LARGE_APP_ROWS_MAX cap).
 		const sample = bandColumns[0].get_children()[0];
-		const rowH = Math.max(
-			Math.round(APP_ICON_SIZE_PX * s),
-			sample ? Math.ceil(sample.get_preferred_height(-1)[1]) : Math.round(BAND_ROW_H_PX * s),
-		);
+		// The preferred height under-measures the painted line boxes, which
+		// clipped the last row — pad the measured value before fitting.
+		const measuredRow = sample
+			? Math.ceil(sample.get_preferred_height(-1)[1] * 1.2)
+			: Math.round(BAND_ROW_H_PX * s);
+		const rowH = Math.max(Math.round(APP_ICON_SIZE_PX * s), measuredRow);
 		const innerH = state.geometry.bandInner > 0
 			? state.geometry.bandInner
 			: Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
