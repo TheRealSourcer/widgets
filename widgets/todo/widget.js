@@ -285,6 +285,17 @@ export function render({ body, widget, theme, sizeForWidget }) {
         const toggleTask = () => {
             if (rowAlive === false) return;
             if (isActorDestroyed(body)) return;
+            // A click on another row while one row is being edited just
+            // closes the editor — the click is not a completion toggle.
+            if (editingTask !== null && editingTask !== task) {
+                editingTask = null;
+                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                    if (!isActorDestroyed(body) && body.get_parent())
+                        renderTasks();
+                    return GLib.SOURCE_REMOVE;
+                });
+                return;
+            }
             // Transition plays on the rebuilt row: this one is destroyed in
             // the same frame, animations started here would never run.
             animQueue.set(task, task.done ? 'toUndone' : 'toDone');
@@ -367,10 +378,10 @@ export function render({ body, widget, theme, sizeForWidget }) {
                 }
                 return Clutter.EVENT_PROPAGATE;
             });
-            taskEntry.connect('key-focus-out', () => {
-                if (editingTask === task)
-                    finishEdit(false);
-            });
+            // NO cancel on key-focus-out: the shell re-routes key focus right
+            // after the grab (searchController), firing focus-out within the
+            // same frame — the editor would close itself immediately and the
+            // pencil would look dead. Enter commits, Esc cancels.
             setImmediateRowFocus(taskEntry);
             rowContent = taskEntry;
         }
