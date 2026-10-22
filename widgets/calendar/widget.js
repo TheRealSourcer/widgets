@@ -1047,15 +1047,14 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		});
 	};
 
-	const rebuild = (enterX = 0, { keepLeaving = false, fade = true } = {}) => {
-		// The swipe cross keeps the leaving page in the pane — it finishes
-		// its own slide and removes itself when done (it is already marked
-		// animating before this call).
-		if (viewContainer && !(keepLeaving && animatingActors.has(viewContainer))) {
-			container.remove_child(viewContainer);
-		}
+	// GNOME workspace-switch cross — same as the system widgets: a fresh
+	// leaving and arriving page travel in lockstep, nothing overlaps, nothing
+	// fades. Calendar uses the same duration/easing as the system monitor
+	// cross (EASE_OUT_CUBIC over 2x the base duration).
+	const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2); // 500ms
 
-		if (currentView === VIEW_CALENDAR) {
+	const buildPage = (viewIndex) => {
+		if (viewIndex === VIEW_CALENDAR) {
 			viewContainer = buildCalendarView({
 				createLabel,
 				now,
@@ -1104,27 +1103,27 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 			}
 		}
 
-		viewContainer.translation_x = enterX;
-		viewContainer.opacity = enterX !== 0 && fade ? 0 : 255;
+		container.add_child(viewContainer);
+		return viewContainer;
+	};
 
-		if (!animatingActors.has(viewContainer)) {
-			container.add_child(viewContainer);
+	const rebuild = (viewIndex = currentView) => {
+		// Plain builds only (init, re-render): the swipe cross calls
+		// buildPage directly, exactly like the system widgets.
+		if (viewContainer) {
+			container.remove_child(viewContainer);
 		}
 
-		if (enterX !== 0) {
-			animatingActors.add(viewContainer);
-			const easeProps = {
-				translation_x: 0,
-				duration: ANIMATION_DURATION,
-				mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-				onComplete: () => {
-					animatingActors.delete(viewContainer);
-				},
-			};
-			if (fade)
-				easeProps.opacity = 255;
-			viewContainer.ease(easeProps);
-		}
+		buildPage(viewIndex);
+
+		// Plain builds keep the soft fade-in.
+		viewContainer.translation_x = 0;
+		viewContainer.opacity = 0;
+		viewContainer.ease({
+			opacity: 255,
+			duration: ANIMATION_DURATION,
+			mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+		});
 
 		refreshDots();
 	};
@@ -1144,7 +1143,7 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	});
 
 	// A cross is in flight — swipes are swallowed until it settles.
-	let swipeBusy = false;
+	let crossBusy = false;
 
 	container.connect('button-release-event', (actor, event) => {
 		if (!dragging) return Clutter.EVENT_PROPAGATE;
@@ -1153,35 +1152,51 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		const delta = endX - startX;
 
 		if (Math.abs(delta) > SWIPE_THRESHOLD) {
-			// GNOME workspace-switch cross (see the system widgets): both
-			// pages travel in lockstep, nothing fades — with the calendar's
-			// own duration and easing. Swipes are swallowed until the cross
-			// settles.
-			if (swipeBusy) return Clutter.EVENT_STOP;
-
-			const oldView = viewContainer;
-			const exitX = delta < 0 ? -widgetWidth : widgetWidth;
-
-			animatingActors.add(oldView);
+			// ── GNOME workspace-switch cross (exactly the system widgets) ────
+			if (crossBusy) return Clutter.EVENT_STOP;
 
 			// Toggle between views (any swipe direction switches to the other view)
+			const leavingPageIndex = currentView;
 			currentView = currentView === VIEW_CALENDAR ? VIEW_EVENTS : VIEW_CALENDAR;
+			refreshDots();
 
-			rebuild(-exitX, { keepLeaving: true, fade: false });
-			// The leaving page rides above the arriving one during the cross.
-			if (oldView.get_parent())
-				container.set_child_above_sibling(oldView, viewContainer);
+			// pageW + gap = GNOME's baseDistance between adjacent workspaces.
+			const base = widgetWidth + Math.round(widgetWidth / 16);
+			const next = delta < 0;
 
-			oldView.ease({
-				translation_x: exitX,
-				duration: ANIMATION_DURATION,
-				mode: Clutter.AnimationMode.EASE_IN_QUAD,
+			// Remember the visually present page BEFORE the fresh builds.
+			const oldRow = viewContainer;
+			if (oldRow)
+				animatingActors.delete(oldRow);
+
+			crossBusy = true;
+			const leavingRow = buildPage(leavingPageIndex);
+			const newRow = buildPage(currentView);
+			newRow.translation_x = next ? base : -base;
+
+			// The original page made way; it does not travel.
+			if (oldRow && oldRow.get_parent() === container) {
+				container.remove_child(oldRow);
+				oldRow.destroy();
+			}
+			viewContainer = newRow;
+
+			leavingRow.ease({
+				translation_x: next ? -base : base,
+				duration: CROSS_DURATION,
+				mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
 				onComplete: () => {
-					swipeBusy = false;
-					animatingActors.delete(oldView);
-					if (oldView.get_parent()) {
-						oldView.get_parent().remove_child(oldView);
-					}
+					if (leavingRow.get_parent() === container)
+						container.remove_child(leavingRow);
+					leavingRow.destroy();
+				},
+			});
+			newRow.ease({
+				translation_x: 0,
+				duration: CROSS_DURATION,
+				mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+				onComplete: () => {
+					crossBusy = false;
 				},
 			});
 		}
