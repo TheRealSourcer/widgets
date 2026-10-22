@@ -979,9 +979,11 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 		// applyLayout derives the row count from the app count; if the count
 		// changed since the last layout (fresh data arrived), re-layout so the
-		// band re-sizes and the chart re-absorbs the difference.
+		// band re-sizes and the chart re-absorbs the difference. The FULL
+		// apps list is used here — the sliced one is capped by the old row
+		// count and would pin the row count in place forever.
 		const needed = Math.max(1, Math.min(LARGE_APP_ROWS_MAX,
-			Math.ceil(Math.min(apps.length, config.maxApps) / 2)));
+			Math.ceil(Math.min(state.snapshot.apps.length, config.maxApps) / 2)));
 		if (rows !== needed) {
 			state.geometry.bandRows = needed;
 			scheduleUpdate();
