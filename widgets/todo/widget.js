@@ -228,11 +228,39 @@ export function render({ body, widget, theme, sizeForWidget }) {
         let rowAlive = true;
         row.connect('destroy', () => { rowAlive = false; });
         row.set_pivot_point(0.5, 0.5);
-        row.connect('enter-event', () => {
+        row.connect('enter-event', (actor, event) => {
             if (!rowAlive) return Clutter.EVENT_PROPAGATE;
             if (!editing && !isActorDestroyed(editButton))
                 editButton.opacity = 255;
             if (anim) return Clutter.EVENT_PROPAGATE;
+
+            // Screen coords -> row-relative geometry: when the pointer
+            // sits inside the outer 2% band, the infinite squash starts
+            // (scale shrinks its own hit area, the retargeted pointer
+            // falls out, leave cancels and the pointer re-enters in
+            // place — GJS sides it as a flicker/steady-state loop; tall
+            // rows grow the band from ~0.7px into a real fall-in zone).
+            // Those positions hover WITHOUT the squash; the reveal above
+            // still plays.
+            let squash = true;
+            try {
+                const [rowX, rowY] = row.get_transformed_position();
+                const [rowW, rowH] = row.get_transformed_size();
+                const [ptrX, ptrY] = event.get_coords();
+                const relY = rowH > 0 ? (ptrY - rowY) / rowH : 0.5;
+                const relX = rowW > 0 ? (ptrX - rowX) / rowW : 0.5;
+
+                if (relY < 0.02 || relY > 0.98 || relX < 0.015 || relX > 0.985) {
+                    squash = false;
+                };
+                console.log(`[debug] todo-row enter h=${Math.round(rowH)} relY=${relY.toFixed(3)} relX=${relX.toFixed(3)} squash=${squash}`);
+            } catch (e) {
+                // Unallocated row mid-flight: keep the squash (the safest
+                // default for the common hover case).
+                console.log(`[debug] todo-row enter probe-failed ${e.message}`);
+            };
+
+            if (!squash) return Clutter.EVENT_PROPAGATE;
             row.ease({
                 scale_x: 0.97,
                 scale_y: 0.97,
