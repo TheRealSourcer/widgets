@@ -10,6 +10,7 @@ import Pango from 'gi://Pango';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { attachBounce, bindHoverShrink } from '../../lib/buttonBounce.js';
+import { editorKeyAction } from '../../lib/todoEditorKeys.js';
 import { getDataDir, isActorDestroyed, loadJsonFromFileAsync, parseCssColor, saveJsonToFile, saveJsonToFileSync, cssColorToRgba } from '../../utils/ported.js';
 
 export const type = 'todo';
@@ -402,18 +403,25 @@ export function render({ body, widget, theme, sizeForWidget }) {
             // before the newline is inserted, Shift+Enter propagates so the
             // text inserts the newline itself.
             entryText.connect('key-press-event', (_actor, event) => {
-                const sym = event.get_key_symbol();
-                const shift = (event.get_state() & Clutter.ModifierType.SHIFT_MASK) !== 0;
-                if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {
-                    if (shift)
-                        return Clutter.EVENT_PROPAGATE;
+                const action = editorKeyAction(
+                    event.get_key_symbol(),
+                    (event.get_state() & Clutter.ModifierType.SHIFT_MASK) !== 0,
+                    {
+                        enter: Clutter.KEY_Return,
+                        kpEnter: Clutter.KEY_KP_Enter,
+                        escape: Clutter.KEY_Escape,
+                    },
+                );
+                if (action === 'commit') {
                     finishEdit(true);
                     return Clutter.EVENT_STOP;
                 }
-                if (sym === Clutter.KEY_Escape) {
+                if (action === 'cancel') {
                     finishEdit(false);
                     return Clutter.EVENT_STOP;
                 }
+                // 'newline' propagates so Clutter.Text inserts the newline
+                // itself; everything else (typing) propagates too.
                 return Clutter.EVENT_PROPAGATE;
             });
             // NO cancel on key-focus-out: the shell re-routes key focus right
