@@ -215,10 +215,17 @@ export function render({ body, widget, theme, sizeForWidget }) {
             style: rowBg + ` border-radius: ${px(TASK_ROW_RADIUS)}px; padding: ${px(TASK_ROW_PADDING_V)}px ${px(TASK_ROW_PADDING_H)}px; spacing: ${px(10)}px;`,
         });
         // Hover feedback softer than the buttons' 0.85: the wide row shrinks
-        // just a touch on both axes and springs back on leave.
+        // just a touch on both axes and springs back on leave. A row flag
+        // gates everything: rows are destroyed wholesale on every re-render
+        // and their enter/leave events keep firing mid-dispose — touching a
+        // disposed actor there crashed the shell.
+        let rowAlive = true;
+        row.connect('destroy', () => { rowAlive = false; });
         row.set_pivot_point(0.5, 0.5);
         row.connect('enter-event', () => {
-            if (!editing && !isActorDestroyed(editButton)) editButton.opacity = 255;
+            if (!rowAlive) return Clutter.EVENT_PROPAGATE;
+            if (!editing && !isActorDestroyed(editButton))
+                editButton.opacity = 255;
             if (anim) return Clutter.EVENT_PROPAGATE;
             row.ease({
                 scale_x: 0.97,
@@ -229,6 +236,7 @@ export function render({ body, widget, theme, sizeForWidget }) {
             return Clutter.EVENT_PROPAGATE;
         });
         row.connect('leave-event', () => {
+            if (!rowAlive) return Clutter.EVENT_PROPAGATE;
             if (!editing && !isActorDestroyed(editButton)) editButton.opacity = 0;
             row.ease({
                 scale_x: 1,
@@ -311,7 +319,14 @@ export function render({ body, widget, theme, sizeForWidget }) {
         editButton.connect('clicked', () => {
             if (isActorDestroyed(body)) return;
             editingTask = task;
-            renderTasks();
+            // Rebuilding rows inside the click's own signal emission leaves
+            // events mid-dispatch on disposed actors — defer it to the next
+            // idle so the editor opens cleanly.
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                if (!isActorDestroyed(body) && body.get_parent())
+                    renderTasks();
+                return GLib.SOURCE_REMOVE;
+            });
             return Clutter.EVENT_STOP;
         });
 
