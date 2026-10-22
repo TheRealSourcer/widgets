@@ -1014,23 +1014,30 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			state.geometry.layoutDirty = true;
 			scheduleUpdate();
 		}
-		// Compact rows over a fixed gap; the paddings stay FIXED so the top
-		// and bottom are identical by construction. The band height comes
-		// from applyLayout, sized from the same row height + gap + padding —
-		// dynamic leftover splitting here desynced the padding bookkeeping
-		// (the allocation listener still subtracted the old pads) and made
-		// the bottom gap visibly bigger.
+		// Compact rows over a fixed gap; rounding slack is split evenly
+		// between the top and bottom paddings so the gaps measured from the
+		// band's top edge and the widget's bottom edge stay identical. The
+		// computed pads are fed back into state (the allocation listener
+		// subtracts them from the band height) — the old desync here is what
+		// made the bottom gap visibly bigger.
 		const spread = Math.round(4 * s);
 		bandColumns.forEach(column => {
 			column.style = `spacing: ${spread}px;`;
 		});
-
+		const shownRows = Math.min(apps.length, rows);
+		const content = shownRows * rowH + (shownRows - 1) * spread;
+		const innerH = state.geometry.bandInner > 0
+			? state.geometry.bandInner
+			: Math.max(0, (state.geometry.listHeight || 0) - Math.round(8 * s));
+		const slack = Math.max(0, innerH - content);
 		const pad = Math.round(4 * s);
+		const padTop = pad + Math.floor(slack / 2);
+		const padBottom = pad + slack - Math.floor(slack / 2);
 		const padSide = Math.round(16 * s);
-		state.geometry.bandPadT = pad;
-		state.geometry.bandPadB = pad;
+		state.geometry.bandPadT = padTop;
+		state.geometry.bandPadB = padBottom;
 		appsBand.style = `background-color: ${sideBg}; border-radius: 0 0 ${radius}px ${radius}px;`
-			+ `padding: ${pad}px ${padSide}px ${pad}px ${padSide}px;`;
+			+ `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
 	}
 
 	function rebuildAppList() {
@@ -1153,6 +1160,27 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const bandPadT = Math.round(4 * s);
 			const bandPadB = Math.round(4 * s);
 			const bandGap = Math.round(4 * s);
+			// Measure the row's true natural height; re-measure whenever the
+			// scale changed (a mid-animation layout at boot may have cached a
+			// wrong-scale value, which would visibly inflate the band until
+			// the next layout pass).
+			if (!state.geometry.measuredRowH || state.geometry.measuredRowH.s !== s) {
+				try {
+					const px0 = (v) => Math.max(1, Math.round(v * s));
+					const probe = buildAppRow({ key: '', seconds: 60000 }, px0, true);
+					bandColumns[0].add_child(probe);
+					const natural = Math.ceil(probe.get_preferred_height(-1)[1]);
+					bandColumns[0].remove_child(probe);
+					probe.destroy();
+					if (natural > 0)
+						state.geometry.measuredRowH = {
+							h: Math.max(Math.round(APP_ICON_SIZE_PX * s), natural),
+							s,
+						};
+				} catch (e) {
+					// Fall back to the estimate below if probing fails.
+				}
+			}
 			const cachedRow = state.geometry.measuredRowH;
 			const bandRowH = Math.max(
 				Math.round(APP_ICON_SIZE_PX * s),
@@ -1339,34 +1367,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		return GLib.SOURCE_REMOVE;
 	});
 
-	// Pre-measure the band row height BEFORE the first layout: applyLayout
-	// sizes the band from this number, so the very first paint already has
-	// the correct chart/band split — no visible size jump at startup while
-	// the layout converges from estimate to measurement.
-	if (isLarge && !state.geometry.measuredRowH && actor) {
-		const cw = contentWidth();
-		const ch = contentHeight();
-		if (cw > 1 && ch > 1) {
-			const s0 = Math.min(cw / REF_WIDTH, ch / REF_HEIGHT);
-			if (isFinite(s0) && s0 > 0) {
-				try {
-					const px0 = (v) => Math.max(1, Math.round(v * s0));
-					const probe = buildAppRow({ key: '', seconds: 60000 }, px0, true);
-					bandColumns[0].add_child(probe);
-					const natural = Math.ceil(probe.get_preferred_height(-1)[1]);
-					bandColumns[0].remove_child(probe);
-					probe.destroy();
-					if (natural > 0)
-						state.geometry.measuredRowH = {
-							h: Math.max(Math.round(APP_ICON_SIZE_PX * s0), natural),
-							s: s0,
-						};
-				} catch (e) {
-					// Fall back to the estimate-based layout if probing fails.
-				}
-			}
-		}
-	}
+	// Pre-measuring moved into applyLayout (probes the row at the same scale
+	// the layout actually uses; a render-time probe captured mid-animation
+	// sizes at boot and inflated the band until the next pass).
 
 	refreshData();
 }
