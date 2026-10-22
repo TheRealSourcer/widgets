@@ -12,6 +12,7 @@ import { boxLayoutProps } from '../../utils/gnomeCompat.js';
 import { SeekBar } from '../../lib/seekBar.js';
 import { bounceButton, bindHoverShrink } from '../../lib/buttonBounce.js';
 import { getDataDir, parseCssColor } from '../../utils/ported.js';
+import { isActorDestroyed } from '../../utils/actorLifecycle.js';
 import { lineIndexAt, resolveLyrics } from '../../lib/lyrics.js';
 export const type = 'music';
 export const label = 'Music';
@@ -26,6 +27,11 @@ const PLAYER_PATH = '/org/mpris/MediaPlayer2';
 const DBUS_IFACE = 'org.freedesktop.DBus.Properties';
 const TICK_MS = 2000;
 const LOOP_CYCLE = ['None', 'Track', 'Playlist'];
+// The system monitor's cross constants, copied 1:1: the 250ms base beat
+// and the cross sweep at exactly twice it.
+const SWIPE_THRESHOLD = 30;
+const ANIMATION_DURATION = 250;
+const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2); // 500ms
 // Cover fallback: every candidate GIF is decoded once and cached, so cards
 // after the first one paint instantly instead of re-reading the file.
 const GIF_CANDIDATES = ['pushy.gif', 'pushy2.gif', 'pushy3.gif', 'pushy4.gif', 'pushy5.gif'];
@@ -614,7 +620,10 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	// The panel covers the whole card, so a click anywhere on it returns to
 	// the normal card (including the badge — it is a passive mirror of the
 	// toggle icon beneath).
-	card.lyricsPanel.connect('button-press-event', () => {
+	card.lyricsPanel.connect('button-press-event', (actor, event) => {
+		// Only the LEFT button closes — the right button is the cross
+		// swipe's press leg; toggling on it tore the gesture mid-flight.
+		if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
 		card.toggleLyrics();
 		return Clutter.EVENT_PROPAGATE;
 	});
@@ -720,21 +729,81 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		card._setLyricsHint('');
 	};
 
-	card.toggleLyrics = function () {
+	card.toggleLyrics = function ({ animated = false, next = true } = {}) {
 		if (card._coverSize < 64 || !(card._lyricsMeta && card._lyricsMeta.title)) {
 			return;
 		};
+		if (card.crossBusy) {
+			return;
+		};
 
-		card._lyricsOn = !card._lyricsOn;
-		card.lyricsPanel.visible = card._lyricsOn;
-		// Hide entire card content when showing lyrics (glass mode shows only text)
-		card.container.visible = !card._lyricsOn;
+		const goingLyrics = !card._lyricsOn;
+		card._lyricsOn = goingLyrics;
 
-		if (card._lyricsOn) {
-			// Same-track reopen reuses the existing feed; an empty feed
-			// (previous lookup failed) forces a retry.
+		// ── Instant swap (click path), plus the cold-start fallback: a
+		// stage without a real allocation yet cannot measure a page, so it
+		// flips without a flight (the system cross's cold-start branch).
+		const stageBox = card.stage.get_allocation_box();
+		const pageW = Math.floor(stageBox.get_width());
+		if (!animated || pageW < 32) {
+			card.lyricsPanel.visible = card._lyricsOn;
+			// Hide entire card content when showing lyrics (glass mode shows only text)
+			card.container.visible = !card._lyricsOn;
+			if (card._lyricsOn) {
+				// Same-track reopen reuses the existing feed; an empty feed
+				// (previous lookup failed) forces a retry.
+				card._loadLyrics(card._lyricsLabels.length === 0);
+			};
+			return;
+		};
+
+		// ── The cross (swipe path) — the system monitor's page flight,
+		// copied 1:1: both pages live side by side in the stage bin, start
+		// exactly one baseDistance apart (base = pageW + pageW/16, GNOME's
+		// baseDistance), and travel by their own translations in lockstep —
+		// EASE_OUT_CUBIC over CROSS_DURATION on both travellers, nothing
+		// fades, the pages never overlap; the only thing crossing the pane
+		// is the seam between them. No page dashes here on purpose.
+		const base = pageW + Math.round(pageW / 16);
+
+		card.crossBusy = true;
+		const leaving = goingLyrics ? card.container : card.lyricsPanel;
+		const entering = goingLyrics ? card.lyricsPanel : card.container;
+
+		// The arriving page waits exactly one baseDistance off-stage; the
+		// offset lands BEFORE it turns visible — no flash at its old spot.
+		entering.translation_x = next ? base : -base;
+		entering.visible = true;
+
+		if (goingLyrics) {
+			// Real content rides in: start the resolve at the flight start
+			// (the same call and the same retry rule the click toggle uses),
+			// the way the system cross pushes live data onto both pages.
 			card._loadLyrics(card._lyricsLabels.length === 0);
 		};
+
+		leaving.ease({
+			translation_x: next ? -base : base,
+			duration: CROSS_DURATION,
+			mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+			onComplete: () => {
+				if (isActorDestroyed(leaving)) return;
+				leaving.visible = false;
+				// The slot resets for the next flight, the way the system
+				// cross re-lays its rows once the pages settle.
+				leaving.translation_x = 0;
+			},
+		});
+		entering.ease({
+			translation_x: 0,
+			duration: CROSS_DURATION,
+			mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+			onComplete: () => {
+				// The arriving page is the page now on duty — same as the
+				// system cross's onComplete wiring.
+				card.crossBusy = false;
+			},
+		});
 	};
 
 	card._loadLyrics = function (force = false) {
@@ -779,6 +848,33 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 			card._buildLyrics(null);
 		});
 	};
+
+	// ── System-cross swipe over the whole card ────────────────────────────
+	// Copied from the system monitor's gesture: right-button press-drag-
+	// release, threshold 30px, serialized by crossBusy — a swipe during a
+	// travelling cross is swallowed. The left button stays free for the
+	// controls and the click toggles above; drag left plays "next".
+	card.stage.reactive = true;
+	let swipeStartX = null;
+
+	card.stage.connect('button-press-event', (actor, event) => {
+		if (event.get_button() !== 3) return Clutter.EVENT_PROPAGATE;
+		swipeStartX = event.get_coords()[0];
+		return Clutter.EVENT_PROPAGATE;
+	});
+
+	card.stage.connect('button-release-event', (actor, event) => {
+		if (swipeStartX === null) return Clutter.EVENT_PROPAGATE;
+		const startX = swipeStartX;
+		swipeStartX = null;
+		const delta = event.get_coords()[0] - startX;
+
+		if (Math.abs(delta) < SWIPE_THRESHOLD) return Clutter.EVENT_STOP;
+		if (card.crossBusy) return Clutter.EVENT_STOP;
+
+		card.toggleLyrics({ animated: true, next: delta < 0 });
+		return Clutter.EVENT_STOP;
+	});
 
 	// Tick hook: repaint + scroll only when the active line changes, so the
 	// 1s MPRIS update never thrashes the feed.
