@@ -460,12 +460,14 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 
 	// ── Mouse day-flip on both card shapes ────────────────────────────────
 	// Right-button press-drag-release shifts one day per gesture. The flip
-	// plays the calendar's crossed-page feel: the current day slides out and
-	// fades, the data swaps off-stage, then the new day slides in from the
-	// opposite side. The 1x1 card has no nav buttons at all; 2x1/2x2 carry
-	// the arrows too, the mouse gesture duplicates them.
+	// plays the system monitor's page cross motion: the current day slides
+	// out and — fully off-stage — swaps its data, then the new day rides in
+	// from the opposite side. Both legs use the system cross' curve and
+	// total duration (EASE_OUT_CUBIC, 500ms), nothing fades. The 1x1 card
+	// has no nav buttons at all; 2x1/2x2 carry the arrows too, the mouse
+	// gesture duplicates them.
 	const bindDaySwipe = (card, threshold) => {
-		const SWIPE_DURATION = 250; // same beat as calendar/system monitor
+		const CROSS_DURATION = 500; // system monitor cross: 2 × the base beat
 		let swipeStartX = null;
 		let swipeBusy = false;
 
@@ -495,25 +497,24 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const pageWidth = Math.max(120, card.get_width() || 180);
 			const exitX = delta < 0 ? -pageWidth : pageWidth;
 			swipeBusy = true;
+			const legDuration = Math.round(CROSS_DURATION / 2);
 
-			// The old day slides out; the data swap and the entry slide both
-			// happen in the complete handler, so the swap is never visible —
-			// the card always arrives from the opposite side, like the
-			// calendar's page cross.
+			// Leaving leg: slide out intact, no fade — the swap lands when
+			// the page is fully off-stage, so it is never visible.
 			card.ease({
-				opacity: 0,
 				translation_x: exitX,
-				duration: SWIPE_DURATION,
-				mode: Clutter.AnimationMode.EASE_IN_QUAD,
+				duration: legDuration,
+				mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
 				onComplete: () => {
 					state.selectedDate = addDays(state.selectedDate, dayDelta);
 					refreshData();
 					card.translation_x = -exitX;
+					// Arriving leg: same curve as the leaving one — the
+					// system cross eases both travellers EASE_OUT_CUBIC.
 					card.ease({
-						opacity: 255,
 						translation_x: 0,
-						duration: SWIPE_DURATION,
-						mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+						duration: legDuration,
+						mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
 						onComplete: () => { swipeBusy = false; },
 					});
 				},
