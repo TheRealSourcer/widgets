@@ -678,12 +678,16 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		// below the last one is equal BY CONSTRUCTION, no padding math, no
 		// measurement feedback, nothing to drift.
 		appsBand = new St.Widget({
-			layout_manager: new Clutter.BinLayout(
-				Clutter.BinAlignment.FILL, Clutter.BinAlignment.CENTER),
+			layout_manager: new Clutter.BinLayout(),
 			y_expand: true,
 			clip_to_allocation: true,
 		});
-		bandGrid = new St.BoxLayout({ x_expand: true });
+		bandGrid = new St.BoxLayout({
+			x_expand: true,
+			// BinLayout honors the child actor's alignment — centering the grid
+			// gives equal space above the first row and below the last one.
+			y_align: Clutter.ActorAlign.CENTER,
+		});
 		appsBand.add_child(bandGrid);
 		bandColumns = [0, 1].map(() => new St.BoxLayout({
 			orientation: Clutter.Orientation.VERTICAL,
