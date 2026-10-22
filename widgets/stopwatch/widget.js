@@ -326,7 +326,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// Minutes
 	const minutesBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
-		style: `spacing: ${px(4)}px;`,
+		style: `spacing: ${px(12)}px;`,
 	});
 
 	// Ink is centered at runtime from the text's measured extents — no
@@ -376,7 +376,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// Seconds
 	const secondsBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
-		style: `spacing: ${px(4)}px;`,
+		style: `spacing: ${px(12)}px;`,
 	});
 
 	const secondsLabel = new St.Label({
@@ -399,7 +399,7 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	// Centiseconds
 	const centisecondsBox = new St.BoxLayout({
 		orientation: Clutter.Orientation.VERTICAL,
-		style: `spacing: ${px(4)}px;`,
+		style: `spacing: ${px(12)}px;`,
 	});
 
 	const centisecondsLabel = new St.Label({
