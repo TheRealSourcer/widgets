@@ -161,7 +161,7 @@ const monthNames = () =>
      _('Jul'), _('Aug'), _('Sep'), _('Oct'), _('Nov'), _('Dec')];
 
 export function style(theme) {
-	return `background-color: ${theme.background}; border: 1px solid ${theme.border}; color: ${theme.text}; border-radius: ${theme.radius ?? 16}px;`;
+	return `background-color: ${theme.background}; border: 1px solid ${theme.border}; color: ${theme.text}; border-radius: ${theme.radius ?? 16}px; padding: 0;`;
 }
 
 function hexToRgba(hex, alpha) {
@@ -340,7 +340,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	const isGlass = theme?.isGlass ?? false;
 	const leftBg = isGlass ? cssColorToRgba(bgColor, 0.25) : bgColor;
 	const sideBase = shadePanelColor(bgColor, SIDE_PANEL_LIGHTEN);
-	const sideBg = isGlass ? cssColorToRgba(sideBase, 0.35) : sideBase;
+	// Solid (opaque) in both themes: the app-list section reads as a full
+	// panel pinned to the widget edge, not a translucent inset block.
+	const sideBg = sideBase;
 
 	// The 2x2 stack has no side panels: the widget's own background shows
 	// through above the app band.
