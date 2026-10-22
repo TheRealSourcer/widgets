@@ -214,9 +214,30 @@ export function render({ body, widget, theme, sizeForWidget }) {
             reactive: true,
             style: rowBg + ` border-radius: ${px(TASK_ROW_RADIUS)}px; padding: ${px(TASK_ROW_PADDING_V)}px ${px(TASK_ROW_PADDING_H)}px; spacing: ${px(10)}px;`,
         });
-        // Hover feedback like the buttons: the row shrinks a touch on both
-        // axes and springs back on leave.
-        bindHoverShrink(row);
+        // Hover feedback softer than the buttons' 0.85: the wide row shrinks
+        // just a touch on both axes and springs back on leave.
+        row.set_pivot_point(0.5, 0.5);
+        row.connect('enter-event', () => {
+            if (!editing && !isActorDestroyed(editButton)) editButton.opacity = 255;
+            if (anim) return Clutter.EVENT_PROPAGATE;
+            row.ease({
+                scale_x: 0.97,
+                scale_y: 0.97,
+                duration: 120,
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            });
+            return Clutter.EVENT_PROPAGATE;
+        });
+        row.connect('leave-event', () => {
+            if (!editing && !isActorDestroyed(editButton)) editButton.opacity = 0;
+            row.ease({
+                scale_x: 1,
+                scale_y: 1,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+            });
+            return Clutter.EVENT_PROPAGATE;
+        });
 
         const checkbox = new St.Button({
             reactive: true,
@@ -273,7 +294,9 @@ export function render({ body, widget, theme, sizeForWidget }) {
             return Clutter.EVENT_STOP;
         });
 
-        // Pencil: hover-revealed; opens the inline text editor.
+        // Pencil: hover-revealed via the actor's opacity property (a CSS
+        // 'opacity: 0' style may be overridden by the theme, leaving it
+        // always visible).
         const editButton = new St.Button({
             child: new St.Icon({
                 icon_name: 'document-edit-symbolic',
@@ -281,18 +304,10 @@ export function render({ body, widget, theme, sizeForWidget }) {
             }),
             reactive: true,
             can_focus: true,
-            style: 'opacity: 0;',
+            opacity: 0,
             y_align: Clutter.ActorAlign.CENTER,
         });
         attachBounce(editButton);
-        row.connect('enter-event', () => {
-            if (!editing) editButton.opacity = 255;
-            return Clutter.EVENT_PROPAGATE;
-        });
-        row.connect('leave-event', () => {
-            if (!editing) editButton.opacity = 0;
-            return Clutter.EVENT_PROPAGATE;
-        });
         editButton.connect('clicked', () => {
             if (isActorDestroyed(body)) return;
             editingTask = task;
