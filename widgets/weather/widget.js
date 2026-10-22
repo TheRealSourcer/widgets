@@ -810,24 +810,38 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 		}));
 		const hourly = renderedWeather.hourly ?? [];
 		if (hourly.length > 0) {
-			// Always four columns when the data allows (the mockup look);
-			// the time shrinks to fit — full "05:00 PM" per column.
-			const hoursTimeFont = 8;
-			const hoursTimeWeight = 700;
-			const hourCount = Math.min(4, Math.max(1, hourly.length));
+			// Two rows of two cells (the mockup look) — a 2x2 grid of
+			// upcoming hours, vertically centered on the page. Each cell
+			// reuses the hourly strip cell: time, icon, temperature.
+			const rowIndexes = [0, 2];
+			const hoursGrid = new St.BoxLayout(boxLayoutProps({
+				vertical: true,
+				x_expand: true,
+				x_align: Clutter.ActorAlign.FILL,
+				style: `spacing: ${Math.round(8 * compactScale)}px;`,
+			}));
+
+			rowIndexes.forEach(rowIndex => {
+				const rowHours = hourly.slice(rowIndex, rowIndex + 2);
+
+				if (rowHours.length === 0) {
+					return;
+				};
+
+				hoursGrid.add_child(buildHourlyStrip(rowHours, theme, createLabel, compactScale, 2, {
+					timeFont: 10,
+					timeWeight: 700,
+					iconSize: 26,
+					tempFont: 15,
+					tempWeight: 700,
+					timeColor: theme.muted,
+				}));
+			});
 
 			// Vertical centering: BoxLayout stretches its children, namely
-			// filler widgets pin the strip to the middle of the page.
+			// filler widgets pin the grid to the middle of the page.
 			hoursPage.add_child(new St.Widget({y_expand: true}));
-			hoursPage.add_child(buildHourlyStrip(hourly, theme, createLabel, compactScale, hourCount, {
-				timeFont: hoursTimeFont,
-				timeWeight: hoursTimeWeight,
-				iconSize: 20,
-				tempFont: 14,
-				tempWeight: 700,
-				timeColor: theme.muted,
-				spacing: 4,
-			}));
+			hoursPage.add_child(hoursGrid);
 			hoursPage.add_child(new St.Widget({y_expand: true}));
 		} else {
 			// No forecast payload: keep the page real but quiet.
