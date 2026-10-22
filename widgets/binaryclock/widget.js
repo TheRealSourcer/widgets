@@ -49,10 +49,17 @@ const BinaryClockFace = GObject.registerClass(
 			// Lit dots: the accent color (system or the custom one from
 			// Appearance settings) when the toggle allows it, otherwise the
 			// neutral theme look (white on dark, near-black on light).
-			this._active = accentCss
-				? {...parseCssColor(accentCss), a: 1}
+			// The repaint call paints from a [r,g,b,a] TUPLE, while
+			// parseCssColor returns an {r,g,b,a} OBJECT — index reads of an
+			// object are undefined and the setSourceRGBA call throws GJS
+			// side, aborting the repaint at the first lit dot (the lesson
+			// of the "accent color never shows" bug). Normalize here.
+			const accent = accentCss ? parseCssColor(accentCss) : null;
+			this._active = accent
+				? [accent.r ?? 0, accent.g ?? 0, accent.b ?? 0, accent.a ?? 1]
 				: this._dark ? [1, 1, 1, 1] : [0.14, 0.12, 0.18, 1];
 			this._inactive = this._dark ? [1, 1, 1, 0.2] : [0, 0, 0, 0.1];
+			console.log('[debug] binary-accent', accentCss, '->', this._active, 'dark=', this._dark);
 
 			this._scheduleRepaint();
 			this.connect('destroy', this._onDestroy.bind(this));
