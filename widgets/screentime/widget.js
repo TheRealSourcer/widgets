@@ -346,7 +346,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	const sideBase = shadePanelColor(bgColor, SIDE_PANEL_LIGHTEN);
 	// Solid (opaque) in both themes: the app-list section reads as a full
 	// panel pinned to the widget edge, not a translucent inset block.
-	const sideBg = sideBase;
+	// Solid in the normal theme; translucent in glass mode so the blur
+	// shows through the side band.
+	const sideBg = isGlass ? cssColorToRgba(sideBase, 0.25) : sideBase;
 
 	// The 2x2 stack has no side panels: the widget's own background shows
 	// through above the app band.
@@ -392,9 +394,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		x_align: Clutter.ActorAlign.END,
 		style: 'spacing: 6px;',
 	});
-	// The compact 1x1 card has no date/nav controls at all.
-	if (!compactSquare)
-		headerBox.add_child(controlsColumn);
+	// Every card gets the date/nav controls (the 1x1 compact card has the
+	// arrows stacked under the date on the right side of the total).
+	headerBox.add_child(controlsColumn);
 
 	const dateLabel = new St.Label({
 		text: '',
@@ -986,6 +988,9 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			Math.ceil(Math.min(state.snapshot.apps.length, config.maxApps) / 2)));
 		if (rows !== needed) {
 			state.geometry.bandRows = needed;
+			// applyLayout is skipped when the size did not change — flag a
+			// dirty re-layout so the row count actually takes effect.
+			state.geometry.layoutDirty = true;
 			scheduleUpdate();
 			return;
 		}
@@ -1089,18 +1094,22 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const padBottom = Math.round(14 * s);
 			compactBox.style = `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
 
-			const headerReserve = Math.round(40 * s);
+			const headerReserve = Math.round(48 * s);
 			const yWidth = Math.round(30 * s);
 			const plotWidth = Math.max(1, currentWidth - padSide * 2 - yWidth);
 			const plotHeight = Math.max(1, currentHeight - padTop - padBottom
 				- headerReserve - Math.round(X_AXIS_HEIGHT_PX * s) - Math.round(4 * s));
 			Object.assign(state.geometry, { plotWidth, plotHeight });
 
-			chartCanvas.set_position(0, headerReserve);
+			// chartWrap already stacks below the header inside compactBox, so
+			// canvas positions are relative to chartWrap — the old
+			// headerReserve offset double-counted the header and pushed the
+			// x-axis labels outside the widget.
+			chartCanvas.set_position(0, 0);
 			chartCanvas.set_size(plotWidth, plotHeight);
-			yAxisBox.set_position(plotWidth, headerReserve);
+			yAxisBox.set_position(plotWidth, 0);
 			yAxisBox.set_size(yWidth, plotHeight);
-			xAxisBox.set_position(0, headerReserve + plotHeight + Math.round(4 * s));
+			xAxisBox.set_position(0, plotHeight + Math.round(4 * s));
 			xAxisBox.set_size(plotWidth, Math.round(X_AXIS_HEIGHT_PX * s));
 
 			totalTimeLabel.style = `color: ${textColor}; font-size: ${Math.round(HEADER_FONT_SIZE_PX * s * 0.9)}px; font-weight: 600;`;
@@ -1266,9 +1275,14 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	let updateId = 0;
 	const update = () => {
 		if (disposed || relayouting) return;
+		// A data change can require a re-layout (e.g. the app band's row count
+		// changed) even when the size did not — the dirty flag lets the
+		// rebuild request one through the size guard.
+		const layoutDirty = state.geometry.layoutDirty === true;
 		const currentWidth = contentWidth();
 		const currentHeight = contentHeight();
-		if (currentWidth === lastWidth && currentHeight === lastHeight) return;
+		if (currentWidth === lastWidth && currentHeight === lastHeight && !layoutDirty) return;
+		state.geometry.layoutDirty = false;
 		lastWidth = currentWidth;
 		lastHeight = currentHeight;
 		relayouting = true;
