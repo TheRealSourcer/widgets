@@ -3415,6 +3415,10 @@ sizeButton.connectObject('destroy', () => {
   // the current one, each with a delete button; «Add page» opens the
   // gallery window; «Done» saves and closes.
 
+  // ── Stack panel: centered modal with widget preview + add buttons ─────
+  // Instead of a small list over the widget, show a large centered window
+  // with the current widget in the middle, + buttons above/below to add
+  // pages, and a list of added pages at the side. Matches the gallery UX.
   _openStackPanel(view) {
     if (!view?.actor || isActorDestroyed(view.actor)) {
       return;
@@ -3422,27 +3426,147 @@ sizeButton.connectObject('destroy', () => {
 
     this._closeStackPanel();
 
-    const [slotW, slotH] = view.actor.get_size();
-    const width = Math.max(220, slotW);
-    const height = Math.max(240, slotH);
     const theme = this._gnomeTheme();
+    const stageSize = global.stage.get_size();
+    const entries = Array.isArray(view.widget.stack) ? view.widget.stack : [];
 
-    const panel = new St.BoxLayout(boxLayoutProps({
-      vertical: true,
-      style: `background-color: ${theme.background};`
-        + ` border-style: solid;`
-        + ` border-width: ${theme.borderWidth}px;`
-        + ` border-color: ${theme.border};`
-        + ` border-radius: ${theme.radius}px;`
-        + ` padding: 12px; spacing: 10px;`,
+    // Backdrop swallows clicks outside the card
+    const overlay = new St.Widget({
       reactive: true,
       can_focus: true,
-      track_hover: true,
-    }));
-    panel.set_size(width, height);
+      x: 0,
+      y: 0,
+      width: Math.max(320, stageSize[0]),
+      height: Math.max(240, stageSize[1]),
+      style: 'background-color: rgba(0, 0, 0, 0.55);',
+    });
 
-    const title = this._label(_('Widget pages'), 'widget-text', `font-size: 12px; font-weight: 700; color: ${theme.text};`);
-    panel.add_child(title);
+    // Central card — wide enough for widget preview + side panel
+    const cardW = Math.min(900, stageSize[0] - 80);
+    const cardH = Math.min(620, stageSize[1] - 80);
+    const card = new St.BoxLayout(boxLayoutProps({
+      vertical: false,  // Horizontal: preview left, controls right
+      style: `background-color: ${theme.background};`
+        + ` border: 1px solid ${theme.border};`
+        + ` border-radius: ${theme.radius + 6}px;`
+        + ` padding: 20px; spacing: 20px;`,
+      reactive: true,
+      can_focus: true,
+    }));
+    card.set_size(cardW, cardH);
+
+    // Left column: widget preview with + buttons above/below
+    const previewColumn = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      style: 'spacing: 12px;',
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
+    }));
+
+    // + button above widget (add page above current)
+    const canAddMore = entries.length < STACK_PAGE_LIMIT;
+    const addAboveButton = new St.Button({
+      label: '+',
+      style: `width: 48px; height: 48px; border-radius: 24px; font-size: 24px; font-weight: 700;`
+        + ` color: ${canAddMore ? '#ffffff' : theme.muted};`
+        + ` background-color: ${canAddMore ? theme.accent : theme.dark ? '#3d3d3d' : '#e5e2e6'};`,
+      reactive: canAddMore,
+      can_focus: canAddMore,
+      track_hover: canAddMore,
+    });
+    if (canAddMore) {
+      let addAbovePressY = null;
+      addAboveButton.connect('button-press-event', (_actor, event) => {
+        if (event.get_button() === 1) {
+          addAbovePressY = event.get_coords()[1];
+        };
+        return Clutter.EVENT_STOP;
+      });
+      addAboveButton.connect('button-release-event', (_actor, event) => {
+        if (event.get_button() === 1 && addAbovePressY !== null) {
+          console.log('[debug] add page ABOVE current');
+          this._closeStackPanel();
+          this._openStackGallery(view);
+        };
+        addAbovePressY = null;
+        return Clutter.EVENT_STOP;
+      });
+    };
+    previewColumn.add_child(addAboveButton);
+
+    // Widget preview — show current page label
+    const [slotW, slotH] = view.actor.get_size();
+    const previewW = Math.min(320, slotW);
+    const previewH = Math.min(240, slotH);
+
+    const previewCard = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      style: `background-color: ${theme.dark ? '#2a2a2e' : '#f5f5f5'};`
+        + ` border: 2px solid ${theme.accent};`
+        + ` border-radius: ${theme.radius}px;`
+        + ` min-width: ${previewW}px; min-height: ${previewH}px;`
+        + ` padding: 20px;`,
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
+    }));
+    
+    const previewLabel = new St.Label({
+      text: _(WIDGET_TYPE_LABELS[view.widget.type] ?? view.widget.type),
+      style: `font-size: 18px; font-weight: 700; color: ${theme.text};`,
+      x_align: Clutter.ActorAlign.CENTER,
+    });
+    previewCard.add_child(previewLabel);
+
+    const previewHint = new St.Label({
+      text: _('Current page'),
+      style: `font-size: 13px; color: ${theme.muted}; padding-top: 8px;`,
+      x_align: Clutter.ActorAlign.CENTER,
+    });
+    previewCard.add_child(previewHint);
+
+    previewColumn.add_child(previewCard);
+
+    // + button below widget (add page below current)
+    const addBelowButton = new St.Button({
+      label: '+',
+      style: `width: 48px; height: 48px; border-radius: 24px; font-size: 24px; font-weight: 700;`
+        + ` color: ${canAddMore ? '#ffffff' : theme.muted};`
+        + ` background-color: ${canAddMore ? theme.accent : theme.dark ? '#3d3d3d' : '#e5e2e6'};`,
+      reactive: canAddMore,
+      can_focus: canAddMore,
+      track_hover: canAddMore,
+    });
+    if (canAddMore) {
+      let addBelowPressY = null;
+      addBelowButton.connect('button-press-event', (_actor, event) => {
+        if (event.get_button() === 1) {
+          addBelowPressY = event.get_coords()[1];
+        };
+        return Clutter.EVENT_STOP;
+      });
+      addBelowButton.connect('button-release-event', (_actor, event) => {
+        if (event.get_button() === 1 && addBelowPressY !== null) {
+          console.log('[debug] add page BELOW current');
+          this._closeStackPanel();
+          this._openStackGallery(view);
+        };
+        addBelowPressY = null;
+        return Clutter.EVENT_STOP;
+      });
+    };
+    previewColumn.add_child(addBelowButton);
+
+    card.add_child(previewColumn);
+
+    // Right column: list of added pages + Done button
+    const controlColumn = new St.BoxLayout(boxLayoutProps({
+      vertical: true,
+      style: 'spacing: 12px;',
+      x_expand: true,
+    }));
+
+    const title = this._label(_('Widget pages'), 'widget-text', `font-size: 16px; font-weight: 700; color: ${theme.text};`);
+    controlColumn.add_child(title);
 
     const scroll = new St.ScrollView({
       x_expand: true,
@@ -3451,13 +3575,6 @@ sizeButton.connectObject('destroy', () => {
       vscrollbar_policy: St.PolicyType.AUTOMATIC,
     });
     const list = new St.BoxLayout(boxLayoutProps({vertical: true, style: 'spacing: 6px;'}));
-    scroll.set_child(list);
-    panel.add_child(scroll);
-
-    // Added pages first (they show above the current one when flipping),
-    // then the current page row — per the feature spec the current page
-    // always sits at the bottom of the list and cannot be removed here.
-    const entries = Array.isArray(view.widget.stack) ? view.widget.stack : [];
 
     entries.forEach((entry, index) => {
       const row = new St.BoxLayout(boxLayoutProps({x_expand: true, style: 'spacing: 8px;'}));
@@ -3501,89 +3618,67 @@ sizeButton.connectObject('destroy', () => {
       list.add_child(row);
     });
 
-    const currentRow = new St.BoxLayout(boxLayoutProps({x_expand: true, style: 'spacing: 8px;'}));
-    const currentName = this._label(
-      `${entries.length + 1}. ${_(WIDGET_TYPE_LABELS[view.widget.type] ?? view.widget.type)} — ${_('current page')}`,
-      'widget-text',
-      `color: ${theme.muted}; font-size: 12px;`,
-    );
-    currentName.y_align = Clutter.ActorAlign.CENTER;
-    currentRow.add_child(currentName);
-    list.add_child(currentRow);
+    scroll.set_child(list);
+    controlColumn.add_child(scroll);
 
-    // How the flip works outside the panel — the user-learned phrase.
     const hint = this._label(
-      _('Open a page: swipe UP on the bottom edge. Back: swipe DOWN.'),
+      _('Swipe UP on bottom edge to flip forward, DOWN to go back.'),
       'widget-text',
       `color: ${theme.muted}; font-size: 11px;`,
     );
-    list.add_child(hint);
-
-    const buttonRow = new St.BoxLayout(boxLayoutProps({x_expand: true, style: 'spacing: 10px;'}));
-
-    const canAddMore = entries.length < STACK_PAGE_LIMIT;
-    const addButton = new St.Button({
-      label: canAddMore ? _('Add page') : `${_('Add page')} (${_('full')})`,
-      style: `padding: 6px 12px; border-radius: 9px; font-weight: 700;`
-        + ` color: ${canAddMore ? '#ffffff' : theme.muted};`
-        + ` background-color: ${canAddMore ? theme.accent : theme.dark ? '#3d3d3d' : '#e5e2e6'};`,
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-    });
-    if (canAddMore) {
-      let addPressY = null;
-      addButton.connect('button-press-event', (_actor, event) => {
-        if (event.get_button() === 1) {
-          addPressY = event.get_coords()[1];
-          console.log('[debug] Add page PRESS');
-        };
-        return Clutter.EVENT_STOP;
-      });
-      addButton.connect('button-release-event', (_actor, event) => {
-        if (event.get_button() === 1 && addPressY !== null) {
-          console.log('[debug] Add page RELEASE → opening gallery');
-          this._openStackGallery(view);
-        };
-        addPressY = null;
-        return Clutter.EVENT_STOP;
-      });
-    };
-    buttonRow.add_child(addButton);
+    controlColumn.add_child(hint);
 
     const doneButton = new St.Button({
       label: _('Done'),
-      style: `padding: 6px 14px; border-radius: 9px; font-weight: 700;`
-        + ` color: ${theme.text};`
-        + ` background-color: ${theme.dark ? '#5e5c64' : '#deddda'};`,
+      style: `padding: 10px 20px; border-radius: 10px; font-weight: 700; font-size: 14px;`
+        + ` color: #ffffff;`
+        + ` background-color: ${theme.accent};`,
       reactive: true,
       can_focus: true,
       track_hover: true,
+      x_align: Clutter.ActorAlign.END,
     });
     let donePressY = null;
     doneButton.connect('button-press-event', (_actor, event) => {
       if (event.get_button() === 1) {
         donePressY = event.get_coords()[1];
-        console.log('[debug] Done PRESS');
       };
       return Clutter.EVENT_STOP;
     });
     doneButton.connect('button-release-event', (_actor, event) => {
       if (event.get_button() === 1 && donePressY !== null) {
-        console.log('[debug] Done RELEASE → closing panel');
+        console.log('[debug] Done — saving and closing panel');
         this._saveWidgets();
         this._closeStackPanel();
       };
       donePressY = null;
       return Clutter.EVENT_STOP;
     });
-    buttonRow.add_child(doneButton);
-    panel.add_child(buttonRow);
+    controlColumn.add_child(doneButton);
 
-    view.actor.add_child(panel);
-    view._stackPanel = panel;
+    card.add_child(controlColumn);
+
+    // Center card on screen
+    const cardX = Math.max(16, Math.min(stageSize[0] - cardW - 16, (stageSize[0] - cardW) / 2));
+    const cardY = Math.max(16, Math.min(stageSize[1] - cardH - 16, (stageSize[1] - cardH) / 2));
+    card.set_position(Math.round(cardX), Math.round(cardY));
+
+    overlay.add_child(card);
+
+    // Card stops event bubbling; backdrop closes panel
+    card.connect('button-press-event', () => Clutter.EVENT_STOP);
+    overlay.connect('button-press-event', (_actor, event) => {
+      if (event.get_button() === 1) {
+        this._closeStackPanel();
+        return Clutter.EVENT_STOP;
+      };
+      return Clutter.EVENT_STOP;
+    });
+
+    Main.uiGroup.add_child(overlay);
+    view._stackPanel = overlay;
     this._stackPanelView = view;
-    console.log(`[debug] stack panel opened pages=${entries.length} limit=${STACK_PAGE_LIMIT}`);
+    console.log(`[debug] stack panel opened (centered modal) pages=${entries.length} limit=${STACK_PAGE_LIMIT}`);
   };
 
   _closeStackPanel() {

@@ -68,9 +68,12 @@ export function attachWidgetStack({
 
 	// ── Pages ────────────────────────────────────────────────────────────
 	// Page 0 is the widget's own styled box (never cloned, never moved).
-	// Added pages mount as paneRoot children at (0,0) — the same wrapper
-	// coordinate space the base page occupies — and rest one baseDistance
-	// apart, hidden while idle (only the active page is visibly in slot).
+	// Added pages mount as paneRoot children at (0,0) — CLIP paneRoot so
+	// cross animations stay INSIDE the widget's visual bounds, never
+	// travel outside.
+	paneRoot.clip_to_allocation = true;
+	paneRoot.set_clip(0, 0, pageW, pageH);
+	
 	const pages = [{actor: baseActor, entry: null}];
 
 	const buildPage = (entry) => {
