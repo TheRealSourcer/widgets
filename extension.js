@@ -3491,7 +3491,7 @@ sizeButton.connectObject('destroy', () => {
 
     // How the flip works outside the panel — the user-learned phrase.
     const hint = this._label(
-      _('Open a page: swipe up on the widget's bottom edge. Back: swipe down.'),
+      _('Open a page: swipe UP on the bottom edge. Back: swipe DOWN.'),
       'widget-text',
       `color: ${theme.muted}; font-size: 11px;`,
     );
