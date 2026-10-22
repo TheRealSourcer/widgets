@@ -350,19 +350,37 @@ export function render({ body, widget, theme, sizeForWidget }) {
 
         let rowContent = textLabel;
         if (editing) {
-            const taskEntry = new St.Entry({
+            // Multi-line editor: St.Entry is single-line, plain Clutter.Text
+            // wraps and takes Shift+Enter newlines. Slightly smaller than the
+            // row label (tight paddings, no theme entry chrome).
+            const entryText = new Clutter.Text({
                 text: String(task.text || ''),
-                can_focus: true,
-                x_expand: true,
+                editable: true,
+                x_align: Clutter.ActorAlign.FILL,
                 y_align: Clutter.ActorAlign.CENTER,
-                style: `font-size: ${fontSize}px; color: ${textColor}; `
-                    + `background-color: ${cssColorToRgba(textColor, 0.08)}; `
-                    + `border-radius: ${px(8)}px; padding: ${px(4)}px ${px(8)}px;`,
             });
-            taskEntry.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+            entryText.single_line_mode = false;
+            entryText.line_wrap = true;
+            entryText.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+            entryText.ellipsize = Pango.EllipsizeMode.NONE;
+            entryText.font_name = `Ubuntu ${fontSize - 1}px`;
+            const fg = parseCssColor(textColor);
+            entryText.color = new Clutter.Color({
+                red: fg.r, green: fg.g, blue: fg.b,
+            });
+            entryText.cursor_color = entryText.color;
+
+            const taskEntry = new St.Widget({
+                layout_manager: new Clutter.BinLayout(),
+                x_expand: true,
+                reactive: true,
+                style: `background-color: ${cssColorToRgba(textColor, 0.07)}; `
+                    + `border-radius: ${px(7)}px; padding: ${px(3)}px ${px(6)}px;`,
+            });
+            taskEntry.add_child(entryText);
             const finishEdit = (accept) => {
                 if (isActorDestroyed(body)) return;
-                const value = String(taskEntry.text || '').trim();
+                const value = String(entryText.text || '').trim();
                 if (accept && value) {
                     task.text = value;
                     save();
@@ -370,9 +388,20 @@ export function render({ body, widget, theme, sizeForWidget }) {
                 editingTask = null;
                 renderTasks();
             };
-            taskEntry.clutter_text.connect('activate', () => finishEdit(true));
-            taskEntry.connect('key-press-event', (_actor, event) => {
-                if (event.get_key_symbol() === Clutter.KEY_Escape) {
+            // The handler lives on the FOCUSED actor (entryText) so it runs
+            // BEFORE Clutter.Text's default key handling: plain Enter commits
+            // before the newline is inserted, Shift+Enter propagates so the
+            // text inserts the newline itself.
+            entryText.connect('key-press-event', (_actor, event) => {
+                const sym = event.get_key_symbol();
+                const shift = (event.get_state() & Clutter.ModifierType.SHIFT_MASK) !== 0;
+                if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {
+                    if (shift)
+                        return Clutter.EVENT_PROPAGATE;
+                    finishEdit(true);
+                    return Clutter.EVENT_STOP;
+                }
+                if (sym === Clutter.KEY_Escape) {
                     finishEdit(false);
                     return Clutter.EVENT_STOP;
                 }
@@ -381,8 +410,9 @@ export function render({ body, widget, theme, sizeForWidget }) {
             // NO cancel on key-focus-out: the shell re-routes key focus right
             // after the grab (searchController), firing focus-out within the
             // same frame — the editor would close itself immediately and the
-            // pencil would look dead. Enter commits, Esc cancels.
-            setImmediateRowFocus(taskEntry);
+            // pencil would look dead. Enter commits, Shift+Enter adds a new
+            // line, Esc cancels.
+            setImmediateRowFocus(entryText);
             rowContent = taskEntry;
         }
 
