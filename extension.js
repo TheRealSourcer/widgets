@@ -58,8 +58,8 @@ import { LAYOUT_KEY, LAYOUT_VERSION, layoutJson } from './layoutDoc.js';
 import { macColors } from './lib/colors.js';
 import { parseCssColor } from './utils/ported.js';
 // Widget-in-widget stack plumbing (vertical pages under a primary widget).
-import { attachWidgetStack, makeStackEntry, MAX_STACK_PAGES as STACK_PAGE_LIMIT } from './widgets/widgetStack.js';
-import { WIDGET_TYPE_LABELS, GALLERY_HINTS } from './lib/widgetTypes.js';
+import { attachWidgetStack, makeStackEntry } from './widgets/widgetStack.js';
+import { WIDGET_TYPE_LABELS, GALLERY_HINTS, MAX_STACK_PAGES as STACK_PAGE_LIMIT } from './lib/widgetTypes.js';
 
 const EXTENSION_PATH = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 const GRID_SIZE = 20;
