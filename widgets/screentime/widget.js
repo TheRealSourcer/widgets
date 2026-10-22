@@ -24,7 +24,7 @@ const REF_HEIGHT = 170;
 const COMPACT_SQUARE_REF = 156;
 
 const MAIN_PANEL_WIDTH_RATIO = 0.65;
-const SIDE_PANEL_LIGHTEN = 0.08;
+const SIDE_PANEL_LIGHTEN = 0.16;
 
 const Y_AXIS_WIDTH_PX = 35;
 const X_AXIS_HEIGHT_PX = 15;
@@ -340,7 +340,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	const isGlass = theme?.isGlass ?? false;
 	const leftBg = isGlass ? cssColorToRgba(bgColor, 0.25) : bgColor;
 	const sideBase = shadePanelColor(bgColor, SIDE_PANEL_LIGHTEN);
-	const sideBg = isGlass ? cssColorToRgba(sideBase, 0.25) : sideBase;
+	const sideBg = isGlass ? cssColorToRgba(sideBase, 0.35) : sideBase;
 
 	// The 2x2 stack has no side panels: the widget's own background shows
 	// through above the app band.
@@ -673,7 +673,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		bandColumns = [0, 1].map(() => new St.BoxLayout({
 			orientation: Clutter.Orientation.VERTICAL,
 			x_expand: true,
-			y_align: Clutter.ActorAlign.CENTER,
+			y_align: Clutter.ActorAlign.START,
 		}));
 		bandColumns.forEach(column => appsBand.add_child(column));
 		largeRoot.add_child(appsBand);
@@ -911,6 +911,22 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		const rows = state.geometry.bandRows || 1;
 		const apps = state.snapshot.apps.slice(0, Math.min(rows * 2, config.maxApps));
 
+		// Spread the rows actually shown across the whole band (space-between):
+		// eight apps pack edge-to-edge, fewer widen the gaps, a single app
+		// hugs the top instead of floating centered in empty space.
+		const innerH = Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
+		const rowH = Math.max(
+			Math.round(APP_ICON_SIZE_PX * s),
+			Math.round(APP_BAND_FONT_SIZE_PX * s * 1.5),
+		);
+		const shown = Math.max(1, Math.min(apps.length, rows));
+		const spread = shown > 1
+			? Math.max(0, Math.floor((innerH - shown * rowH) / (shown - 1)))
+			: 0;
+		bandColumns.forEach(column => {
+			column.style = `spacing: ${spread}px;`;
+		});
+
 		if (apps.length === 0) {
 			bandColumns[0].add_child(new St.Label({
 				text: _('No activity recorded'),
@@ -1070,14 +1086,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				Math.round(APP_ICON_SIZE_PX * s),
 				Math.round(APP_BAND_FONT_SIZE_PX * s * 1.5),
 			);
-			
-			// Calculate spacing to distribute rows evenly
-			const rowsTarget = LARGE_APP_ROWS_MAX;
-			const totalRowHeight = rowsTarget * bandRowH;
-			const totalSpacingNeeded = (rowsTarget - 1);
-			const bandSpacing = Math.floor((bandH - bandPadT - bandPadB - totalRowHeight) / totalSpacingNeeded);
-			
-			const rowsFit = Math.floor((bandH - bandPadT - bandPadB + bandSpacing) / (bandRowH + bandSpacing));
+			const rowsFit = Math.floor((bandH - bandPadT - bandPadB) / bandRowH);
 			state.geometry.bandRows = Math.min(LARGE_APP_ROWS_MAX, Math.max(1, rowsFit));
 			// The rebuild trigger compares listHeight: the band height stands in
 			// for the side panel's height so the rows rebuild only when the
@@ -1085,9 +1094,6 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			state.geometry.listHeight = bandH;
 			appsBand.style = `background-color: ${sideBg}; border-radius: 0 0 ${radius}px ${radius}px;`
 				+ `padding: ${bandPadT}px ${padSide}px ${bandPadB}px ${padSide}px;`;
-			bandColumns.forEach(column => {
-				column.style = `spacing: ${bandSpacing}px;`;
-			});
 
 			renderDynamic();
 			return;
