@@ -1587,6 +1587,16 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         });
         group.add(pageDotsRow);
 
+        const pageIndicatorAccentRow = new Adw.SwitchRow({
+            title: _('Use accent color for page indicator'),
+            subtitle: _('Accent color for the page markers. When off, they follow the theme text color.'),
+        });
+        pageIndicatorAccentRow.set_active(settings.get_boolean('weather-page-indicator-accent'));
+        pageIndicatorAccentRow.connect('notify::active', () => {
+            settings.set_boolean('weather-page-indicator-accent', pageIndicatorAccentRow.get_active());
+        });
+        group.add(pageIndicatorAccentRow);
+
         page.add(group);
         return page;
     }

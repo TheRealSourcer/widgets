@@ -862,10 +862,13 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 		});
 
 		// dash/dot follows the global page-indicator-style,
-		// the color is the accent while the weather accent toggle is on,
-		// otherwise the neutral theme text.
+		// the color is the accent while the page-indicator toggle is on,
+		// otherwise the neutral theme text — a separate SwitchRow in prefs
+		// (the calendar's page-indicator accent toggle, per widget).
 		const dashStyle = (settings?.get_int('page-indicator-style') ?? 0) === 1;
-		const indicatorColor = useAccentColor ? (theme?.accent ?? theme.text) : theme.text;
+		const indicatorColor = settings?.get_boolean('weather-page-indicator-accent') ?? true
+			? (theme?.accent ?? theme.text)
+			: theme.text;
 		const dotsRow = new St.BoxLayout(boxLayoutProps({
 			x_expand: true,
 			x_align: Clutter.ActorAlign.CENTER,

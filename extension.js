@@ -550,6 +550,7 @@ class WidgetController {
       // accent and neutral text color the moment the toggle flips.
       'changed::weather-use-accent-color', () => this._refreshWeatherViews(),
       'changed::weather-show-page-dots', () => this._refreshWeatherViews(),
+      'changed::weather-page-indicator-accent', () => this._refreshWeatherViews(),
       'changed::digitalclock-hour-format', () => this._scheduleAppearance('refresh'),
       'changed::digitalclock-show-seconds', () => this._scheduleAppearance('refresh'),
       'changed::digitalclock-show-ampm', () => this._scheduleAppearance('refresh'),

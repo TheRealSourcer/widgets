@@ -131,6 +131,11 @@
       <summary>Show weather page dots</summary>
       <description>Show the two page-indicator dots at the bottom of the 1x1 weather (weather/hourly swipe pages).</description>
     </key>
+    <key name="weather-page-indicator-accent" type="b">
+      <default>true</default>
+      <summary>Use accent color for the weather page indicator</summary>
+      <description>When enabled, the weather 1x1 page markers use the accent color; when disabled they follow the theme text color (white on dark, black on light).</description>
+    </key>
     <key name="digitalclock-hour-format" type="s">
       <default>'24'</default>
       <summary>Digital clock time format</summary>
