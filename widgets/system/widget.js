@@ -836,13 +836,15 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
     });
     const refreshDashes = () => pageDashes.set(currentMetric);
 
-    const rebuild = (enterX = 0, { keepLeaving = false, enterInPlace = false } = {}) => {
-      // The swipe-timed rebuild must keep the outgoing page in the pane —
-      // it finishes its own slide and removes itself when done, exactly
-      // like the calendar's page cross. Only fresh builds wipe children.
-      if (!keepLeaving)
-        container.remove_all_children();
+    // GNOME workspace-switch cross — the same animation family as the 2x1:
+    // leaving and entering pages travel in lockstep, nothing fades.
+    const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2); // 500ms
 
+    // Pure page build (no entry animation, no wiping): one page = one
+    // scrollBox in the pane Bin. The outer label refs (tile/valueLabel/…)
+    // end up pointing at the LAST built page — the live-data loop feeds the
+    // entering one, like the 2x1 tiles do.
+    const buildPage = (metricIndex) => {
       scrollBox = new St.BoxLayout(boxLayoutProps({
         x_expand: true,
         y_expand: true,
@@ -850,7 +852,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         style: ``,
       }));
 
-      const config = metricConfigs[currentMetric];
+      const config = metricConfigs[metricIndex];
       const samples = monitor.lastData[config.samplesKey] || [];
       
       let extraInfo = null;
@@ -874,12 +876,15 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
 
       layoutRows = [scrollBox];
       layoutTiles();
+      return scrollBox;
+    };
 
-      // In-place entry (swipe): settle at the final position and fade in.
-      tile.translation_x = enterInPlace ? 0 : enterX;
+    const rebuild = () => {
+      container.remove_all_children();
+      currentPage = buildPage(currentMetric);
+      // Plain builds (init, theme change) keep the soft fade-in.
       tile.set_opacity(0);
       tile.ease({
-        translation_x: 0,
         opacity: 255,
         duration: ANIMATION_DURATION,
         mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -925,6 +930,10 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
 
     let startX = 0;
     let dragging = false;
+    // The page currently on duty (crosses rebuild both pages fresh).
+    let currentPage = null;
+    // A cross is in flight — swipes are swallowed until it settles.
+    let crossBusy = false;
 
     container.reactive = true;
     // Swipe only with the RIGHT button — the left button stays free for
@@ -943,34 +952,10 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       const delta = endX - startX;
 
       if (Math.abs(delta) > SWIPE_THRESHOLD) {
-        const oldTile = tile;
-        const exitX = delta < 0 ? -width : width;
+        // ── GNOME workspace-switch cross (see the 2x1 handler) ─────────────
+        if (crossBusy) return Clutter.EVENT_STOP;
 
-        // Two-phase exit (see the 2x1 handler): sweep intact, then fade the
-        // page as one at the tail so nothing lingers alone at the edge.
-        const outPhase = Math.round(ANIMATION_DURATION * 0.45);
-        const fadePhase = ANIMATION_DURATION - outPhase;
-
-        animatingActors.add(oldTile);
-        oldTile.ease({
-          translation_x: exitX * 0.55,
-          duration: outPhase,
-          mode: Clutter.AnimationMode.EASE_IN_QUAD,
-          onComplete: () => {
-            oldTile.ease({
-              translation_x: exitX,
-              opacity: 0,
-              duration: fadePhase,
-              mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-              onComplete: () => {
-                animatingActors.delete(oldTile);
-                if (oldTile.get_parent()) {
-                  oldTile.get_parent().remove_child(oldTile);
-                }
-              },
-            });
-          },
-        });
+        const leavingMetric = currentMetric;
 
         if (delta > 0) {
           currentMetric = (currentMetric - 1 + 5) % 5;
@@ -981,19 +966,52 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         saveWidgetState(statePath, { metric: currentMetric });
         refreshDashes();
 
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
-          // A refill may have re-rendered the pane mid-cross; rebuilding
-          // into the dead one would only corrupt the new body.
-          if (tornDown) return GLib.SOURCE_REMOVE;
-          rebuild(-exitX, { keepLeaving: true, enterInPlace: true });
-          // The leaving page stays above the settled one during the cross.
-          if (oldTile.get_parent())
-            container.set_child_above_sibling(oldTile, scrollBox);
-          if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0) {
-            onData(monitor.lastData);
-          }
-          return GLib.SOURCE_REMOVE;
+        // pageW + gap = GNOME's baseDistance between adjacent workspaces.
+        const paneBox = container.get_allocation_box();
+        const pageW = Math.max(1, Math.floor(paneBox.get_width()) - CONTAINER_PAD * 2);
+        const base = pageW + Math.round(pageW / 16);
+        const next = delta < 0;
+
+        crossBusy = true;
+        const leavingRow = buildPage(leavingMetric);
+        const newRow = buildPage(currentMetric);
+        newRow.translation_x = next ? base : -base;
+
+        // The previous visual page made way; both fresh pages travel.
+        if (currentPage && currentPage.get_parent() === container) {
+          container.remove_child(currentPage);
+          currentPage.destroy();
+        }
+
+        // The entering build's labels are the live-data targets now.
+        currentPage = newRow;
+
+        leavingRow.ease({
+          translation_x: next ? -base : base,
+          duration: CROSS_DURATION,
+          mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+          onComplete: () => {
+            if (leavingRow.get_parent() === container)
+              container.remove_child(leavingRow);
+            leavingRow.destroy();
+          },
         });
+        newRow.ease({
+          translation_x: 0,
+          duration: CROSS_DURATION,
+          mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+          onComplete: () => {
+            crossBusy = false;
+            if (tornDown) return;
+            layoutTiles();
+            if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0) {
+              onData(monitor.lastData);
+            }
+          },
+        });
+
+        if (monitor.lastData.cpu > 0 || monitor.lastData.ram > 0)
+          onData(monitor.lastData);
       }
       return Clutter.EVENT_STOP;
     });
