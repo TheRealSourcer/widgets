@@ -307,8 +307,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		orientation: Clutter.Orientation.HORIZONTAL,
 		style_class: 'screentime-widget',
 		x_expand: true,
-		y_expand: false,
-		y_align: Clutter.ActorAlign.START,
+		y_expand: true,
 		clip_to_allocation: true,
 	});
 	// 1x1 compact card: vertical stack instead of the split layout — the
