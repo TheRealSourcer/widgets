@@ -3510,9 +3510,19 @@ sizeButton.connectObject('destroy', () => {
       style: `padding: 6px 12px; border-radius: 9px; font-weight: 700;`
         + ` color: ${canAddMore ? '#ffffff' : theme.muted};`
         + ` background-color: ${canAddMore ? theme.accent : theme.dark ? '#3d3d3d' : '#e5e2e6'};`,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+    addButton.connect('button-press-event', () => {
+      console.log('[debug] Add page PRESS');
+      return Clutter.EVENT_PROPAGATE;
     });
     if (canAddMore) {
-      addButton.connectObject('clicked', () => this._openStackGallery(view), this);
+      addButton.connectObject('clicked', () => {
+        console.log('[debug] Add page CLICKED');
+        this._openStackGallery(view);
+      }, this);
     };
     buttonRow.add_child(addButton);
 
@@ -3521,8 +3531,16 @@ sizeButton.connectObject('destroy', () => {
       style: `padding: 6px 14px; border-radius: 9px; font-weight: 700;`
         + ` color: ${theme.text};`
         + ` background-color: ${theme.dark ? '#5e5c64' : '#deddda'};`,
+      reactive: true,
+      can_focus: true,
+      track_hover: true,
+    });
+    doneButton.connect('button-press-event', () => {
+      console.log('[debug] Done PRESS');
+      return Clutter.EVENT_PROPAGATE;
     });
     doneButton.connectObject('clicked', () => {
+      console.log('[debug] Done CLICKED');
       this._saveWidgets();
       this._closeStackPanel();
     }, this);

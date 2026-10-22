@@ -204,8 +204,10 @@ export function attachWidgetStack({
 	// ── The bottom rail: a spatial zone for the vertical drags ───────────
 	// The rail is paneRoot-level, so it serves every page id. It must be
 	// NON-reactive in edit mode so panel/gallery overlays catch clicks.
+	const railReactive = !isEditMode();
+	console.log(`[debug] rail created reactive=${railReactive} editMode=${isEditMode()}`);
 	const rail = new St.Widget({
-		reactive: !isEditMode(),
+		reactive: railReactive,
 		x: 0,
 		y: Math.max(0, pageH - RAIL_HEIGHT),
 		width: pageW,
@@ -218,7 +220,9 @@ export function attachWidgetStack({
 	// to catch clicks, and the rail must yield to them.
 	const updateRailReactive = () => {
 		if (!rail.is_finalized?.()) {
+			const wasReactive = rail.reactive;
 			rail.reactive = !isEditMode();
+			console.log(`[debug] rail reactive: ${wasReactive} → ${rail.reactive} (editMode=${isEditMode()})`);
 		};
 	};
 
