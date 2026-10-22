@@ -1014,25 +1014,23 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			state.geometry.layoutDirty = true;
 			scheduleUpdate();
 		}
-		const innerH = state.geometry.bandInner > 0
-			? state.geometry.bandInner
-			: Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
-
-		// Compact rows over a fixed gap, with equal top and bottom padding —
-		// any rounding slack after the last row is split evenly between them.
+		// Compact rows over a fixed gap; the paddings stay FIXED so the top
+		// and bottom are identical by construction. The band height comes
+		// from applyLayout, sized from the same row height + gap + padding —
+		// dynamic leftover splitting here desynced the padding bookkeeping
+		// (the allocation listener still subtracted the old pads) and made
+		// the bottom gap visibly bigger.
 		const spread = Math.round(4 * s);
 		bandColumns.forEach(column => {
 			column.style = `spacing: ${spread}px;`;
 		});
 
-		const shownRows = Math.min(apps.length, rows);
-		const used = shownRows * rowH + (shownRows - 1) * spread;
-		const leftover = Math.max(0, innerH - used);
-		const padTop = Math.round(4 * s) + Math.floor(leftover / 2);
-		const padBottom = Math.round(4 * s) + leftover - Math.floor(leftover / 2);
+		const pad = Math.round(4 * s);
 		const padSide = Math.round(16 * s);
+		state.geometry.bandPadT = pad;
+		state.geometry.bandPadB = pad;
 		appsBand.style = `background-color: ${sideBg}; border-radius: 0 0 ${radius}px ${radius}px;`
-			+ `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
+			+ `padding: ${pad}px ${padSide}px ${pad}px ${padSide}px;`;
 	}
 
 	function rebuildAppList() {
@@ -1340,6 +1338,35 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		}
 		return GLib.SOURCE_REMOVE;
 	});
+
+	// Pre-measure the band row height BEFORE the first layout: applyLayout
+	// sizes the band from this number, so the very first paint already has
+	// the correct chart/band split — no visible size jump at startup while
+	// the layout converges from estimate to measurement.
+	if (isLarge && !state.geometry.measuredRowH && actor) {
+		const cw = contentWidth();
+		const ch = contentHeight();
+		if (cw > 1 && ch > 1) {
+			const s0 = Math.min(cw / REF_WIDTH, ch / REF_HEIGHT);
+			if (isFinite(s0) && s0 > 0) {
+				try {
+					const px0 = (v) => Math.max(1, Math.round(v * s0));
+					const probe = buildAppRow({ key: '', seconds: 60000 }, px0, true);
+					bandColumns[0].add_child(probe);
+					const natural = Math.ceil(probe.get_preferred_height(-1)[1]);
+					bandColumns[0].remove_child(probe);
+					probe.destroy();
+					if (natural > 0)
+						state.geometry.measuredRowH = {
+							h: Math.max(Math.round(APP_ICON_SIZE_PX * s0), natural),
+							s: s0,
+						};
+				} catch (e) {
+					// Fall back to the estimate-based layout if probing fails.
+				}
+			}
+		}
+	}
 
 	refreshData();
 }
