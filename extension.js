@@ -1465,7 +1465,10 @@ class WidgetController {
       // Toggle rail reactivity: in edit mode, panel buttons must catch
       // clicks, so the rail yields (non-reactive). In usage mode, the
       // rail catches drags for flipping between stacked pages.
-      view._stackPrism?.refresh();
+      // Only refresh widgets that actually have a stack prism attached.
+      if (view._stackPrism) {
+        view._stackPrism.refresh();
+      };
 
       if (enabled) {
         if (!view.draggable) {
@@ -3475,11 +3478,25 @@ sizeButton.connectObject('destroy', () => {
         style: `padding: 2px 9px; border-radius: 7px;`
           + ` color: ${theme.text};`
           + ` background-color: ${theme.dark ? '#453f48' : '#e5e2e6'};`,
+        reactive: true,
+        can_focus: true,
       });
-      delButton.connectObject('clicked', () => {
-        view.widget.stack.splice(index, 1);
-        this._applyStackChange(view);
-      }, this);
+      let delPressY = null;
+      delButton.connect('button-press-event', (_actor, event) => {
+        if (event.get_button() === 1) {
+          delPressY = event.get_coords()[1];
+        };
+        return Clutter.EVENT_STOP;
+      });
+      delButton.connect('button-release-event', (_actor, event) => {
+        if (event.get_button() === 1 && delPressY !== null) {
+          console.log(`[debug] delete page ${index} (${entry.type})`);
+          view.widget.stack.splice(index, 1);
+          this._applyStackChange(view);
+        };
+        delPressY = null;
+        return Clutter.EVENT_STOP;
+      });
       row.add_child(delButton);
       list.add_child(row);
     });
@@ -3757,9 +3774,25 @@ sizeButton.connectObject('destroy', () => {
       style_class: 'button widget-gallery-button widget-gallery-close-button',
       style: `padding: 0; border-radius: 10px; background-color: rgba(255,255,255,0.10); color: ${theme.text};`,
       track_hover: true,
+      reactive: true,
+      can_focus: true,
     });
     closeButton.accessible_name = _('Close');
-    closeButton.connectObject('clicked', () => this._closeStackGallery(), closeButton);
+    let closePressY = null;
+    closeButton.connect('button-press-event', (_actor, event) => {
+      if (event.get_button() === 1) {
+        closePressY = event.get_coords()[1];
+      };
+      return Clutter.EVENT_STOP;
+    });
+    closeButton.connect('button-release-event', (_actor, event) => {
+      if (event.get_button() === 1 && closePressY !== null) {
+        console.log('[debug] gallery close button clicked');
+        this._closeStackGallery();
+      };
+      closePressY = null;
+      return Clutter.EVENT_STOP;
+    });
     header.add_child(closeButton);
     drawer.add_child(header);
 
