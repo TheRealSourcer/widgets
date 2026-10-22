@@ -202,10 +202,10 @@ export function attachWidgetStack({
 	};
 
 	// ── The bottom rail: a spatial zone for the vertical drags ───────────
-	// The rail is paneRoot-level, so it serves every page id. It stays
-	// unreactive (and invisible) while edit mode owns the pointer.
+	// The rail is paneRoot-level, so it serves every page id. It must be
+	// NON-reactive in edit mode so panel/gallery overlays catch clicks.
 	const rail = new St.Widget({
-		reactive: true,
+		reactive: !isEditMode(),
 		x: 0,
 		y: Math.max(0, pageH - RAIL_HEIGHT),
 		width: pageW,
@@ -214,10 +214,18 @@ export function attachWidgetStack({
 	});
 	paneRoot.add_child(rail);
 
+	// Update rail reactivity when edit mode toggles: panel buttons need
+	// to catch clicks, and the rail must yield to them.
+	const updateRailReactive = () => {
+		if (!rail.is_finalized?.()) {
+			rail.reactive = !isEditMode();
+		};
+	};
+
 	let dragStartY = null;
 
 	rail.connect('button-press-event', (_actor, event) => {
-		if (event.get_button() !== 1 || crossBusy || isEditMode()) {
+		if (event.get_button() !== 1 || crossBusy) {
 			return Clutter.EVENT_PROPAGATE;
 		};
 		const [stageX, stageY] = event.get_coords();
@@ -271,7 +279,10 @@ export function attachWidgetStack({
 
 		// Called after the parent's stack array changes (panel edit): rebuild
 		// every added page from the (new) widget.stack — the caller destroys
-		// the previous prism first.
-		refresh() {},
+		// the previous prism first. Also refresh rail reactivity when edit
+		// mode toggles.
+		refresh() {
+			updateRailReactive();
+		},
 	};
 };

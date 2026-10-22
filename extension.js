@@ -1462,6 +1462,11 @@ class WidgetController {
     this._updatePanelEditModeState();
 
     for (const view of this._views.values()) {
+      // Toggle rail reactivity: in edit mode, panel buttons must catch
+      // clicks, so the rail yields (non-reactive). In usage mode, the
+      // rail catches drags for flipping between stacked pages.
+      view._stackPrism?.refresh();
+
       if (enabled) {
         if (!view.draggable) {
           this._makeDraggable(view);
