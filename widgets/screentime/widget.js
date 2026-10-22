@@ -665,6 +665,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	let legendBox = null;
 	let appsBand = null;
 	let bandColumns = null;
+	let bandGrid = null;
 	if (isLarge) {
 		legendBox = new St.BoxLayout({
 			orientation: Clutter.Orientation.HORIZONTAL,
@@ -672,37 +673,24 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		largeRoot.add_child(legendBox);
 
 		// The band stretches over whatever the chart leaves free so its tint
-		// always reaches the widget's bottom edge.
-		appsBand = new St.BoxLayout({
-			orientation: Clutter.Orientation.HORIZONTAL,
+		// always reaches the widget's bottom edge. A BinLayout centers the
+		// row grid vertically inside it — the space above the first row and
+		// below the last one is equal BY CONSTRUCTION, no padding math, no
+		// measurement feedback, nothing to drift.
+		appsBand = new St.Widget({
+			layout_manager: new Clutter.BinLayout(
+				Clutter.BinAlignment.FILL, Clutter.BinAlignment.CENTER),
 			y_expand: true,
 			clip_to_allocation: true,
 		});
+		bandGrid = new St.BoxLayout({ x_expand: true });
+		appsBand.add_child(bandGrid);
 		bandColumns = [0, 1].map(() => new St.BoxLayout({
 			orientation: Clutter.Orientation.VERTICAL,
 			x_expand: true,
-			y_align: Clutter.ActorAlign.START,
 		}));
-		bandColumns.forEach(column => appsBand.add_child(column));
+		bandColumns.forEach(column => bandGrid.add_child(column));
 		largeRoot.add_child(appsBand);
-
-		// applyLayout can only estimate the band height (header/legend metrics
-		// are guesses, and an undershoot silently dropped the 4th row). Once
-		// the band really allocates, feed its true inner height back so the
-		// row count and gaps are re-fit from facts, not estimates.
-		appsBand.connect('notify::allocation', () => {
-			const pads = (state.geometry.bandPadT ?? 0) + (state.geometry.bandPadB ?? 0);
-			const inner = Math.max(0, appsBand.get_height() - pads);
-			if (inner <= 0 || inner === state.geometry.bandInner)
-				return;
-			state.geometry.bandInner = inner;
-			// Defer: mutating the actor tree during an allocation pass is unsafe.
-			GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-				if (!disposed)
-					renderDynamic();
-				return GLib.SOURCE_REMOVE;
-			});
-		});
 	}
 
 	// ── App list (2x1 side panel) ──────────────────────────────────────────
@@ -995,49 +983,13 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			return;
 		}
 
-		// Measure the row's true natural height — the earlier ×1.2 inflation
-		// created phantom slack that piled up under the last row. Cache it so
-		// applyLayout sizes the band from the same ground truth.
-		const sample = bandColumns[0].get_children()[0];
-		const naturalRow = sample ? Math.ceil(sample.get_preferred_height(-1)[1]) : 0;
-		const rowH = Math.max(
-			Math.round(APP_ICON_SIZE_PX * s),
-			naturalRow || Math.round(BAND_ROW_H_PX * s),
-		);
-		if (sample)
-			state.geometry.measuredRowH = { h: rowH, s };
-		// The layout sized the band from the estimate while the cache was
-		// still empty (startup) — once the true row height is known, request
-		// one more layout pass so the band re-sizes from the measurement.
-		if (sample && state.geometry.appliedRowH !== undefined
-			&& Math.abs(state.geometry.appliedRowH - rowH) > 1) {
-			state.geometry.layoutDirty = true;
-			scheduleUpdate();
-		}
-		// Compact rows over a fixed gap; rounding slack is split evenly
-		// between the top and bottom paddings so the gaps measured from the
-		// band's top edge and the widget's bottom edge stay identical. The
-		// computed pads are fed back into state (the allocation listener
-		// subtracts them from the band height) — the old desync here is what
-		// made the bottom gap visibly bigger.
-		const spread = Math.round(4 * s);
+		// Fixed row gap. Nothing else: the BinLayout container centers the
+		// grid inside the band, so every pixel of extra space splits evenly
+		// above the first row and below the last one automatically.
+		const gap = Math.round(4 * s);
 		bandColumns.forEach(column => {
-			column.style = `spacing: ${spread}px;`;
+			column.style = `spacing: ${gap}px;`;
 		});
-		const shownRows = Math.min(apps.length, rows);
-		const content = shownRows * rowH + (shownRows - 1) * spread;
-		const innerH = state.geometry.bandInner > 0
-			? state.geometry.bandInner
-			: Math.max(0, (state.geometry.listHeight || 0) - Math.round(8 * s));
-		const slack = Math.max(0, innerH - content);
-		const pad = Math.round(4 * s);
-		const padTop = pad + Math.floor(slack / 2);
-		const padBottom = pad + slack - Math.floor(slack / 2);
-		const padSide = Math.round(16 * s);
-		state.geometry.bandPadT = padTop;
-		state.geometry.bandPadB = padBottom;
-		appsBand.style = `background-color: ${sideBg}; border-radius: 0 0 ${radius}px ${radius}px;`
-			+ `padding: ${padTop}px ${padSide}px ${padBottom}px ${padSide}px;`;
 	}
 
 	function rebuildAppList() {
@@ -1157,8 +1109,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			// Content-sized band: the row count derives from the app count, and
 			// the chart absorbs whatever the band does not need.
 			const xAxisZone = Math.round(4 * s) + axisH;
-			const bandPadT = Math.round(4 * s);
-			const bandPadB = Math.round(4 * s);
+			const bandPadEdge = Math.round(4 * s);
 			const bandGap = Math.round(4 * s);
 			// Measure the row's true natural height; re-measure whenever the
 			// scale changed (a mid-animation layout at boot may have cached a
@@ -1189,7 +1140,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const appsCount = Math.min(state.snapshot?.apps?.length ?? 0, config.maxApps);
 			const bandRowsNeeded = Math.max(1, Math.min(LARGE_APP_ROWS_MAX, Math.ceil(appsCount / 2)));
 			const bandH = bandRowsNeeded * bandRowH + (bandRowsNeeded - 1) * bandGap
-				+ bandPadT + bandPadB;
+				+ bandPadEdge * 2;
 			const freeForChart = currentHeight - padTop - headerEstimate - headerMargin
 				- xAxisZone - (legendMargin * 2 + legendH) - bandH;
 			// The chart takes everything above the band's content height (no
@@ -1214,15 +1165,15 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			xAxisBox.set_size(plotWidth, axisH);
 
 			state.geometry.bandRows = bandRowsNeeded;
-			state.geometry.appliedRowH = bandRowH;
 			// The rebuild trigger compares listHeight: the band height stands in
 			// for the side panel's height so the rows rebuild only when the
 			// geometry really moved.
 			state.geometry.listHeight = bandH;
-			state.geometry.bandPadT = bandPadT;
-			state.geometry.bandPadB = bandPadB;
+			// Only horizontal padding on the band itself — the vertical space
+			// is handled by the BinLayout's centering, so it can never go
+			// asymmetric.
 			appsBand.style = `background-color: ${sideBg}; border-radius: 0 0 ${radius}px ${radius}px;`
-				+ `padding: ${bandPadT}px ${padSide}px ${bandPadB}px ${padSide}px;`;
+				+ `padding: 0 ${padSide}px;`;
 
 			renderDynamic();
 			return;
