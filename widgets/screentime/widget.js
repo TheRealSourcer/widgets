@@ -54,6 +54,9 @@ const LEGEND_FONT_SIZE_PX = 11;   // colored top-app chips under the chart
 const LEGEND_TOP_APPS = 3;
 const APP_BAND_FONT_SIZE_PX = 12; // app rows in the bottom two-column band
 const LARGE_APP_ROWS_MAX = 4; // 4 rows × 2 columns = 8 apps in the 2×2 band
+// Two-line band row height: name (12px @1.5 line) over duration (~11px) + gap.
+const BAND_ROW_H_PX = Math.round(APP_BAND_FONT_SIZE_PX * 1.5)
+	+ Math.round(APP_BAND_FONT_SIZE_PX * 0.92 * 1.5) + 1;
 
 // Hour bars and legend chips are colored after the bucket's dominant app.
 // Bright variants stay readable on a dark base; regular ones on a light base.
@@ -838,23 +841,31 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		row.add_child(iconSlot);
 
 		if (withName) {
-			const nameLabel = new St.Label({
-				text: resolveAppName(app.key),
+			// Two-line row (reference design): app name on top, its duration
+			// right under it — the trailing "13m | next icon" stack reads
+			// cluttered, the stacked layout keeps every column self-contained.
+			const textCol = new St.BoxLayout({
+				orientation: Clutter.Orientation.VERTICAL,
 				x_expand: true,
 				y_align: Clutter.ActorAlign.CENTER,
+				style: 'spacing: 1px;',
+			});
+
+			const nameLabel = new St.Label({
+				text: resolveAppName(app.key),
 				style: `color: ${textColor}; font-size: ${px(APP_BAND_FONT_SIZE_PX)}px; `
 					+ `font-weight: 600; opacity: 0.92;`,
 			});
 			nameLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-			row.add_child(nameLabel);
+			textCol.add_child(nameLabel);
 
 			const durationLabel = new St.Label({
 				text: formatCompactDuration(app.seconds),
-				y_align: Clutter.ActorAlign.CENTER,
-				style: `color: ${textColor}; font-size: ${px(APP_BAND_FONT_SIZE_PX)}px; `
-					+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY}; margin-left: 8px;`,
+				style: `color: ${textColor}; font-size: ${px(Math.round(APP_BAND_FONT_SIZE_PX * 0.92))}px; `
+					+ `font-weight: 600; opacity: ${SECONDARY_TEXT_OPACITY};`,
 			});
-			row.add_child(durationLabel);
+			textCol.add_child(durationLabel);
+			row.add_child(textCol);
 		} else {
 			const durationLabel = new St.Label({
 				text: formatCompactDuration(app.seconds),
@@ -918,7 +929,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		const innerH = Math.max(0, (state.geometry.listHeight || 0) - Math.round(16 * s));
 		const rowH = Math.max(
 			Math.round(APP_ICON_SIZE_PX * s),
-			Math.round(APP_BAND_FONT_SIZE_PX * s * 1.5),
+			Math.round(BAND_ROW_H_PX * s),
 		);
 		const shown = Math.max(1, Math.min(apps.length, rows));
 		const spread = shown > 1
@@ -1085,7 +1096,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			const bandPadB = Math.round(8 * s);
 			const bandRowH = Math.max(
 				Math.round(APP_ICON_SIZE_PX * s),
-				Math.round(APP_BAND_FONT_SIZE_PX * s * 1.5),
+				Math.round(BAND_ROW_H_PX * s),
 			);
 			const rowsFit = Math.floor((bandH - bandPadT - bandPadB) / bandRowH);
 			state.geometry.bandRows = Math.min(LARGE_APP_ROWS_MAX, Math.max(1, rowsFit));
