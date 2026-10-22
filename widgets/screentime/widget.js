@@ -1107,9 +1107,12 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				- headerReserve - axisH - Math.round(12 * s));
 			Object.assign(state.geometry, { plotWidth, plotHeight });
 
-			chartCanvas.set_position(0, 0);
+			// The plot sits a touch lower than the header (the reference design
+			// leaves breathing room between the total and the top gridline).
+			const plotOffset = Math.round(6 * s);
+			chartCanvas.set_position(0, plotOffset);
 			chartCanvas.set_size(plotWidth, plotHeight);
-			yAxisBox.set_position(plotWidth, 0);
+			yAxisBox.set_position(plotWidth, plotOffset);
 			yAxisBox.set_size(yWidth, plotHeight);
 			// The axis is compactBox's last stacked child: the vertical stack
 			// pins it right above the bottom padding regardless of how much
