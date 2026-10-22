@@ -14,6 +14,11 @@ import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.j
 // browsed day must survive that instead of snapping back to today
 // (in-memory only: a shell restart starts fresh at today).
 let lastSelectedDate = null;
+// The day's loaded data rides along with it: a rebuild repaints the day
+// instantly from this snapshot while the engine re-loads the same data —
+// no empty-card flash during the re-render.
+let lastSnapshotDate = null;
+let lastSnapshot = null;
 
 export const type = 'screentime';
 export const label = 'Screen Time';
@@ -875,6 +880,12 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 		if (!rootAlive) return;
 		if (!state.snapshot) return;
 
+		// Keep the displayed day's data for the next re-render: a rebuild
+		// paints this exact snapshot synchronously (no empty-card flash)
+		// and only then re-syncs underneath.
+		lastSnapshot = state.snapshot;
+		lastSnapshotDate = state.snapshot.date ?? lastSnapshotDate;
+
 		totalTimeLabel.text = formatCompactDuration(state.snapshot.totalSeconds);
 		state.categorySummary = buildCategorySummary(state.snapshot.apps);
 
@@ -1438,6 +1449,14 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	// Pre-measuring moved into applyLayout (probes the row at the same scale
 	// the layout actually uses; a render-time probe captured mid-animation
 	// sizes at boot and inflated the band until the next pass).
+
+	// Rebuild continuity: when a theme/style change re-renders the card on
+	// the day it was already showing, paint the carried-over snapshot at
+	// once — the empty-card flash while the engine reloads is gone.
+	if (lastSnapshot && lastSnapshotDate === state.selectedDate) {
+		state.snapshot = lastSnapshot;
+		renderDynamic();
+	}
 
 	refreshData();
 }
