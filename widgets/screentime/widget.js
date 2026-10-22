@@ -827,6 +827,24 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 				ctx.closePath();
 				ctx.fill();
 			}
+
+			// An empty day shows the muted no-activity mark inside the plot —
+			// there is no zero-day content, but BOTH pages of the day cross
+			// then carry something visible to fly (the system monitor's page
+			// cross reads only because its pages are never empty).
+			if (hours.every(v => !v || v <= 0)) {
+				const text = _('No activity');
+				ctx.selectFontFace('Sans', 0, 0);
+				const fontSize = Math.max(10, Math.round(12 * s));
+				ctx.setFontSize(fontSize);
+				const ext = ctx.textExtents(text);
+				ctx.setSourceRGBA(r, g, b, 0.35);
+				ctx.moveTo(
+					Math.max(0, (canvasWidth - ext.width) / 2),
+					Math.max(fontSize, (canvasHeight - ext.height) / 2 + fontSize * 0.35),
+				);
+				ctx.showText(text);
+			}
 			ctx.$dispose();
 		};
 
@@ -954,7 +972,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	body.connect('destroy', cleanup);
 
 	function refreshData() {
-		if (isActorDestroyed(body) || !body.get_parent()) return;
+		if (!rootAlive || isActorDestroyed(body) || !body.get_parent()) return;
 		if (state.selectedDate === screenTimeEngine.getTodayDate()) {
 			state.snapshot = screenTimeEngine.getTodaySnapshot();
 			renderDynamic();
@@ -977,6 +995,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	}
 
 	function renderDynamic() {
+		if (!rootAlive) return;
 		if (!state.snapshot) return;
 
 		totalTimeLabel.text = formatCompactDuration(state.snapshot.totalSeconds);
@@ -1476,7 +1495,7 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	let relayouting = false;
 	let updateId = 0;
 	const update = () => {
-		if (disposed || relayouting) return;
+		if (disposed || !rootAlive || relayouting) return;
 		// A data change can require a re-layout (e.g. the app band's row count
 		// changed) even when the size did not — the dirty flag lets the
 		// rebuild request one through the size guard.
@@ -1525,6 +1544,16 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 			updateId = 0;
 		};
 	});
+	// REILLS keep the body alive — destroy_all_children() only kills our
+	// root — while the engine listener and every rebuild keep firing on
+	// root's now-orphanned actors. The body-anchored 'destroy' above NEVER
+	// fires on a refill, and the engine-tick → refreshData guard checked the
+	// still-living body: the old closures kept mutating disposed labels and
+	// canvases once per tick (the 'has been already disposed' flood in the
+	// journal). The root's own death is the only reliable full-stop.
+	let rootAlive = true;
+	root.connect('destroy', () => { rootAlive = false; });
+	root.connect('destroy', cleanup);
 	GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
 		if (!disposed) {
 			update();
