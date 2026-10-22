@@ -8,7 +8,7 @@ import GLib from 'gi://GLib';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
-import { attachBounce } from '../../lib/buttonBounce.js';
+import { attachBounce, bindHoverShrink } from '../../lib/buttonBounce.js';
 import { getDataDir, isActorDestroyed, loadJsonFromFileAsync, parseCssColor, saveJsonToFile, saveJsonToFileSync, cssColorToRgba } from '../../utils/ported.js';
 
 export const type = 'todo';
@@ -191,17 +191,32 @@ export function render({ body, widget, theme, sizeForWidget }) {
 
     const save = () => saveJsonToFile(todosFilePath, { tasks });
 
+    // The row being text-edited right now (St.Entry replaces the label).
+    let editingTask = null;
+    const setImmediateRowFocus = (entry) => {
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            entry.grab_key_focus();
+            return GLib.SOURCE_REMOVE;
+        });
+    };
+
     function buildTaskRow(task) {
         const fontSize = px(isMini ? TASK_TEXT_FONT_SIZE_MINI : TASK_TEXT_FONT_SIZE);
         const cSize = px(isMini ? CHECKBOX_SIZE_MINI : CHECKBOX_SIZE);
         const anim = animQueue.get(task) ?? null;
         if (anim) animQueue.delete(task);
 
+        const editing = editingTask === task;
+
         const row = new St.BoxLayout({
             orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
+            reactive: true,
             style: rowBg + ` border-radius: ${px(TASK_ROW_RADIUS)}px; padding: ${px(TASK_ROW_PADDING_V)}px ${px(TASK_ROW_PADDING_H)}px; spacing: ${px(10)}px;`,
         });
+        // Hover feedback like the buttons: the row shrinks a touch on both
+        // axes and springs back on leave.
+        bindHoverShrink(row);
 
         const checkbox = new St.Button({
             reactive: true,
@@ -238,7 +253,7 @@ export function render({ body, widget, theme, sizeForWidget }) {
         textLabel.clutter_text.set_markup(labelText);
         textLabel.opacity = task.done ? 128 : 255;
 
-        checkbox.connect('clicked', () => {
+        const toggleTask = () => {
             if (isActorDestroyed(body)) return;
             // Transition plays on the rebuilt row: this one is destroyed in
             // the same frame, animations started here would never run.
@@ -246,7 +261,82 @@ export function render({ body, widget, theme, sizeForWidget }) {
             task.done = !task.done;
             save();
             renderTasks();
+        };
+
+        checkbox.connect('clicked', toggleTask);
+        // Clicking anywhere on the row toggles the task too — the checkbox
+        // and the buttons swallow their own clicks first (EVENT_STOP), so
+        // they never double-fire through the row.
+        row.connect('button-release-event', (_actor, event) => {
+            if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+            toggleTask();
+            return Clutter.EVENT_STOP;
         });
+
+        // Pencil: hover-revealed; opens the inline text editor.
+        const editButton = new St.Button({
+            child: new St.Icon({
+                icon_name: 'document-edit-symbolic',
+                icon_size: px(isMini ? 14 : 15),
+            }),
+            reactive: true,
+            can_focus: true,
+            style: 'opacity: 0;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        attachBounce(editButton);
+        row.connect('enter-event', () => {
+            if (!editing) editButton.opacity = 255;
+            return Clutter.EVENT_PROPAGATE;
+        });
+        row.connect('leave-event', () => {
+            if (!editing) editButton.opacity = 0;
+            return Clutter.EVENT_PROPAGATE;
+        });
+        editButton.connect('clicked', () => {
+            if (isActorDestroyed(body)) return;
+            editingTask = task;
+            renderTasks();
+            return Clutter.EVENT_STOP;
+        });
+
+        let rowContent = textLabel;
+        if (editing) {
+            const taskEntry = new St.Entry({
+                text: String(task.text || ''),
+                can_focus: true,
+                x_expand: true,
+                y_align: Clutter.ActorAlign.CENTER,
+                style: `font-size: ${fontSize}px; color: ${textColor}; `
+                    + `background-color: ${cssColorToRgba(textColor, 0.08)}; `
+                    + `border-radius: ${px(8)}px; padding: ${px(4)}px ${px(8)}px;`,
+            });
+            taskEntry.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+            const finishEdit = (accept) => {
+                if (isActorDestroyed(body)) return;
+                const value = String(taskEntry.text || '').trim();
+                if (accept && value) {
+                    task.text = value;
+                    save();
+                }
+                editingTask = null;
+                renderTasks();
+            };
+            taskEntry.clutter_text.connect('activate', () => finishEdit(true));
+            taskEntry.connect('key-press-event', (_actor, event) => {
+                if (event.get_key_symbol() === Clutter.KEY_Escape) {
+                    finishEdit(false);
+                    return Clutter.EVENT_STOP;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
+            taskEntry.connect('key-focus-out', () => {
+                if (editingTask === task)
+                    finishEdit(false);
+            });
+            setImmediateRowFocus(taskEntry);
+            rowContent = taskEntry;
+        }
 
         const deleteButton = new St.Button({
             child: new St.Icon({
@@ -269,7 +359,8 @@ export function render({ body, widget, theme, sizeForWidget }) {
         });
 
         row.add_child(checkbox);
-        row.add_child(textLabel);
+        row.add_child(rowContent);
+        row.add_child(editButton);
         row.add_child(deleteButton);
         // Press feedback on the checkbox and the delete (trash) button.
         attachBounce(checkbox);
