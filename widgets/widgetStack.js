@@ -7,11 +7,13 @@
 // translation_y, EASE_OUT_CUBIC over 500 ms, nothing fades, nothing
 // overlaps, and crossBusy serializes the flights.
 //
-// The drag lives on a bottom rail (a thin strip pinned to the pane's very
-// bottom edge): dragging UP on it opens the page below (the content
-// follows the finger), dragging DOWN walks back toward page 0 — on page 0
-// a downward drag has no page above, so nothing happens, per the feature
-// spec. Stacked pages are fully interactive: their content is rendered by
+// The drag lives on the bottom rail AND the top rail (thin strips pinned
+// to the pane's edges): dragging UP on the bottom rail opens the page
+// below, dragging DOWN walks back toward page 0; the top rail mirrors it
+// — dragging DOWN there reveals the previous page from above, dragging UP
+// pushes toward the next one. Small ▲/▼ buttons on the right edge are the
+// button-based second way (both options per the feature spec). Stacked
+// pages are fully interactive: their content is rendered by
 // the very same fill path as primary widgets and stays mounted across
 // flights; only the active page is visibly in the slot.
 
@@ -27,7 +29,7 @@ const SWIPE_THRESHOLD = 36;
 const ANIMATION_DURATION = 250;
 const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2); // 500ms
 
-const RAIL_HEIGHT = 40;  // Тимчасово збільшено для діагностики (було 20)
+const RAIL_HEIGHT = 24;  // Per-edge swipe zones (top AND bottom rails).
 
 function newPageKey() {
 	return Math.random().toString(36).slice(2, 9);
@@ -342,92 +344,162 @@ export function attachWidgetStack({
 		console.log(`[debug] stack cross ${widget.type} -> page ${active}/${pages.length - 1}`);
 	};
 
-	// ── The bottom rail: a spatial zone for the vertical drags ───────────
-	// The rail is paneRoot-level, so it serves every page id. It must be
-	// NON-reactive in edit mode so panel/gallery overlays catch clicks.
+	// ── Rails: swipe zones at BOTH edges ─────────────────────────────────
+	// The bottom rail keeps the original gesture: dragging UP opens the
+	// page below (content follows the finger), dragging DOWN walks back
+	// toward page 0 — on page 0 a downward drag has no page above, so
+	// nothing happens. The top rail mirrors it spatially: dragging DOWN
+	// reveals the previous page from above, dragging UP pushes toward the
+	// next one — so pages added above AND below are reachable by dragging
+	// at either edge. Rails are paneRoot-level, so they serve every page
+	// id. They must be NON-reactive in edit mode so panel/gallery overlays
+	// catch clicks.
 	const railReactive = !isEditMode();
-	console.log(`[debug] rail created reactive=${railReactive} editMode=${isEditMode()} pageW=${pageW} pageH=${pageH} y=${Math.max(0, pageH - RAIL_HEIGHT)}`);
-	const rail = new St.Widget({
-		reactive: railReactive,
-		x: 0,
-		y: Math.max(0, pageH - RAIL_HEIGHT),
-		width: pageW,
-		height: RAIL_HEIGHT,
-		opacity: 0,
-	});
-	paneRoot.add_child(rail);
-	console.log(`[debug] rail added to paneRoot, total children: ${paneRoot.get_n_children()}`);
+	console.log(`[debug] rails created reactive=${railReactive} editMode=${isEditMode()} pageW=${pageW} pageH=${pageH}`);
 
-	// Update rail reactivity when edit mode toggles: panel buttons need
-	// to catch clicks, and the rail must yield to them.
-	const updateRailReactive = () => {
-		if (!rail.is_finalized?.()) {
-			const wasReactive = rail.reactive;
-			rail.reactive = !isEditMode();
-			console.log(`[debug] rail reactive: ${wasReactive} → ${rail.reactive} (editMode=${isEditMode()})`);
-		};
+	const makeRail = (edge) => {
+		const rail = new St.Widget({
+			reactive: railReactive,
+			x: 0,
+			y: edge === 'bottom' ? Math.max(0, pageH - RAIL_HEIGHT) : 0,
+			width: pageW,
+			height: RAIL_HEIGHT,
+			opacity: 0,
+		});
+
+		let dragStartY = null;
+
+		rail.connect('button-press-event', (_actor, event) => {
+			if (crossBusy) {
+				return Clutter.EVENT_PROPAGATE;
+			};
+			const [stageX, stageY] = event.get_coords();
+			if (!Number.isFinite(stageY)) {
+				return Clutter.EVENT_PROPAGATE;
+			};
+			dragStartY = stageY;
+			return Clutter.EVENT_STOP;
+		});
+
+		rail.connect('button-release-event', (_actor, event) => {
+			if (dragStartY === null) {
+				return Clutter.EVENT_PROPAGATE;
+			};
+			const startY = dragStartY;
+			dragStartY = null;
+
+			const [stageX, stageY] = event.get_coords();
+			if (!Number.isFinite(stageY)) {
+				return Clutter.EVENT_STOP;
+			};
+
+			const delta = stageY - startY;
+			if (Math.abs(delta) <= SWIPE_THRESHOLD) {
+				return Clutter.EVENT_STOP;
+			};
+
+			// Content follows the finger. Bottom rail: UP (delta < 0) opens
+			// the page below, DOWN walks back. Top rail mirrors it: DOWN
+			// reveals the previous page from above, UP pushes toward the
+			// next one — the mirrored («навпаки») gesture.
+			const target = edge === 'bottom'
+				? active + (delta < 0 ? 1 : -1)
+				: active + (delta > 0 ? -1 : 1);
+
+			if (target >= 0 && target < pages.length) {
+				crossTo(target);
+			};
+			return Clutter.EVENT_STOP;
+		});
+
+		paneRoot.add_child(rail);
+		return rail;
 	};
 
-	let dragStartY = null;
+	const bottomRail = makeRail('bottom');
+	const topRail = makeRail('top');
+	const rails = [bottomRail, topRail];
 
-	rail.connect('button-press-event', (_actor, event) => {
-		const btn = event.get_button();
-		console.log(`[debug] rail PRESS button=${btn} crossBusy=${crossBusy} reactive=${rail.reactive}`);
-		if (crossBusy) {
-			return Clutter.EVENT_PROPAGATE;
-		};
-		// ТИМЧАСОВО: дозволяємо будь-яку кнопку (1=ліва, 2=середня, 3=права)
-		const [stageX, stageY] = event.get_coords();
-		if (!Number.isFinite(stageY)) {
-			return Clutter.EVENT_PROPAGATE;
-		};
-		dragStartY = stageY;
-		console.log(`[debug] rail drag started at Y=${stageY} with button=${btn}`);
-		return Clutter.EVENT_STOP;
-	});
-
-	rail.connect('button-release-event', (_actor, event) => {
-		console.log(`[debug] rail RELEASE dragStartY=${dragStartY}`);
-		if (dragStartY === null) {
-			return Clutter.EVENT_PROPAGATE;
-		};
-		const [stageX, stageY] = event.get_coords();
-		const startY = dragStartY;
-		dragStartY = null;
-
-		if (!Number.isFinite(stageY)) {
+	// ── Flip buttons: the second way to change pages ──────────────────────
+	// ▲ steps back (the page above comes down), ▼ flips forward. Pinned
+	// just inside the right edge, vertically centered, dim until hovered.
+	// Visible (and reactive) only OUTSIDE edit mode — in edit mode the
+	// whole widget is a drag handle, and the pages panel already edits.
+	const flipControls = new St.BoxLayout(boxLayoutProps({
+		vertical: true,
+		style: 'spacing: 2px;',
+	}));
+	const makeFlipButton = (icon, dir) => {
+		const button = new St.Button({
+			child: new St.Icon({icon_name: icon, icon_size: 12,
+				x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER}),
+			width: 22,
+			height: 22,
+			style: `border-radius: 11px; padding: 0;`
+				+ ` background-color: rgba(128,128,128,0.25);`
+				+ ` color: ${theme.text};`,
+			reactive: true,
+			can_focus: true,
+			track_hover: true,
+			opacity: 200,
+		});
+		button.connect('notify::hover', () => {
+			if (!button.is_finalized?.()) {
+				button.opacity = button.hover ? 255 : 200;
+			};
+		});
+		let armed = false;
+		button.connect('button-press-event', () => {
+			armed = true;
 			return Clutter.EVENT_STOP;
-		};
-
-		const delta = stageY - startY;
-		console.log(`[debug] rail drag: startY=${startY.toFixed(1)} endY=${stageY.toFixed(1)} delta=${delta.toFixed(1)} (${delta < 0 ? 'UP' : 'DOWN'}) active=${active}/${pages.length - 1}`);
-		if (Math.abs(delta) <= SWIPE_THRESHOLD) {
-			console.log(`[debug] rail drag too small (threshold=${SWIPE_THRESHOLD})`);
+		});
+		button.connect('button-release-event', (_actor, event) => {
+			const hit = armed && event.get_button() === 1;
+			armed = false;
+			if (hit && !crossBusy) {
+				crossTo(active + dir);
+			};
 			return Clutter.EVENT_STOP;
-		};
+		});
+		return button;
+	};
+	flipControls.add_child(makeFlipButton('pan-up-symbolic', -1));
+	flipControls.add_child(makeFlipButton('pan-down-symbolic', 1));
+	paneRoot.add_child(flipControls);
+	flipControls.set_position(pageW - 30, Math.max(4, Math.round(pageH / 2 - 26)));
+	flipControls.visible = railReactive;
 
-		// Content follows the finger: an upward drag (delta < 0) reveals
-		// the page below; downward walks back toward page 0. On page 0 a
-		// downward drag targets nothing and does nothing.
-		const target = active + (delta < 0 ? 1 : -1);
-		console.log(`[debug] rail drag: attempt crossTo(${target}) from active=${active}, pages=${pages.length}`);
-		
-		// Bounds check: only cross if target is valid
-		if (target >= 0 && target < pages.length) {
-			crossTo(target);
-		} else {
-			console.log(`[debug] rail drag: target ${target} out of bounds [0..${pages.length - 1}]`);
+	// Update rail reactivity when edit mode toggles: panel buttons need
+	// to catch clicks, the rails must yield to them, and the flip buttons
+	// hide for the same reason.
+	const updateRailReactive = () => {
+		if (rails.some(rail => rail.is_finalized?.())) {
+			return;
 		};
-		return Clutter.EVENT_STOP;
-	});
+		const reactive = !isEditMode();
+		const wasReactive = bottomRail.reactive;
+		for (const rail of rails) {
+			rail.reactive = reactive;
+		};
+		if (!flipControls.is_finalized?.()) {
+			flipControls.visible = reactive;
+		};
+		console.log(`[debug] rail reactive: ${wasReactive} → ${reactive} (editMode=${isEditMode()})`);
+	};
 
 	return {
 		// Full teardown on re-fill: the fill path destroys the body children
-		// of the base page; added pages and the rail die with the attach.
+		// of the base page; added pages, the rails and the flip buttons die
+		// with the attach.
 		dispose() {
 			disposed = true;
-			rail.remove_all_transitions();
-			rail.destroy();
+			for (const rail of rails) {
+				rail.remove_all_transitions();
+				rail.destroy();
+			};
+			if (flipControls && !flipControls.is_finalized?.()) {
+				flipControls.destroy();
+			};
 			for (let i = 1; i < pages.length; i += 1) {
 				const {actor} = pages[i];
 				if (!actor.is_finalized?.()) {

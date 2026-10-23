@@ -2353,6 +2353,28 @@ class WidgetController {
     this._safeFillWidgetBody(widget, body);
   };
 
+  // Coalesces a burst of geometry-triggering signals into ONE glass sync.
+  // A drag move fires notify::x/y (and sometimes width/allocation) per
+  // pointer event; each used to run a full LiquidGlass sweep — uniforms,
+  // wallpaper reposition and a queue_repaint — for the wrapper pane AND
+  // every stacked page pane. Flushing once per main-loop iteration caps
+  // that at one repaint per frame regardless of pointer-event rate.
+  _queueGlassGeometrySync(view) {
+    if (view._glassSyncQueued) {
+      return;
+    };
+    view._glassSyncQueued = true;
+    GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      view._glassSyncQueued = false;
+      if (!this._views.has(view.widget.id) || isActorDestroyed(view.actor)) {
+        return GLib.SOURCE_REMOVE;
+      };
+      this._updateGlassGeometryForView(view);
+      this._updateStackGlassGeometry(view);
+      return GLib.SOURCE_REMOVE;
+    });
+  };
+
   _updateGlassGeometryForView(view) {
     if (!view.glass || !view.actor) return;
 
@@ -2503,16 +2525,25 @@ class WidgetController {
     this._updateGlassGeometryForView(view);
 
     // Stacked pages hang inside the wrapper: when the wrapper moves or is
-    // re-laid-out, their glass wallpaper panes must re-align with it.
-    wrapper.connect('notify::x', () => this._updateStackGlassGeometry(view));
-    wrapper.connect('notify::y', () => this._updateStackGlassGeometry(view));
-    wrapper.connect('notify::allocation', () => this._updateStackGlassGeometry(view));
+    // re-laid-out, their glass wallpaper panes must re-align with it. The
+    // x/y signals fire per pointer event during a drag; each of them used
+    // to run a FULL liquid-glass sync (uniforms + wallpaper reposition +
+    // repaint) for the wrapper pane and every stacked page pane — on a
+    // stacked widget that is 3–4 blur repaints per motion event, which is
+    // exactly what made stacked widgets stutter while being dragged. The
+    // queue coalesces such bursts into one pass per main-loop iteration.
+    wrapper.connect('notify::x', () => this._queueGlassGeometrySync(view));
+    wrapper.connect('notify::y', () => this._queueGlassGeometrySync(view));
+    wrapper.connect('notify::allocation', () => {
+      this._updateGlassGeometryForView(view);
+      this._updateStackGlassGeometry(view);
+    });
 
-    wrapper.connect('notify::x', () => this._updateGlassGeometryForView(view));
-    wrapper.connect('notify::y', () => this._updateGlassGeometryForView(view));
-    wrapper.connect('notify::width', () => this._updateGlassGeometryForView(view));
-    wrapper.connect('notify::height', () => this._updateGlassGeometryForView(view));
-    wrapper.connect('notify::allocation', () => this._updateGlassGeometryForView(view));
+    wrapper.connect('notify::x', () => this._queueGlassGeometrySync(view));
+    wrapper.connect('notify::y', () => this._queueGlassGeometrySync(view));
+    wrapper.connect('notify::width', () => this._queueGlassGeometrySync(view));
+    wrapper.connect('notify::height', () => this._queueGlassGeometrySync(view));
+    wrapper.connect('notify::allocation', () => this._queueGlassGeometrySync(view));
 
     // Pointer tracking for specular highlights (reads view.glass late, so it
     // is safe while the pane is being added or removed).
@@ -3493,11 +3524,6 @@ sizeButton.connectObject('destroy', () => {
   // Pages added via the top «+» show ABOVE the current widget, via the
   // bottom one — BELOW (the panel is one centered column, no side lists).
   _createStackPageTile(entry, view, theme, tileW, tileH) {
-    const gap = this._widgetGap ?? WIDGET_GAP;
-    const sizes = widgetSizesFor(gap);
-    const [entryW, entryH] = sizes[entry.size || view.widget.size] ?? sizes.small;
-    const scale = Math.min(tileW / entryW, tileH / entryH, 1) * 0.92;
-
     const tile = new St.Widget({
       layout_manager: new Clutter.FixedLayout(),
       width: tileW,
@@ -3509,50 +3535,20 @@ sizeButton.connectObject('destroy', () => {
       clip_to_allocation: true,
     });
 
-    const stub = {
-      id: `preview-panel-entry-${entry.key}`,
-      type: entry.type,
-      size: entry.size || view.widget.size,
-      data: entry.data || {},
-      pinned: true,
+    // SVG display instead of the live render (matching the gallery cards):
+    // the widget's icon file inside icons/widgets/, centered on the tile.
+    const iconSize = Math.round(Math.min(tileW, tileH) * 0.55);
+    const svgIcon = this._stackWidgetSvgIcon(entry.type, iconSize);
+
+    if (svgIcon) {
+      svgIcon.set_position(Math.round((tileW - iconSize) / 2), Math.round((tileH - iconSize) / 2));
+      tile.add_child(svgIcon);
+    } else {
+      const fallback = this._label(WIDGET_TYPE_LABELS[entry.type] ?? entry.type, 'widget-text',
+        `font-size: 15px; font-weight: 600; color: ${theme.muted};`);
+      fallback.set_position(Math.round((tileW - 180) / 2), Math.round(tileH / 2 - 10));
+      tile.add_child(fallback);
     };
-
-    const surface = new St.BoxLayout(boxLayoutProps({
-      vertical: true,
-      style_class: `widget widget-${stub.type} widget-${stub.type}-${stub.size ?? 'default'}`,
-      style: `${this._styleForWidget(stub) ?? ''} background-color: ${theme.background};`,
-      width: entryW,
-      height: entryH,
-      clip_to_allocation: true,
-    }));
-
-    const body = new St.BoxLayout(boxLayoutProps({
-      vertical: true,
-      style_class: 'widget-body',
-      x_expand: true,
-      y_expand: true,
-    }));
-    surface.add_child(body);
-
-    // Heavy module draws wait for mapping — an unmapped preview must not
-    // spend its one fill.
-    let rendered = false;
-    surface.connectObject('notify::mapped', () => {
-      if (rendered || !surface.mapped) return;
-      rendered = true;
-      try {
-        this._fillWidgetBody(stub, body, surface);
-      } catch (error) {
-        console.error(`[debug] page tile preview failed: ${error.message}`);
-      };
-    }, surface);
-
-    surface.set_scale(scale, scale);
-    surface.set_position(
-      Math.round((tileW - entryW * scale) / 2),
-      Math.round((tileH - entryH * scale) / 2),
-    );
-    tile.add_child(surface);
 
     // ✕ deletes the page (found by the stable per-entry key).
     const delButton = new St.Button({
@@ -3717,12 +3713,8 @@ sizeButton.connectObject('destroy', () => {
       flow.add_child(this._createStackPageTile(entry, view, theme, tileW, tileH));
     };
 
-    // THE current widget — same tile size as the added pages.
-    const gap = this._widgetGap ?? WIDGET_GAP;
-    const sizes = widgetSizesFor(gap);
-    const [widgetW, widgetH] = sizes[view.widget.size] ?? sizes.small;
-    const previewScale = Math.min(tileW / widgetW, tileH / widgetH, 1) * 0.92;
-
+    // THE current widget — same tile size as the added pages. SVG display
+    // (matching the page tiles and the gallery) instead of a live render.
     const currentTile = new St.Widget({
       layout_manager: new Clutter.FixedLayout(),
       width: tileW,
@@ -3734,50 +3726,18 @@ sizeButton.connectObject('destroy', () => {
       clip_to_allocation: true,
     });
 
-    const previewStub = {
-      id: `preview-panel-${view.widget.id}`,
-      type: view.widget.type,
-      size: view.widget.size,
-      data: view.widget.data,
-      pinned: true,
+    const iconSize = Math.round(Math.min(tileW, tileH) * 0.55);
+    const svgIcon = this._stackWidgetSvgIcon(view.widget.type, iconSize);
+
+    if (svgIcon) {
+      svgIcon.set_position(Math.round((tileW - iconSize) / 2), Math.round((tileH - iconSize) / 2));
+      currentTile.add_child(svgIcon);
+    } else {
+      const fallback = this._label(WIDGET_TYPE_LABELS[view.widget.type] ?? view.widget.type, 'widget-text',
+        `font-size: 15px; font-weight: 600; color: ${theme.muted};`);
+      fallback.set_position(Math.round((tileW - 180) / 2), Math.round(tileH / 2 - 10));
+      currentTile.add_child(fallback);
     };
-
-    const previewSurface = new St.BoxLayout(boxLayoutProps({
-      vertical: true,
-      style_class: `widget widget-${previewStub.type} widget-${previewStub.type}-${previewStub.size ?? 'default'}`,
-      style: `${this._styleForWidget(previewStub) ?? ''}`
-        + ` background-color: ${theme.background};`,
-      width: widgetW,
-      height: widgetH,
-      clip_to_allocation: true,
-    }));
-
-    const previewBody = new St.BoxLayout(boxLayoutProps({
-      vertical: true,
-      style_class: 'widget-body',
-      x_expand: true,
-      y_expand: true,
-    }));
-    previewSurface.add_child(previewBody);
-
-    let previewRendered = false;
-    previewSurface.connectObject('notify::mapped', () => {
-      if (previewRendered || !previewSurface.mapped) return;
-      previewRendered = true;
-      try {
-        this._fillWidgetBody(previewStub, previewBody, previewSurface);
-        console.log(`[debug] panel preview rendered ${previewStub.type}`);
-      } catch (error) {
-        console.error(`[debug] panel preview failed: ${error.message}`);
-      };
-    }, previewSurface);
-
-    previewSurface.set_scale(previewScale, previewScale);
-    previewSurface.set_position(
-      Math.round((tileW - widgetW * previewScale) / 2),
-      Math.round((tileH - widgetH * previewScale) / 2),
-    );
-    currentTile.add_child(previewSurface);
     flow.add_child(currentTile);
 
     // Pages staged BELOW the current one
@@ -3814,9 +3774,9 @@ sizeButton.connectObject('destroy', () => {
 
     card.add_child(flow);
 
-    // What swiping does once the panel is closed
+    // What flipping does once the panel is closed
     card.add_child(this._label(
-      _('Swipe UP on bottom edge to flip forward, DOWN to go back.'),
+      _('Flip pages: drag UP at the bottom edge or DOWN at the top edge — or use the ▲▼ buttons on the right.'),
       'widget-text',
       `color: ${theme.muted}; font-size: 11px;`,
     ));
@@ -4120,7 +4080,11 @@ sizeButton.connectObject('destroy', () => {
     card.add_child(scroll);
 
     const records = this._stackGalleryCatalog(view.widget);
-    const columns = Math.max(1, Math.floor((cardW - 60) / (430 + 16)));
+    // Cards share the grid width evenly, so the row uses the full card
+    // width with no dead space on the right (was fixed 430px columns).
+    const MIN_CARD_W = 360;
+    const columns = Math.max(1, Math.min(3, Math.floor((cardW - 48 + 16) / (MIN_CARD_W + 16))));
+    const colW = Math.floor((cardW - 48 - 16 * (columns - 1)) / columns);
     let cards = [];
 
     const rebuildGrid = () => {
@@ -4150,15 +4114,15 @@ sizeButton.connectObject('destroy', () => {
       for (const record of matching) {
         const cardBox = new St.BoxLayout(boxLayoutProps({
           vertical: true,
-          width: 430,
+          width: colW,
           x_align: Clutter.ActorAlign.CENTER,
           style: 'spacing: 6px;',
         }));
 
-        const previewHeight = 170;
+        const previewHeight = 200;
         const previewBox = new St.Widget({
           layout_manager: new Clutter.FixedLayout(),
-          width: 430,
+          width: colW,
           height: previewHeight,
           x_align: Clutter.ActorAlign.CENTER,
           reactive: true,
@@ -4172,18 +4136,19 @@ sizeButton.connectObject('destroy', () => {
         let selectedSize = record.defaultSize;
 
         // SVG display instead of the live render: icons/widgets/<name>.svg
-        // centered inside the preview pane.
-        const iconSize = 112;
+        // centered inside the preview pane — scaled with the card width so
+        // wide cards show noticeably larger icons.
+        const iconSize = Math.max(120, Math.min(200, Math.round(colW * 0.38)));
         const svgIcon = this._stackWidgetSvgIcon(record.type, iconSize);
 
         if (svgIcon) {
-          svgIcon.set_position(Math.round((430 - iconSize) / 2),
+          svgIcon.set_position(Math.round((colW - iconSize) / 2),
             Math.round((previewHeight - iconSize) / 2));
           previewBox.add_child(svgIcon);
         } else {
           const fallback = this._label(record.label, 'widget-text',
             `font-size: 15px; font-weight: 600; color: ${theme.muted};`);
-          fallback.set_position(Math.round((430 - 200) / 2),
+          fallback.set_position(Math.round((colW - 200) / 2),
             Math.round((previewHeight - 20) / 2));
           previewBox.add_child(fallback);
         };
@@ -4219,13 +4184,13 @@ sizeButton.connectObject('destroy', () => {
         });
         cardBox.add_child(previewBox);
 
-        const titleRow = new St.BoxLayout(boxLayoutProps({width: 430, x_align: Clutter.ActorAlign.CENTER}));
+        const titleRow = new St.BoxLayout(boxLayoutProps({width: colW, x_align: Clutter.ActorAlign.CENTER}));
         titleRow.add_child(new St.Widget({x_expand: true}));
         titleRow.add_child(this._label(record.label, 'widget-text', `font-size: 14px; font-weight: 600; color: ${theme.text};`));
         titleRow.add_child(new St.Widget({x_expand: true}));
         cardBox.add_child(titleRow);
 
-        const chipsRow = new St.BoxLayout(boxLayoutProps({width: 430, x_align: Clutter.ActorAlign.CENTER, style: 'spacing: 4px;'}));
+        const chipsRow = new St.BoxLayout(boxLayoutProps({width: colW, x_align: Clutter.ActorAlign.CENTER, style: 'spacing: 4px;'}));
         chipsRow.add_child(new St.Widget({x_expand: true}));
         for (const sizeKey of record.sizes) {
           const chip = new St.Button({
