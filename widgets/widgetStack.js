@@ -360,12 +360,20 @@ export function attachWidgetStack({
 					return;
 				};
 				// The page left over goes to its idle slot (hidden), ready
-				// for the next flight in either direction.
+				// for the next flight in either direction. The idle position
+				// depends on the page's side: above pages sit above (negative
+				// translation), below pages sit below (positive translation),
+				// relative to the currently active page at translation_y=0.
 				const index = pages.indexOf(leaving);
-				leaving.actor.translation_y = (index - active) * baseDistance();
+				const leavingSide = leaving.entry?.side ?? 'below';
+				// Pages with side='above' have lower indices (sorted first);
+				// their idle position is ABOVE active (negative). Pages with
+				// side='below' have higher indices; idle position is BELOW.
+				const idleDir = leavingSide === 'above' ? -1 : 1;
+				leaving.actor.translation_y = idleDir * Math.abs(index - active) * baseDistance();
 				leaving.actor.visible = false;
 				updatePageGlassGeometry(leaving);
-				console.log(`[stack-cross] leaving animation complete, hidden at translation_y=${leaving.actor.translation_y}`);
+				console.log(`[stack-cross] leaving animation complete, hidden at translation_y=${leaving.actor.translation_y} (side=${leavingSide}, idleDir=${idleDir})`);
 			},
 		});
 		entering.actor.ease({

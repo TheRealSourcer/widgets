@@ -3266,17 +3266,23 @@ sizeButton.connectObject('destroy', () => {
         const isRelease = eventType === Clutter.EventType.BUTTON_RELEASE;
         const isKeyPress = eventType === Clutter.EventType.KEY_PRESS;
 
+        if (!isMotion) {
+          console.log(`[drag-event] type=${eventType} isRelease=${isRelease} isKeyPress=${isKeyPress}`);
+        }
+
         if (isMotion) {
           moveDrag(capturedEvent);
           return Clutter.EVENT_STOP;
         };
 
         if (isRelease) {
+          console.log(`[drag-event] calling finishDrag()`);
           finishDrag();
           return Clutter.EVENT_STOP;
         };
 
         if (isKeyPress && capturedEvent.get_key_symbol() === Clutter.KEY_Escape) {
+          console.log(`[drag-event] ESC pressed, canceling drag`);
           drag = null;
           widget.x = widget.oldX;
           widget.y = widget.oldY;
