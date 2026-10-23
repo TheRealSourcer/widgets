@@ -1003,6 +1003,7 @@ class WidgetController {
     for (const view of this._views.values()) {
       view.sizeMenu?.destroy();
       this._destroyContextMenu(view);
+      view.stackIndicator?.destroy();
       view.actor.disconnectObject(this);
     };
 
