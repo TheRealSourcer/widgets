@@ -2359,10 +2359,6 @@ class WidgetController {
   // wallpaper reposition and a queue_repaint — for the wrapper pane AND
   // every stacked page pane. Flushing once per main-loop iteration caps
   // that at one repaint per frame regardless of pointer-event rate.
-  // ADDITIONALLY: skip all updates while THIS view's widget is being
-  // dragged — glass wallpapers freeze mid-drag (acceptable visually),
-  // and refresh once on drag end → smooth dragging even for stacked
-  // widgets with multiple LiquidGlass panes.
   _queueGlassGeometrySync(view) {
     if (view._glassSyncQueued) {
       return;
@@ -2371,11 +2367,6 @@ class WidgetController {
     GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
       view._glassSyncQueued = false;
       if (!this._views.has(view.widget.id) || isActorDestroyed(view.actor)) {
-        return GLib.SOURCE_REMOVE;
-      };
-      // Skip all glass updates while THIS widget is being dragged (freeze
-      // wallpapers mid-drag → zero repaints per frame → smooth movement).
-      if (this._dragActor === view.actor) {
         return GLib.SOURCE_REMOVE;
       };
       this._updateGlassGeometryForView(view);
@@ -3178,9 +3169,6 @@ sizeButton.connectObject('destroy', () => {
       
       this._animateWidget(widget, true);
       this._cancelActiveDrag();
-      // After drag ends, refresh frozen glass panes (they were paused
-      // mid-drag to avoid per-frame repaints → smooth movement).
-      this._queueGlassGeometrySync(view);
       this._saveWidgets();
     };
 

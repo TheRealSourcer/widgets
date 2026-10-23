@@ -60,6 +60,17 @@ export function attachWidgetStack({
 		? widget.stack.filter(entry => entry && entry.type).slice(0, MAX_STACK_PAGES)
 		: [];
 
+	// Sort entries by side: 'above' pages first, then 'below' pages, so the
+	// pages array order matches the visual top-to-bottom stack layout (page
+	// indices increase downward). This makes crossTo's direction logic work:
+	// flipping from page 0 to page 1 should show the FIRST above page coming
+	// down from above, not a below page rising from below.
+	entries.sort((a, b) => {
+		const aSide = a.side === 'above' ? 0 : 1;
+		const bSide = b.side === 'above' ? 0 : 1;
+		return aSide - bSide;
+	});
+
 	// No stack — the widget stays a plain widget: no rail, nothing mounted.
 	if (entries.length === 0) {
 		return {dispose() {}, refresh() {}, restyle() {}, updateGlassGeometry() {}};
