@@ -571,7 +571,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		style: `border-radius: ${coverRadius}px; padding: 8px 12px;`,
 	}));
 
-	const badgeRow = new St.BoxLayout({x_expand: true});
+	const badgeRow = new St.BoxLayout(boxLayoutProps({x_expand: true}));
 	card._lyricsBadge = new St.Button({
 		child: new St.Icon({
 			gicon: controlIcon(theme, 'music', true), // Always active (white in dark theme)
