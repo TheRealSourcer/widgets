@@ -46,7 +46,7 @@ import * as StopwatchWidget from './widgets/stopwatch/widget.js';
 import * as FolderWidget from './widgets/folder/widget.js';
 import * as TimerWidget from './widgets/timer/widget.js';
 import { configureLogger, resetLogger, warn } from './logger.js';
-import { assetPath, EXTENSION_PATH } from './paths.js';
+import { assetPath } from './paths.js';
 import { isActorDestroyed } from './utils/actorLifecycle.js';
 import { LiquidGlass } from './lib/glass.js';
 // (The screen-time engine runs inside the screentime widget; extension.js no
