@@ -237,37 +237,3 @@
 .button.widget-gallery-size-chip-selected {
 	color: white;
 }
-
-/* ── Widget-pages picker modal (gallery tiles + panel rows) ─────────────── */
-.dw-stack-tile {
-	border-radius: 10px;
-	background-color: transparent;
-	border: 1px solid transparent;
-	transition: background-color 100ms ease-out, border-color 100ms ease-out;
-}
-
-.dw-stack-tile:hover {
-	background-color: rgba(128, 128, 128, 0.16);
-	border-color: rgba(128, 128, 128, 0.16);
-}
-
-.dw-stack-tile:active {
-	background-color: rgba(128, 128, 128, 0.26);
-}
-
-.dw-stack-chip {
-	border-radius: 9px;
-}
-
-.dw-stack-chip:hover {
-	filter: brightness(1.15);
-}
-
-.dw-stack-cat {
-	border-radius: 10px;
-	transition: background-color 100ms ease-out;
-}
-
-.dw-stack-cat:hover {
-	background-color: rgba(128, 128, 128, 0.12);
-}
