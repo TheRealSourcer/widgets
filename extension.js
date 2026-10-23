@@ -4725,14 +4725,17 @@ sizeButton.connectObject('destroy', () => {
 
 
   _fillWidgetBody(widget, body, paneRootOverride = null) {
+    console.log(`[FILL-BODY] Called: type=${widget.type} id=${widget.id} bodyExists=${!!body} paneRootOverride=${!!paneRootOverride}`);
     body.destroy_all_children();
     const widgetModule = WIDGETS.get(widget.type);
 
     if (!widgetModule?.render) {
+      console.log(`[FILL-BODY] No module or render: type=${widget.type}`);
       body.add_child(this._label(_('Unknown widget'), 'widget-text'));
       return;
     };
 
+    console.log(`[FILL-BODY] Calling module.render for type=${widget.type}`);
     widgetModule.render({
         body,
         widget,
@@ -4754,6 +4757,7 @@ sizeButton.connectObject('destroy', () => {
           this._suppressAppClickUntil = Date.now() + 400;
         },
       });
+    console.log(`[FILL-BODY] After render: type=${widget.type} bodyChildren=${body.get_n_children()}`);
 
 
     // Widget-in-widget: after the primary content is rendered (and its own
