@@ -20,6 +20,7 @@ import Clutter from 'gi://Clutter';
 
 import { boxLayoutProps } from '../utils/gnomeCompat.js';
 import { MAX_STACK_PAGES } from '../lib/widgetTypes.js';
+import { LiquidGlass } from '../lib/glass.js';
 
 // The same constants the music widget's cross uses (2x1 system monitor's).
 const SWIPE_THRESHOLD = 36;
@@ -44,6 +45,10 @@ export function attachWidgetStack({
 	baseActor,
 	widget,
 	theme,
+	styleForEntry = null,
+	wantsGlassEntry = null,
+	glassParams = null,
+	startPage = 0,
 	renderPage,
 	pageSizeFor = null,
 	isEditMode = () => false,
@@ -55,7 +60,7 @@ export function attachWidgetStack({
 
 	// No stack — the widget stays a plain widget: no rail, nothing mounted.
 	if (entries.length === 0) {
-		return {dispose() {}, refresh() {}};
+		return {dispose() {}, refresh() {}, restyle() {}, updateGlassGeometry() {}};
 	};
 
 	const pageW = Math.max(1, Math.floor(baseActor.get_width()) || 200);
@@ -64,7 +69,10 @@ export function attachWidgetStack({
 
 	let disposed = false;
 	let crossBusy = false;
-	let active = 0;
+	// A re-fill (theme change, glass switch, panel edit) rebuilds the prism;
+	// the caller passes the previously visible page back in startPage so a
+	// skin change does not visually flip the widget back to page 0.
+	let active = Math.max(0, startPage);
 
 	// ── Pages ────────────────────────────────────────────────────────────
 	// Page 0 is the widget's own styled box (never cloned, never moved).
@@ -75,6 +83,107 @@ export function attachWidgetStack({
 	paneRoot.set_clip(0, 0, pageW, pageH);
 	
 	const pages = [{actor: baseActor, entry: null}];
+
+	// Glass-follow helpers ────────────────────────────────────────────────
+	// A page's card style and glass pane are derived from the SAME style
+	// engine as primary widgets (styleForEntry / wantsGlassEntry callbacks),
+	// so a stacked page reacts to the Glass switch and to dark/light theme
+	// changes exactly like a standalone widget does.
+
+	// Stage rect of one page's card: the LiquidGlass pane needs the card's
+	// stage coordinates (and size) to align its wallpaper backdrop.
+	const updatePageGlassGeometry = (page) => {
+		const glass = page.glass;
+
+		if (!glass || glass.is_finalized?.()) {
+			return;
+		};
+
+		const card = page.cardActor;
+
+		if (!card || card.is_finalized?.()) {
+			return;
+		};
+
+		const [x, y] = card.get_transformed_position();
+		const [w, h] = card.get_size();
+
+		if (!Number.isFinite(x) || !Number.isFinite(y) || w <= 0 || h <= 0) {
+			return;
+		};
+
+		glass.setGeometry(x, y, w, h);
+	};
+
+	const attachPageGlass = (page) => {
+		// Photos carries its own paint (and skips glass on primaries too);
+		// wantsGlassEntry covers that plus the current style mode.
+		const want = wantsGlassEntry ? wantsGlassEntry(page.entry) : false;
+
+		if (want && !page.glass) {
+			const glass = new LiquidGlass();
+			const card = page.cardActor;
+			const [w, h] = card.get_size();
+
+			glass.set_size(w, h);
+			page.actor.insert_child_at_index(glass, 0);
+			page.glass = glass;
+
+			if (glassParams) {
+				glass.setParams(glassParams());
+			};
+
+			updatePageGlassGeometry(page);
+		} else if (!want && page.glass) {
+			const glass = page.glass;
+
+			page.glass = null;
+
+			if (!glass.is_finalized?.()) {
+				glass.destroy();
+			};
+		};
+
+		// A fresh pane may have been created before the first allocation.
+		if (page.glass) {
+			updatePageGlassGeometry(page);
+		};
+	};
+
+	const updateGlassGeometry = () => {
+		for (let i = 1; i < pages.length; i += 1) {
+			updatePageGlassGeometry(pages[i]);
+		};
+	};
+
+	// Live re-style without re-rendering: card style follows the theme /
+	// glass mode pipeline, and glass params follow slider changes. Used on
+	// appearance changes so pages keep pace with their host widget.
+	const restyle = () => {
+		for (let i = 1; i < pages.length; i += 1) {
+			const page = pages[i];
+
+			if (page.actor.is_finalized?.()) {
+				continue;
+			};
+
+			if (styleForEntry) {
+				const style = styleForEntry(page.entry);
+
+				if (style) {
+					page.cardActor.set_style(style);
+				};
+			};
+
+			attachPageGlass(page);
+
+			if (page.glass && glassParams) {
+				page.glass.setParams(glassParams());
+			};
+		};
+
+		updateGlassGeometry();
+	};
 
 	const buildPage = (entry) => {
 		// The page card may be smaller than the host's slot (a 1x1 page on
@@ -89,18 +198,22 @@ export function attachWidgetStack({
 			height: pageH,
 		});
 
-		// Stacked pages carry no glass backdrop (glass records key on the
-		// wrapper's widget id); force the solid skin so their content stays
-		// readable over the desktop no matter which style mode is on.
+		// A stacked page carries the SAME skin as its host widget: the card
+		// style is produced by the caller's styleForEntry pipeline, so the
+		// Glass switch and theme (dark/light) changes apply to added pages
+		// too. The legacy inline style below is only the fallback for callers
+		// that did not opt into the pipeline.
 		const cardSize = entry.size || widget.size || 'default';
 		const cardActor = new St.BoxLayout(boxLayoutProps({
 			vertical: true,
 			style_class: `widget widget-${entry.type} widget-${entry.type}-${cardSize}`,
-			style: `background-color: ${theme.background};`
-				+ ` border-style: solid;`
-				+ ` border-width: ${theme.borderWidth}px;`
-				+ ` border-color: ${theme.border};`
-				+ ` border-radius: ${theme.radius}px;`,
+			style: styleForEntry
+				? (styleForEntry(entry) ?? '')
+				: `background-color: ${theme.background};`
+					+ ` border-style: solid;`
+					+ ` border-width: ${theme.borderWidth}px;`
+					+ ` border-color: ${theme.border};`
+					+ ` border-radius: ${theme.radius}px;`,
 			reactive: true,
 			can_focus: true,
 			track_hover: true,
@@ -108,15 +221,6 @@ export function attachWidgetStack({
 		cardActor.set_size(cardW, cardH);
 		cardActor.set_position(Math.round((pageW - cardW) / 2), Math.round((pageH - cardH) / 2));
 		pageActor.add_child(cardActor);
-
-		const body = new St.BoxLayout(boxLayoutProps({
-			vertical: true,
-			style_class: 'widget-body',
-			x_expand: true,
-			y_expand: true,
-			clip_to_allocation: true,
-		}));
-		cardActor.add_child(body);
 
 		// The page record travels into the fill path whole — its data object
 		// is the entry's own slice, so module-side writes persist with the
@@ -131,6 +235,25 @@ export function attachWidgetStack({
 			pinned: true,
 		};
 
+		// Glass pane under the card (style mode = Glass): one LiquidGlass per
+		// page, matching the host widget's silhouette and parameters. The
+		// pane tracks the card's stage geometry (see updatePageGlassGeometry).
+		const page = {actor: pageActor, cardActor, record, entry, glass: null};
+		attachPageGlass(page);
+
+		// Realign the wallpaper pane when the page gets allocated (first map
+		// after attach) — before that, transformed coordinates may be stale.
+		pageActor.connectObject('notify::allocation', () => updatePageGlassGeometry(page), pageActor);
+
+		const body = new St.BoxLayout(boxLayoutProps({
+			vertical: true,
+			style_class: 'widget-body',
+			x_expand: true,
+			y_expand: true,
+			clip_to_allocation: true,
+		}));
+		cardActor.add_child(body);
+
 		try {
 			renderPage(record, body, cardActor);
 		} catch (error) {
@@ -139,7 +262,7 @@ export function attachWidgetStack({
 
 		paneRoot.add_child(pageActor);
 		pageActor.set_position(0, 0);
-		return {actor: pageActor, cardActor, record, entry};
+		return page;
 	};
 
 	for (const entry of entries) {
@@ -147,6 +270,10 @@ export function attachWidgetStack({
 	};
 
 	const placeIdle = () => {
+		// startPage may outnumber the built pages (a sibling was deleted
+		// before a refill); clamp before the first placement.
+		active = Math.min(active, pages.length - 1);
+
 		for (let i = 1; i < pages.length; i += 1) {
 			const {actor} = pages[i];
 			// Translation is valid before visible (sysmon precondition) and
@@ -154,6 +281,9 @@ export function attachWidgetStack({
 			actor.translation_y = (i - active) * baseDistance();
 			actor.visible = i === active;
 		};
+
+		// The slot moved pages around; the glass wallpaper panes must re-align.
+		updateGlassGeometry();
 	};
 	placeIdle();
 
@@ -177,6 +307,12 @@ export function attachWidgetStack({
 
 		crossBusy = true;
 
+		// Glass panes sample the wallpaper from stored stage rects; snap them
+		// to the pre-flight positions so the blur is at least correct for the
+		// whole flight.
+		updatePageGlassGeometry(entering);
+		updatePageGlassGeometry(leaving);
+
 		leaving.actor.ease({
 			translation_y: -dir * baseDistance(),
 			duration: CROSS_DURATION,
@@ -190,6 +326,7 @@ export function attachWidgetStack({
 				const index = pages.indexOf(leaving);
 				leaving.actor.translation_y = (index - active) * baseDistance();
 				leaving.actor.visible = false;
+				updatePageGlassGeometry(leaving);
 			},
 		});
 		entering.actor.ease({
@@ -198,6 +335,7 @@ export function attachWidgetStack({
 			mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
 			onComplete: () => {
 				crossBusy = false;
+				updatePageGlassGeometry(entering);
 			},
 		});
 
@@ -308,5 +446,19 @@ export function attachWidgetStack({
 		refresh() {
 			updateRailReactive();
 		},
+
+		// Keeps added pages in step with the host's skin: the card style and
+		// glass panes are re-derived from the caller's callbacks (theme and
+		// style mode) without re-rendering the page content.
+		restyle,
+
+		// The currently visible page index (0 = primary); the next attach
+		// uses it as startPage so refills do not flip back to page 0.
+		getActivePage() {
+			return active;
+		},
+
+		// Re-aligns every page's glass backdrop with its card's stage rect.
+		updateGlassGeometry,
 	};
 };
