@@ -1,40 +1,159 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
-import PangoCairo from 'gi://PangoCairo';
 import St from 'gi://St';
-import {surfaceStyle, watchSettings} from '../../utils/widget.js';
-import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+import {surfaceStyle} from '../../utils/widget.js';
 
 export const type = 'digitalclock';
 export const label = 'Digital Clock';
 export const stylesheet = 'widgets/digitalclock/stylesheet.css';
-export const appIds = ['org.gnome.clocks.desktop'];
 export const defaultSize = 'small';
+export const appIds = ['org.gnome.clocks.desktop'];
 export const supportedSizes = ['small', 'medium', 'large'];
 
-const CORNER_RADIUS = 16;
+const TICK_INSET = 3;
+const TICK_LENGTH = 7;
+const TICK_LINE_WIDTH = 2.5;
 
-function pad(value) {
-	return String(value).padStart(2, '0');
-};
+const HybridClockFace = GObject.registerClass(
+    class HybridClockFace extends St.DrawingArea {
+        _init(theme) {
+            super._init({
+                x_expand: true,
+                y_expand: true,
+                x_align: Clutter.ActorAlign.FILL,
+                y_align: Clutter.ActorAlign.FILL,
+            });
 
-function clamp(value, min, max) {
-	return Math.max(min, Math.min(max, value));
-};
+            this._dark = theme?.dark ?? false;
+            this._textColor = this._dark ? [1, 1, 1] : [0.12, 0.11, 0.16];
 
-function colorFromHex(hex, fallback) {
-	const match = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+            this._repaintTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                if (!this.get_parent()) {
+                    this._repaintTimeoutId = 0;
+                    return GLib.SOURCE_REMOVE;
+                }
+                this.queue_repaint();
+                return GLib.SOURCE_CONTINUE;
+            });
 
-	if (!match) return fallback;
+            this.connect('destroy', this._onDestroy.bind(this));
+        }
 
-	const value = Number.parseInt(match[1], 16);
+        _onDestroy() {
+            if (this._repaintTimeoutId) {
+                GLib.Source.remove(this._repaintTimeoutId);
+                this._repaintTimeoutId = 0;
+            }
+        }
 
-	return [
-		((value >> 16) & 0xff) / 255,
-		((value >> 8) & 0xff) / 255,
-		(value & 0xff) / 255,
-	];
+        vfunc_repaint() {
+            const cr = this.get_context();
+            const [width, height] = this.get_surface_size();
+
+            if (width <= 0 || height <= 0) {
+                cr.$dispose();
+                return;
+            }
+
+            const seconds = new Date().getSeconds();
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const [r, g, b] = this._textColor;
+
+            // Tidak ada fill background di sini; background dan border
+            // sepenuhnya diatur oleh CSS dari style().
+            const halfW = width / 2 - TICK_INSET;
+            const halfH = height / 2 - TICK_INSET;
+
+            cr.setLineCap(1);
+            cr.setLineWidth(TICK_LINE_WIDTH);
+
+            for (let tick = 0; tick < 60; tick++) {
+                const angle = (tick / 60) * Math.PI * 2 - Math.PI / 2;
+                const dx = Math.cos(angle);
+                const dy = Math.sin(angle);
+
+                // Titik di tepi kotak persegi panjang (bukan lingkaran)
+                const scale = 1.0 / Math.max(Math.abs(dx), Math.abs(dy));
+                const outerX = centerX + dx * halfW * scale;
+                const outerY = centerY + dy * halfH * scale;
+                const innerX = centerX + dx * (halfW * scale - TICK_LENGTH);
+                const innerY = centerY + dy * (halfH * scale - TICK_LENGTH);
+
+                cr.moveTo(innerX, innerY);
+                cr.lineTo(outerX, outerY);
+
+                const alpha = tick <= seconds ? 0.95 : 0.2;
+                cr.setSourceRGBA(r, g, b, alpha);
+                cr.stroke();
+            }
+
+            cr.$dispose();
+        }
+    }
+);
+
+export function style(theme) {
+    return surfaceStyle(theme);
+}
+
+export function render({body, theme}) {
+    const container = new St.Widget({
+        x_expand: true,
+        y_expand: true,
+        clip_to_allocation: true,
+        layout_manager: new Clutter.BinLayout(),
+    });
+
+    const clockFace = new HybridClockFace(theme);
+
+    const timeLabel = new St.Label({
+        style_class: 'hybrid-digital-time',
+        style: `color: ${theme?.text ?? '#241f31'};`,
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
+        x_expand: true,
+        y_expand: true,
+    });
+
+    // Fungsi untuk menyesuaikan ukuran font secara dinamis berdasarkan lebar/tinggi kotak
+    const updateFontSize = () => {
+        const [width, height] = container.get_transformed_size();
+        if (width > 0 && height > 0) {
+            // Skala proporsional (misalnya 35% dari dimensi terkecil kotak)
+            const minDim = Math.min(width, height);
+            const calculatedFontSize = Math.max(16, Math.floor(minDim * 0.32));
+            
+            // Terapkan langsung melalui inline style atau manipulasi style string
+            timeLabel.set_style(`color: ${theme?.text ?? '#241f31'}; font-size: ${calculatedFontSize}px;`);
+        }
+    };
+
+    // Pantau perubahan ukuran kontainer widget
+    container.connect('notify::allocation', updateFontSize);
+
+    const updateClockText = () => {
+        const now = new Date();
+        const hour = now.getHours().toString().padStart(2, '0');
+        const minute = now.getMinutes().toString().padStart(2, '0');
+        timeLabel.set_text(`${hour}:${minute}`);
+        return GLib.SOURCE_CONTINUE;
+    };
+
+    updateClockText();
+    const timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, updateClockText);
+
+    container.add_child(clockFace);
+    container.add_child(timeLabel);
+    body.add_child(container);
+
+    container.connect('destroy', () => {
+        if (timeoutId) {
+            GLib.Source.remove(timeoutId);
+        }
+    });
+}	];
 };
 
 function escapeMarkup(text) {
