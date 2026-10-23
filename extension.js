@@ -4777,7 +4777,9 @@ sizeButton.connectObject('destroy', () => {
       prismView._stackPrism?.dispose();
       prismView._stackPrism = null;
 
+      console.log(`[CHECK-STACK] widget=${widget.type} id=${widget.id} hasStack=${Array.isArray(widget.stack)} stackLength=${widget.stack?.length ?? 0}`);
       if (Array.isArray(widget.stack) && widget.stack.length > 0) {
+        console.log(`[CHECK-STACK] Calling attachWidgetStack for ${widget.type}...`);
         try {
           prismView._stackPrism = attachWidgetStack({
             paneRoot: prismView.actor,
