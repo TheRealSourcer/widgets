@@ -1,4 +1,9 @@
 .widget.widget-digitalclock,
-.widget-digitalclock .widget.widget-body {
+.widget.widget-digitalclock .widget.widget-body {
 	padding: 10px;
+}
+.hybrid-digital-time {
+    font-family: "Barlow Condensed", "Roboto Condensed", "Liberation Sans Narrow", sans-serif;
+    font-weight: 700;
+    letter-spacing: -2px;
 }
