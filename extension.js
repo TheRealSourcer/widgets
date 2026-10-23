@@ -490,6 +490,7 @@ class WidgetController {
     this._layerStackDirty = false;
     this._editMode = false;
     this._dragActor = null;
+    this._dragGrab = null;
     this._layerX = null;
     this._layerY = null;
     this._needsLayoutPersist = false;
@@ -3162,12 +3163,6 @@ sizeButton.connectObject('destroy', () => {
       widget.x = clamp(drag.baseStageX + stageX - drag.stageX, minX, maxX) - (this._layerX ?? 0);
       widget.y = clamp(drag.baseStageY + stageY - drag.stageY, minY, maxY) - (this._layerY ?? 0);
 
-      const monitorForDrag = monitorAtStage(
-        effectiveMonitors(),
-        drag.baseStageX + stageX - drag.stageX + width / 2,
-        drag.baseStageY + stageY - drag.stageY + height / 2);
-      log(`[desktop-widgets] drag gap=${gap} min=(${Math.round(minX)},${Math.round(minY)}) max=(${Math.round(maxX)},${Math.round(maxY)}) monitor=${monitorForDrag?.name ?? (monitor?.name ?? '?')} h=${monitorForDrag?.height ?? monitor?.height ?? '?'} wh=${this._layerX ?? 0}`)
-
       const snapped = this._snapEdges(widget, widget.x, widget.y);
 
       widget.x = snapped.x;
@@ -3176,7 +3171,15 @@ sizeButton.connectObject('destroy', () => {
       this._syncEditControls(widget);
     };
 
-    actor.connectObject('button-press-event', (_source, event) => {
+    // CAPTURE phase press: a press picked on ANY reactive inner element
+    // (todo checkboxes, notes text…) would otherwise be consumed on the
+    // way up and never reach this handler — that is why the drag used to
+    // work «once in a while». In edit mode any press starts the drag.
+    actor.connectObject('captured-event', (_source, event) => {
+      if (event.type() !== Clutter.EventType.BUTTON_PRESS) {
+        return Clutter.EVENT_PROPAGATE;
+      };
+
       const button = event.get_button() ?? 1;
 
       if (button === 3 && this._editMode) {
@@ -3209,7 +3212,11 @@ sizeButton.connectObject('destroy', () => {
       raiseActor(actor);
       this._syncEditControls(widget);
 
+      // Pointer grab like GNOME's own DnD: motion keeps arriving even when
+      // the pointer travels over application windows or off the widget —
+      // without it drag events die mid-move on a Wayland session.
       this._dragActor = actor;
+      this._dragGrab = Main.pushModal(actor, {actionMode: Shell.ActionMode.NONE});
       global.stage.connectObject('captured-event', (_stage, capturedEvent) => {
         if (!drag) {
           return Clutter.EVENT_PROPAGATE;
@@ -3251,10 +3258,21 @@ sizeButton.connectObject('destroy', () => {
   };
 
   _cancelActiveDrag() {
+    if (this._dragGrab) {
+      try {
+        Main.popModal(this._dragGrab);
+      } catch (error) {
+        console.warn(`[debug] drag grab release failed: ${error.message}`);
+      };
+      this._dragGrab = null;
+    };
+
     if (!this._dragActor) {
       return;
     };
 
+    // Careful: this drops EVERY stage connection tied to the drag actor —
+    // the capture handler installed for the drag is the only one.
     global.stage.disconnectObject(this._dragActor);
     this._dragActor = null;
   };
@@ -3883,7 +3901,7 @@ sizeButton.connectObject('destroy', () => {
     // Real modal grab (Wayland): without it key events go to the focused
     // application window and the stage never sees Escape. pushModal routes
     // every input to the shell and gives the overlay key focus.
-    overlay.modalGrab = Main.pushModal(overlay);
+    overlay.modalGrab = Main.pushModal(overlay, {actionMode: Shell.ActionMode.NORMAL});
 
     console.log(`[debug] stack panel opened (single column) pages=${entries.length} limit=${STACK_PAGE_LIMIT}`);
   };
@@ -4279,10 +4297,16 @@ sizeButton.connectObject('destroy', () => {
       };
       return Clutter.EVENT_PROPAGATE;
     });
-    // Typing works straight away: once the overlay maps, hand key focus to
-    // the search entry (pushModal initially focused the overlay itself).
-    overlay.connectObject('map', () => {
-      search.clutter_text.grab_key_focus();
+    // Typing works straight away: as soon as the overlay is realy mapped,
+    // hand key focus to the search entry (pushModal initially focused the
+    // overlay itself). IMPORTANT: St.Widget has no 'map' signal — connectObject
+    // would throw and SKIP the grab wiring below (that is exactly how the
+    // gallery once lost its ESC handling).
+    overlay.connectObject('notify::mapped', () => {
+      if (overlay.mapped && !overlay.searchFocused) {
+        overlay.searchFocused = true;
+        search.clutter_text.grab_key_focus();
+      };
     }, overlay);
 
     // Capture-phase backstop: Escape is stopped on the stage before any
@@ -4300,7 +4324,9 @@ sizeButton.connectObject('destroy', () => {
     // Real modal grab (Wayland): without it key events go to the focused
     // application window and the stage never sees Escape. pushModal routes
     // every input to the shell and gives the overlay key focus.
-    overlay.modalGrab = Main.pushModal(overlay);
+    // ActionMode NORMAL keeps system keybindings alive while the modal is
+    // open — screenshots (Print) must still work inside these windows.
+    overlay.modalGrab = Main.pushModal(overlay, {actionMode: Shell.ActionMode.NORMAL});
     
     console.log('[debug] gallery opened (centered modal)');
   };

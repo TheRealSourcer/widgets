@@ -354,7 +354,6 @@ export function attachWidgetStack({
 		width: pageW,
 		height: RAIL_HEIGHT,
 		opacity: 0,
-		style: 'background-color: rgba(255, 0, 0, 0.3);',  // DEBUG: напівпрозорий червоний для візуалізації
 	});
 	paneRoot.add_child(rail);
 	console.log(`[debug] rail added to paneRoot, total children: ${paneRoot.get_n_children()}`);
