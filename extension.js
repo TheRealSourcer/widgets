@@ -2097,7 +2097,9 @@ class WidgetController {
 
     this._resolveLayout(null, false, true);
 
+    console.log(`[REBUILD] Total widgets to create: ${this._widgets.length}`);
     for (const widget of this._widgets) {
+      console.log(`[REBUILD] Creating widget: type=${widget.type} id=${widget.id} hasStack=${Array.isArray(widget.stack)} stackLength=${widget.stack?.length ?? 0}`);
       try {
         this._createWidget(widget);
       } catch (error) {
