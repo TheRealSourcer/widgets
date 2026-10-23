@@ -2359,6 +2359,10 @@ class WidgetController {
   // wallpaper reposition and a queue_repaint — for the wrapper pane AND
   // every stacked page pane. Flushing once per main-loop iteration caps
   // that at one repaint per frame regardless of pointer-event rate.
+  // ADDITIONALLY: skip all updates while THIS view's widget is being
+  // dragged — glass wallpapers freeze mid-drag (acceptable visually),
+  // and refresh once on drag end → smooth dragging even for stacked
+  // widgets with multiple LiquidGlass panes.
   _queueGlassGeometrySync(view) {
     if (view._glassSyncQueued) {
       return;
@@ -2367,6 +2371,11 @@ class WidgetController {
     GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
       view._glassSyncQueued = false;
       if (!this._views.has(view.widget.id) || isActorDestroyed(view.actor)) {
+        return GLib.SOURCE_REMOVE;
+      };
+      // Skip all glass updates while THIS widget is being dragged (freeze
+      // wallpapers mid-drag → zero repaints per frame → smooth movement).
+      if (this._dragActor === view.actor) {
         return GLib.SOURCE_REMOVE;
       };
       this._updateGlassGeometryForView(view);
@@ -3169,6 +3178,9 @@ sizeButton.connectObject('destroy', () => {
       
       this._animateWidget(widget, true);
       this._cancelActiveDrag();
+      // After drag ends, refresh frozen glass panes (they were paused
+      // mid-drag to avoid per-frame repaints → smooth movement).
+      this._queueGlassGeometrySync(view);
       this._saveWidgets();
     };
 
@@ -3537,7 +3549,8 @@ sizeButton.connectObject('destroy', () => {
 
     // SVG display instead of the live render (matching the gallery cards):
     // the widget's icon file inside icons/widgets/, centered on the tile.
-    const iconSize = Math.round(Math.min(tileW, tileH) * 0.55);
+    // Icon fills most of the tile height for clarity (was 0.55, now 0.75).
+    const iconSize = Math.round(Math.min(tileW, tileH) * 0.75);
     const svgIcon = this._stackWidgetSvgIcon(entry.type, iconSize);
 
     if (svgIcon) {
@@ -3726,7 +3739,7 @@ sizeButton.connectObject('destroy', () => {
       clip_to_allocation: true,
     });
 
-    const iconSize = Math.round(Math.min(tileW, tileH) * 0.55);
+    const iconSize = Math.round(Math.min(tileW, tileH) * 0.75);
     const svgIcon = this._stackWidgetSvgIcon(view.widget.type, iconSize);
 
     if (svgIcon) {
@@ -3776,7 +3789,7 @@ sizeButton.connectObject('destroy', () => {
 
     // What flipping does once the panel is closed
     card.add_child(this._label(
-      _('Flip pages: drag UP at the bottom edge or DOWN at the top edge — or use the ▲▼ buttons on the right.'),
+      _('Flip pages: drag UP at the bottom edge or DOWN at the top edge.'),
       'widget-text',
       `color: ${theme.muted}; font-size: 11px;`,
     ));

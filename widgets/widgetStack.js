@@ -290,20 +290,28 @@ export function attachWidgetStack({
 	placeIdle();
 
 	// ── The cross (vertical rotation of the system monitor's 2x1) ────────
+	// Direction-aware: pages with side='above' enter from ABOVE (negative
+	// translation), pages with side='below' enter from BELOW (positive).
 	const crossTo = (target) => {
 		if (disposed || crossBusy || target === active
 			|| target < 0 || target >= pages.length) {
 			return;
 		};
 
-		const dir = target > active ? 1 : -1;
 		const leaving = pages[active];
 		const entering = pages[target];
 		active = target;
 
+		// Determine entry direction by the entering page's side metadata:
+		// 'above' pages come down from above (-baseDistance), 'below' pages
+		// rise up from below (+baseDistance). This makes the spatial position
+		// match the panel layout (pages added above sit on top).
+		const enteringSide = entering.entry?.side ?? 'below';
+		const entryDir = enteringSide === 'above' ? -1 : 1;
+
 		// Both pages travel in lockstep by their own translation_y; nothing
 		// fades, the seam between them is the only thing crossing the slot.
-		entering.actor.translation_y = dir * baseDistance();
+		entering.actor.translation_y = entryDir * baseDistance();
 		entering.actor.visible = true;
 		leaving.actor.translation_y = 0;
 
@@ -316,7 +324,7 @@ export function attachWidgetStack({
 		updatePageGlassGeometry(leaving);
 
 		leaving.actor.ease({
-			translation_y: -dir * baseDistance(),
+			translation_y: -entryDir * baseDistance(),
 			duration: CROSS_DURATION,
 			mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
 			onComplete: () => {
@@ -341,7 +349,7 @@ export function attachWidgetStack({
 			},
 		});
 
-		console.log(`[debug] stack cross ${widget.type} -> page ${active}/${pages.length - 1}`);
+		console.log(`[debug] stack cross ${widget.type} -> page ${active}/${pages.length - 1} side=${enteringSide}`);
 	};
 
 	// ── Rails: swipe zones at BOTH edges ─────────────────────────────────
@@ -420,58 +428,8 @@ export function attachWidgetStack({
 	const topRail = makeRail('top');
 	const rails = [bottomRail, topRail];
 
-	// ── Flip buttons: the second way to change pages ──────────────────────
-	// ▲ steps back (the page above comes down), ▼ flips forward. Pinned
-	// just inside the right edge, vertically centered, dim until hovered.
-	// Visible (and reactive) only OUTSIDE edit mode — in edit mode the
-	// whole widget is a drag handle, and the pages panel already edits.
-	const flipControls = new St.BoxLayout(boxLayoutProps({
-		vertical: true,
-		style: 'spacing: 2px;',
-	}));
-	const makeFlipButton = (icon, dir) => {
-		const button = new St.Button({
-			child: new St.Icon({icon_name: icon, icon_size: 12,
-				x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER}),
-			width: 22,
-			height: 22,
-			style: `border-radius: 11px; padding: 0;`
-				+ ` background-color: rgba(128,128,128,0.25);`
-				+ ` color: ${theme.text};`,
-			reactive: true,
-			can_focus: true,
-			track_hover: true,
-			opacity: 200,
-		});
-		button.connect('notify::hover', () => {
-			if (!button.is_finalized?.()) {
-				button.opacity = button.hover ? 255 : 200;
-			};
-		});
-		let armed = false;
-		button.connect('button-press-event', () => {
-			armed = true;
-			return Clutter.EVENT_STOP;
-		});
-		button.connect('button-release-event', (_actor, event) => {
-			const hit = armed && event.get_button() === 1;
-			armed = false;
-			if (hit && !crossBusy) {
-				crossTo(active + dir);
-			};
-			return Clutter.EVENT_STOP;
-		});
-		return button;
-	};
-	flipControls.add_child(makeFlipButton('pan-up-symbolic', -1));
-	flipControls.add_child(makeFlipButton('pan-down-symbolic', 1));
-	paneRoot.add_child(flipControls);
-	flipControls.set_position(pageW - 30, Math.max(4, Math.round(pageH / 2 - 26)));
-	flipControls.visible = railReactive;
-
 	// Update rail reactivity when edit mode toggles: panel buttons need
-	// to catch clicks, the rails must yield to them, and the flip buttons
-	// hide for the same reason.
+	// to catch clicks, and the rails must yield to them.
 	const updateRailReactive = () => {
 		if (rails.some(rail => rail.is_finalized?.())) {
 			return;
@@ -480,9 +438,6 @@ export function attachWidgetStack({
 		const wasReactive = bottomRail.reactive;
 		for (const rail of rails) {
 			rail.reactive = reactive;
-		};
-		if (!flipControls.is_finalized?.()) {
-			flipControls.visible = reactive;
 		};
 		console.log(`[debug] rail reactive: ${wasReactive} → ${reactive} (editMode=${isEditMode()})`);
 	};
@@ -496,9 +451,6 @@ export function attachWidgetStack({
 			for (const rail of rails) {
 				rail.remove_all_transitions();
 				rail.destroy();
-			};
-			if (flipControls && !flipControls.is_finalized?.()) {
-				flipControls.destroy();
 			};
 			for (let i = 1; i < pages.length; i += 1) {
 				const {actor} = pages[i];
