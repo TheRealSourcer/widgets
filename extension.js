@@ -3136,6 +3136,7 @@ sizeButton.connectObject('destroy', () => {
         return;
       };
 
+      console.log(`[drag-finish] widget=${widget.type} id=${widget.id} from (${widget.oldX}, ${widget.oldY}) to (${widget.x}, ${widget.y})`);
       drag = null;
       this._clampWidget(widget);
 
@@ -3148,6 +3149,7 @@ sizeButton.connectObject('destroy', () => {
       );
 
       if (hasOverlap) {
+        console.log(`[drag-finish] overlap detected, snapping to edge`);
         const snapped = this._snapToNearestEdge(widget);
         widget.x = snapped.x;
         widget.y = snapped.y;
@@ -3157,6 +3159,7 @@ sizeButton.connectObject('destroy', () => {
         // drop it into the nearest free cell so it never stays stuck.
         if (this._widgets.some(other =>
           other !== widget && rectsOverlap(this._rectFor(widget), this._rectFor(other), gap))) {
+          console.log(`[drag-finish] still overlapping after snap, finding open position`);
           const open = this._findOpenPosition(widget, this._widgets);
           widget.x = open.x;
           widget.y = open.y;
@@ -3170,6 +3173,7 @@ sizeButton.connectObject('destroy', () => {
       this._animateWidget(widget, true);
       this._cancelActiveDrag();
       this._saveWidgets();
+      console.log(`[drag-finish] complete, widget at (${widget.x}, ${widget.y})`);
     };
 
     const moveDrag = event => {
@@ -3182,6 +3186,7 @@ sizeButton.connectObject('destroy', () => {
       const monitor = monitorAtStage(effectiveMonitors(), stageX, stageY);
 
       if (!monitor) {
+        console.log(`[drag] moveDrag: no monitor at (${stageX}, ${stageY})`);
         return;
       };
 
@@ -3240,6 +3245,8 @@ sizeButton.connectObject('destroy', () => {
         baseStageY: widget.y + (this._layerY ?? 0),
       };
 
+      console.log(`[drag-start] widget=${widget.type} id=${widget.id} at (${widget.x}, ${widget.y}) press at stage (${stageX}, ${stageY})`);
+
       raiseActor(actor);
       this._syncEditControls(widget);
 
@@ -3248,6 +3255,7 @@ sizeButton.connectObject('destroy', () => {
       // without it drag events die mid-move on a Wayland session.
       this._dragActor = actor;
       this._dragGrab = Main.pushModal(actor, {actionMode: Shell.ActionMode.NONE});
+      console.log(`[drag-start] pushModal done, dragGrab=${this._dragGrab ? 'obtained' : 'null'}`);
       global.stage.connectObject('captured-event', (_stage, capturedEvent) => {
         if (!drag) {
           return Clutter.EVENT_PROPAGATE;

@@ -60,6 +60,11 @@ export function attachWidgetStack({
 		? widget.stack.filter(entry => entry && entry.type).slice(0, MAX_STACK_PAGES)
 		: [];
 
+	console.log(`[stack-init] widget=${widget.type} entries.length=${entries.length}`);
+	entries.forEach((e, i) => {
+		console.log(`[stack-init]   entry[${i}]: type=${e.type} side=${e.side ?? 'undefined'} key=${e.key}`);
+	});
+
 	// Sort entries by side: 'above' pages first, then 'below' pages, so the
 	// pages array order matches the visual top-to-bottom stack layout (page
 	// indices increase downward). This makes crossTo's direction logic work:
@@ -69,6 +74,11 @@ export function attachWidgetStack({
 		const aSide = a.side === 'above' ? 0 : 1;
 		const bSide = b.side === 'above' ? 0 : 1;
 		return aSide - bSide;
+	});
+
+	console.log(`[stack-init] After sort:`);
+	entries.forEach((e, i) => {
+		console.log(`[stack-init]   sorted[${i}]: type=${e.type} side=${e.side ?? 'undefined'} key=${e.key}`);
 	});
 
 	// No stack — the widget stays a plain widget: no rail, nothing mounted.
@@ -306,6 +316,7 @@ export function attachWidgetStack({
 	const crossTo = (target) => {
 		if (disposed || crossBusy || target === active
 			|| target < 0 || target >= pages.length) {
+			console.log(`[stack-cross] BLOCKED: disposed=${disposed} crossBusy=${crossBusy} target=${target} active=${active} pages.length=${pages.length}`);
 			return;
 		};
 
@@ -319,6 +330,12 @@ export function attachWidgetStack({
 		// match the panel layout (pages added above sit on top).
 		const enteringSide = entering.entry?.side ?? 'below';
 		const entryDir = enteringSide === 'above' ? -1 : 1;
+
+		console.log(`[stack-cross] widget=${widget.type} from page ${pages.indexOf(leaving)} to ${target}`);
+		console.log(`[stack-cross]   leaving: type=${leaving.entry?.type ?? 'primary'} side=${leaving.entry?.side ?? 'n/a'}`);
+		console.log(`[stack-cross]   entering: type=${entering.entry?.type ?? 'primary'} side=${enteringSide} entryDir=${entryDir}`);
+		console.log(`[stack-cross]   translation: entering starts at ${entryDir * baseDistance()}, moves to 0`);
+		console.log(`[stack-cross]   translation: leaving starts at 0, moves to ${-entryDir * baseDistance()}`);
 
 		// Both pages travel in lockstep by their own translation_y; nothing
 		// fades, the seam between them is the only thing crossing the slot.
@@ -348,6 +365,7 @@ export function attachWidgetStack({
 				leaving.actor.translation_y = (index - active) * baseDistance();
 				leaving.actor.visible = false;
 				updatePageGlassGeometry(leaving);
+				console.log(`[stack-cross] leaving animation complete, hidden at translation_y=${leaving.actor.translation_y}`);
 			},
 		});
 		entering.actor.ease({
@@ -357,10 +375,11 @@ export function attachWidgetStack({
 			onComplete: () => {
 				crossBusy = false;
 				updatePageGlassGeometry(entering);
+				console.log(`[stack-cross] entering animation complete, now active page ${active}`);
 			},
 		});
 
-		console.log(`[debug] stack cross ${widget.type} -> page ${active}/${pages.length - 1} side=${enteringSide}`);
+		console.log(`[stack-cross] Animation started: ${widget.type} -> page ${active}/${pages.length - 1} side=${enteringSide}`);
 	};
 
 	// ── Rails: swipe zones at BOTH edges ─────────────────────────────────
@@ -390,18 +409,22 @@ export function attachWidgetStack({
 
 		rail.connect('button-press-event', (_actor, event) => {
 			if (crossBusy) {
+				console.log(`[stack-rail-${edge}] PRESS ignored: crossBusy=true`);
 				return Clutter.EVENT_PROPAGATE;
 			};
 			const [stageX, stageY] = event.get_coords();
 			if (!Number.isFinite(stageY)) {
+				console.log(`[stack-rail-${edge}] PRESS ignored: invalid stageY`);
 				return Clutter.EVENT_PROPAGATE;
 			};
 			dragStartY = stageY;
+			console.log(`[stack-rail-${edge}] PRESS at Y=${stageY.toFixed(1)} button=${event.get_button()}`);
 			return Clutter.EVENT_STOP;
 		});
 
 		rail.connect('button-release-event', (_actor, event) => {
 			if (dragStartY === null) {
+				console.log(`[stack-rail-${edge}] RELEASE ignored: no dragStartY`);
 				return Clutter.EVENT_PROPAGATE;
 			};
 			const startY = dragStartY;
@@ -409,11 +432,15 @@ export function attachWidgetStack({
 
 			const [stageX, stageY] = event.get_coords();
 			if (!Number.isFinite(stageY)) {
+				console.log(`[stack-rail-${edge}] RELEASE ignored: invalid stageY`);
 				return Clutter.EVENT_STOP;
 			};
 
 			const delta = stageY - startY;
+			console.log(`[stack-rail-${edge}] RELEASE: startY=${startY.toFixed(1)} endY=${stageY.toFixed(1)} delta=${delta.toFixed(1)} (${delta < 0 ? 'UP' : 'DOWN'})`);
+			
 			if (Math.abs(delta) <= SWIPE_THRESHOLD) {
+				console.log(`[stack-rail-${edge}] RELEASE ignored: delta too small (threshold=${SWIPE_THRESHOLD})`);
 				return Clutter.EVENT_STOP;
 			};
 
@@ -425,8 +452,13 @@ export function attachWidgetStack({
 				? active + (delta < 0 ? 1 : -1)
 				: active + (delta > 0 ? -1 : 1);
 
+			console.log(`[stack-rail-${edge}] computed target=${target} from active=${active} (pages.length=${pages.length})`);
+
 			if (target >= 0 && target < pages.length) {
+				console.log(`[stack-rail-${edge}] calling crossTo(${target})`);
 				crossTo(target);
+			} else {
+				console.log(`[stack-rail-${edge}] target out of bounds, ignoring`);
 			};
 			return Clutter.EVENT_STOP;
 		});
