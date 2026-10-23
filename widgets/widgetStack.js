@@ -268,10 +268,12 @@ export function attachWidgetStack({
 		}));
 		cardActor.add_child(body);
 
+		console.log(`[STACK-RENDER] Rendering page: type=${entry.type} recordId=${record.id} body=${!!body} cardActor=${!!cardActor}`);
 		try {
 			renderPage(record, body, cardActor);
+			console.log(`[STACK-RENDER] Success: type=${entry.type} bodyChildren=${body.get_n_children()}`);
 		} catch (error) {
-			logError(error, 'Stack page render failed');
+			console.error('[STACK-RENDER] Failed:', error);
 		};
 
 		paneRoot.add_child(pageActor);
