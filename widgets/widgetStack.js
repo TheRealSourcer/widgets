@@ -214,6 +214,7 @@ export function attachWidgetStack({
 			reactive: true,
 			width: pageW,
 			height: pageH,
+			style: `border-radius: ${theme?.radius ?? 16}px; overflow: hidden;`,
 		});
 
 		// A stacked page carries the SAME skin as its host widget: the card
@@ -320,14 +321,16 @@ export function attachWidgetStack({
 
 		const leaving = pages[active];
 		const entering = pages[target];
+		const oldActive = active;
 		active = target;
 
-		// Determine entry direction by the entering page's side metadata:
-		// 'above' pages come down from above (-baseDistance), 'below' pages
-		// rise up from below (+baseDistance). This makes the spatial position
-		// match the panel layout (pages added above sit on top).
-		const enteringSide = entering.entry?.side ?? 'below';
-		const entryDir = enteringSide === 'above' ? -1 : 1;
+		// Entry direction follows the travel direction, not the page's side:
+		// moving to a higher index (forward) makes the entering page come
+		// from below (travels up); moving to a lower index (back) makes it
+		// come from above (travels down). This matches the desired feel:
+		// 1->2 enters from below (goes up), 3->2 enters from above (comes
+		// from top).
+		const entryDir = target > oldActive ? 1 : -1;
 
 		// Both pages travel in lockstep by their own translation_y; nothing
 		// fades, the seam between them is the only thing crossing the slot.
@@ -520,6 +523,84 @@ export function attachWidgetStack({
 	const topRail = makeRail('top');
 	const rails = [bottomRail, topRail];
 
+	// ── Whole-widget right-button swipe (system monitor style) ────────────
+	// The thin rails above are hard to discover; mirror the music widget's
+	// nice gesture on the ENTIRE pane so a right-button vertical drag
+	// anywhere flips pages. Left button stays free for content clicks.
+	// Only active in normal mode (rails handle edit mode by hiding).
+	let swipeStartY = null;
+	paneRoot.connect('button-press-event', (_actor, event) => {
+		if (isEditMode() || crossBusy) {
+			return Clutter.EVENT_PROPAGATE;
+		};
+		if (event.get_button() !== 3) {
+			return Clutter.EVENT_PROPAGATE;
+		};
+		const coords = event.get_coords();
+		if (!Number.isFinite(coords?.[1])) {
+			return Clutter.EVENT_PROPAGATE;
+		};
+		swipeStartY = coords[1];
+		return Clutter.EVENT_PROPAGATE;
+	});
+
+	paneRoot.connect('button-release-event', (_actor, event) => {
+		if (swipeStartY === null) {
+			return Clutter.EVENT_PROPAGATE;
+		};
+		const startY = swipeStartY;
+		swipeStartY = null;
+		if (isEditMode() || crossBusy) {
+			return Clutter.EVENT_PROPAGATE;
+		};
+		if (event.get_button() !== 3) {
+			return Clutter.EVENT_PROPAGATE;
+		};
+		const coords = event.get_coords();
+		if (!Number.isFinite(coords?.[1])) {
+			return Clutter.EVENT_STOP;
+		};
+		const delta = coords[1] - startY;
+		if (Math.abs(delta) < SWIPE_THRESHOLD) {
+			return Clutter.EVENT_STOP;
+		};
+		if (crossBusy) {
+			return Clutter.EVENT_STOP;
+		};
+
+		const curSide = active === 0 ? null : (pages[active]?.entry?.side ?? 'below');
+		let target = -1;
+		if (delta < 0) {
+			// swipe up -> go up (toward above pages / back)
+			if (active === 0) {
+				target = pages.findIndex((p, i) => i > 0 && p.entry?.side === 'above');
+			} else if (curSide === 'above') {
+				for (let i = active - 1; i >= 0; i--) {
+					if (i === 0 || pages[i]?.entry?.side === 'above') {
+						target = i;
+						break;
+					}
+				}
+			} else {
+				target = 0;
+			}
+		} else {
+			// swipe down -> go down (toward below pages / back)
+			if (active === 0) {
+				target = pages.findIndex((p, i) => i > 0 && p.entry?.side !== 'above');
+			} else if (curSide === 'below') {
+				target = pages.findIndex((p, i) => i > active && p.entry?.side !== 'above');
+			} else {
+				target = 0;
+			}
+		}
+
+		if (target >= 0 && target < pages.length && target !== active) {
+			crossTo(target);
+		};
+		return Clutter.EVENT_STOP;
+	});
+
 	// Update rail reactivity when edit mode toggles: panel buttons need
 	// to catch clicks, and the rails must yield to them.
 	const updateRailReactive = () => {
@@ -529,6 +610,9 @@ export function attachWidgetStack({
 		const reactive = !isEditMode();
 		for (const rail of rails) {
 			rail.reactive = reactive;
+			// Hide rails entirely in edit mode so they cannot block
+			// the widget drag or panel button clicks.
+			rail.visible = reactive;
 		};
 	};
 

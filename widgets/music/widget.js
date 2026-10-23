@@ -1246,6 +1246,9 @@ let Controller = class Controller {
 		this._watchId = 0;
 		this._timerId = 0;
 		this._retryTimer = 0;
+		this._timerId = 0;
+		this._lyricsTimerId = 0;
+		this._retryTimer = 0;
 		this._status = 'Stopped';
 		this._position = 0;
 		this._posAt = 0;
@@ -1781,6 +1784,28 @@ let Controller = class Controller {
 			};
 			return GLib.SOURCE_CONTINUE;
 		});
+
+		// Dedicated fast lyrics ticker: keeps the active line in sync with
+		// playback between the 2s full renders (which would otherwise lag
+		// the highlighted lyric by up to 2 s).
+		if (!this._lyricsTimerId) {
+			this._lyricsTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+				try {
+					if (!this._card || !this._card._lyricsOn || !this._card._lyricsSynced || !this._card._lyricsLabels?.length) {
+						return GLib.SOURCE_CONTINUE;
+					};
+					const now = Date.now();
+					let position = this._position;
+					if (this._playing && now >= this._seekLockUntil && !this._seekActive) {
+						position = this._position + (Math.max(0, this._rate) || 1) * (now - this._posAt) * 1000;
+					};
+					this._card._tickLyrics(position);
+				} catch (error) {
+					log(`lyrics tick error: ${error}`);
+				};
+				return GLib.SOURCE_CONTINUE;
+			});
+		};
 	};
 
 	async _reconsider() {
@@ -2192,6 +2217,11 @@ let Controller = class Controller {
 		if (this._timerId) {
 			GLib.source_remove(this._timerId);
 			this._timerId = 0;
+		};
+
+		if (this._lyricsTimerId) {
+			GLib.source_remove(this._lyricsTimerId);
+			this._lyricsTimerId = 0;
 		};
 
 		if (this._retryTimer) {

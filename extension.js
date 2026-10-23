@@ -1003,8 +1003,7 @@ class WidgetController {
     for (const view of this._views.values()) {
       view.sizeMenu?.destroy();
       this._destroyContextMenu(view);
-      view.stackIndicator?.destroy();
-      view.actor.disconnectObject(this);
+        view.actor.disconnectObject(this);
     };
 
     this._views.clear();
@@ -1486,9 +1485,10 @@ class WidgetController {
       // clicks, so the rail yields (non-reactive). In usage mode, the
       // rail catches drags for flipping between stacked pages.
       // Only refresh widgets that actually have a stack prism attached.
-      if (view._stackPrism) {
-        view._stackPrism.refresh();
-      };
+      // Widget-in-widget DISABLED: no prism refresh.
+      // if (view._stackPrism) {
+      //   view._stackPrism.refresh();
+      // };
 
       if (enabled) {
         if (!view.draggable) {
@@ -1609,7 +1609,6 @@ class WidgetController {
     view.pinButton?.destroy();
     view.sizeButton?.destroy();
     view.photoButton?.destroy();
-    view.stackIndicator?.destroy();
     view.actor.disconnectObject(this);
     view.actor.destroy();
 
@@ -2265,39 +2264,17 @@ class WidgetController {
           };
         };
 
-        // Rebuild stack with new sizes
-        if (currentView._stackPrism) {
-          const activePage = currentView._stackPrism.getActivePage();
-          currentView._stackPrism.dispose();
-          currentView._stackPrism = null;
-          
-          try {
-            currentView._stackPrism = attachWidgetStack({
-              paneRoot: currentView.actor,
-              baseActor: currentView.box,
-              widget,
-              theme: this._gnomeTheme(),
-              styleForEntry: entry => this._styleForStackPage(entry, widget.type),
-              wantsGlassEntry: entry => this._wantsGlassForStackPage(entry),
-              glassParams: () => this._glassParamsFor(),
-              startPage: activePage,
-              pageSizeFor: sizeKey => widgetSizesFor(this._widgetGap ?? WIDGET_GAP)[sizeKey] ?? null,
-              renderPage: (record, pageBody, pageRoot) => this._fillWidgetBody(record, pageBody, pageRoot),
-              isEditMode: () => this._editMode,
-              onStateSaved: () => this._saveWidgets(),
-              onPageChange: () => {
-                if (this._editMode && currentView) {
-                  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-                    this._syncEditControls(widget, false);
-                    return GLib.SOURCE_REMOVE;
-                  });
-                };
-              },
-            });
-          } catch (error) {
-            warn('stack-attach-failed', `Stack rebuild failed: ${error.message}`);
-          };
-        };
+        // Widget-in-widget DISABLED: no stack rebuild on resize.
+        // if (currentView._stackPrism) {
+        //   const activePage = currentView._stackPrism.getActivePage();
+        //   currentView._stackPrism.dispose();
+        //   currentView._stackPrism = null;
+        //   try {
+        //     currentView._stackPrism = attachWidgetStack({...});
+        //   } catch (error) {
+        //     warn('stack-attach-failed', `Stack rebuild failed: ${error.message}`);
+        //   };
+        // };
         
         // Re-render the main widget with the new size
         this._safeFillWidgetBody(widget, currentView.body);
@@ -2455,56 +2432,6 @@ class WidgetController {
     wrapper.set_size(width, height);
     wrapper.set_position(widget.x, widget.y);
     this._layer.add_child(wrapper);
-    
-    // Add position indicator ONLY for stacked widgets - vertical layout, NON-BLOCKING
-    let stackIndicator = null;
-    const hasStack = Array.isArray(widget.stack) && widget.stack.length > 0;
-    if (hasStack) {
-      const totalWidgets = 1 + widget.stack.length;
-      const aboveCount = widget.stack.filter(e => e.side === 'above').length;
-      const currentPos = aboveCount + 1;
-      
-      // Main container - vertical, completely non-interactive
-      const container = new St.BoxLayout({
-        vertical: true,
-        style: 'spacing: 3px; padding: 4px 6px; background: rgba(0,0,0,0.85); border-radius: 10px;',
-        x: widget.x + 8,
-        y: widget.y + 8,
-        reactive: false,
-        can_focus: false,
-        track_hover: false,
-      });
-      container.set_reactive(false);
-      
-      // Large current position number on top
-      const currentLabel = new St.Label({
-        text: `${currentPos}`,
-        style: 'font-size: 20px; font-weight: 700; color: #3584e4; text-align: center;',
-      });
-      container.add_child(currentLabel);
-      
-      // Small divider
-      const separator = new St.Widget({
-        style: 'height: 1px; width: 100%; background: rgba(255,255,255,0.15); margin: 2px 0;',
-      });
-      container.add_child(separator);
-      
-      // Small buttons vertically
-      for (let i = 1; i <= Math.min(totalWidgets, 5); i++) {
-        const active = i === currentPos;
-        const btn = new St.Label({
-          text: `${i}`,
-          style: `width: 18px; height: 18px; text-align: center; line-height: 18px; border-radius: 3px;`
-            + ` font-size: 10px; font-weight: 700;`
-            + ` color: ${active ? '#fff' : '#777'};`
-            + ` background: ${active ? '#3584e4' : 'transparent'};`,
-        });
-        container.add_child(btn);
-      }
-      
-      stackIndicator = container;
-      this._layer.add_child(stackIndicator);
-    }
 
     const view = {
       widget,
@@ -2512,7 +2439,6 @@ class WidgetController {
       box: actor,
       body,
       glass,
-      stackIndicator,
       draggable: false,
       editBorder: null,
       removeButton: null,
@@ -2870,24 +2796,6 @@ class WidgetController {
     const size = this._sizeButtonPosition(effectiveWidget, view.sizeButton);
     const photo = this._photoButtonPosition(effectiveWidget, view.photoButton);
     
-    // Update stack indicator position
-    if (view.stackIndicator) {
-      const indicatorPos = {
-        x: effectiveWidget.x + 6,
-        y: effectiveWidget.y + 6,
-      };
-      if (animate) {
-        view.stackIndicator.ease({
-          x: indicatorPos.x,
-          y: indicatorPos.y,
-          duration: 130,
-          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-        });
-      } else {
-        view.stackIndicator.set_position(indicatorPos.x, indicatorPos.y);
-      }
-    }
-
     if (animate) {
       view.editBorder?.ease({
         x: overlay.x,
@@ -2952,10 +2860,6 @@ class WidgetController {
 
     if (view.photoButton) {
       raiseActor(view.photoButton);
-    };
-    
-    if (view.stackIndicator) {
-      raiseActor(view.stackIndicator);
     };
   };
 
@@ -3460,10 +3364,9 @@ sizeButton.connectObject('destroy', () => {
       widget.x = clamp(drag.baseStageX + stageX - drag.stageX, minX, maxX) - (this._layerX ?? 0);
       widget.y = clamp(drag.baseStageY + stageY - drag.stageY, minY, maxY) - (this._layerY ?? 0);
 
-      const snapped = this._snapEdges(widget, widget.x, widget.y);
-
-      widget.x = snapped.x;
-      widget.y = snapped.y;
+      // Move freely during drag (no snap-to-edges quantization — that made
+      // the widget feel sluggish/unresponsive). Snapping to neighbours and
+      // clamping happen on release (finishDrag).
       actor.set_position(widget.x, widget.y);
       this._syncEditControls(widget);
     };
@@ -3476,7 +3379,6 @@ sizeButton.connectObject('destroy', () => {
       if (event.type() !== Clutter.EventType.BUTTON_PRESS) {
         return Clutter.EVENT_PROPAGATE;
       };
-
       const button = event.get_button() ?? 1;
 
       if (button === 3 && this._editMode) {
@@ -3489,6 +3391,14 @@ sizeButton.connectObject('destroy', () => {
       };
 
       if (!this._editMode || view.widget.pinned) {
+        return Clutter.EVENT_PROPAGATE;
+      };
+
+      // Don't start a drag when the press lands on an edit-mode overlay button
+      // (remove/pin/size/photo) — let the button handle its own click.
+      const pressTarget = event.get_source?.() ?? event.get_target?.();
+      const editButtons = [view.removeButton, view.pinButton, view.sizeButton, view.photoButton].filter(Boolean);
+      if (pressTarget && editButtons.some(btn => pressTarget === btn || btn.contains?.(pressTarget))) {
         return Clutter.EVENT_PROPAGATE;
       };
 
@@ -3719,13 +3629,12 @@ sizeButton.connectObject('destroy', () => {
       menu.addMenuItem(photoItem);
     };
 
-    // Widget-in-widget pages: the panel lists added pages over the current
-    // one, adds pages via the gallery window, deletes them, Done closes.
-    const stackItem = new PopupMenu.PopupMenuItem(_('Widget pages…'));
-    stackItem.connectObject('activate', () => {
-      this._openStackPanel(view);
-    }, this);
-    menu.addMenuItem(stackItem);
+    // Widget-in-widget pages: DISABLED for now (commented out). Re-enable later.
+    // const stackItem = new PopupMenu.PopupMenuItem(_('Widget pages…'));
+    // stackItem.connectObject('activate', () => {
+    //   this._openStackPanel(view);
+    // }, this);
+    // menu.addMenuItem(stackItem);
 
     // Switch rows mirror the reference's Glass/Lock toggles. Glass is the
     // global style-mode (0 = glass, 1 = solid) — the same switch that lives
@@ -3833,23 +3742,22 @@ sizeButton.connectObject('destroy', () => {
     tile.add_child(delButton);
 
     const entryKey = entry.key;
-    let delArmed = false;
-    delButton.connect('button-press-event', () => {
-      delArmed = true;
-      return Clutter.EVENT_STOP;
-    });
-    delButton.connect('button-release-event', (_actor, event) => {
-      const pressed = event.get_button() === 1 && delArmed;
-      delArmed = false;
-      if (pressed) {
-        const actualIndex = view.widget.stack.findIndex(e => (e.key || '') === entryKey);
-        if (actualIndex !== -1) {
-
-          view.widget.stack.splice(actualIndex, 1);
-          this._applyStackChange(view);
-        };
+    const targetEntry = entry;
+    delButton.connect('clicked', () => {
+      // Find by reference first (most reliable), then by key
+      let actualIndex = view.widget.stack.indexOf(targetEntry);
+      if (actualIndex === -1) {
+        actualIndex = view.widget.stack.findIndex(e => (e.key || '') === entryKey);
       };
-      return Clutter.EVENT_STOP;
+      if (actualIndex !== -1) {
+        view.widget.stack.splice(actualIndex, 1);
+        // Defer the UI rebuild so the current signal handler completes
+        // before the panel (and this button) is destroyed.
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
+          this._applyStackChange(view);
+          return GLib.SOURCE_REMOVE;
+        });
+      };
     });
 
     return tile;
@@ -3861,6 +3769,9 @@ sizeButton.connectObject('destroy', () => {
   // shows in an identically sized tile with a live preview, so an added
   // page looks exactly like the current widget. Done saves and closes.
   _openStackPanel(view) {
+    // Widget-in-widget DISABLED.
+    return;
+
     if (!view?.actor || isActorDestroyed(view.actor)) {
       return;
     };
@@ -4201,6 +4112,15 @@ sizeButton.connectObject('destroy', () => {
   // reopens on the new tiles. Reopening is unconditional: after deleting
   // the last page the panel shows just the current widget and the two «+».
   _applyStackChange(view) {
+    // Widget-in-widget DISABLED.
+    return;
+
+    // Guard: view must still be valid
+    if (!view || !this._views.has(view.widget.id)) {
+      console.warn('[stack-change] View no longer valid, aborting');
+      return;
+    };
+    
     const stackLength = view.widget.stack?.length ?? 0;
 
     
@@ -4238,7 +4158,8 @@ sizeButton.connectObject('destroy', () => {
     
     // Rebuild the stack prism if it exists
     if (view._stackPrism && stackLength > 0) {
-      const activePage = view._stackPrism.getActivePage();
+      // After deletion, always start at page 0 (main widget) to avoid
+      // stale/invalid page indices causing the widget to not update.
       view._stackPrism.dispose();
       view._stackPrism = null;
       
@@ -4251,7 +4172,7 @@ sizeButton.connectObject('destroy', () => {
           styleForEntry: entry => this._styleForStackPage(entry, view.widget.type),
           wantsGlassEntry: entry => this._wantsGlassForStackPage(entry),
           glassParams: () => this._glassParamsFor(),
-          startPage: activePage,
+          startPage: 0,
           pageSizeFor: sizeKey => widgetSizesFor(this._widgetGap ?? WIDGET_GAP)[sizeKey] ?? null,
           renderPage: (record, pageBody, pageRoot) => this._fillWidgetBody(record, pageBody, pageRoot),
           isEditMode: () => this._editMode,
@@ -4565,8 +4486,10 @@ sizeButton.connectObject('destroy', () => {
               } else {
                 view.widget.stack.push(entry);
               };
-              this._applyStackChange(view);
-
+              GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
+                this._applyStackChange(view);
+                return GLib.SOURCE_REMOVE;
+              });
             };
           };
           pressPoint = null;
@@ -4768,57 +4691,13 @@ sizeButton.connectObject('destroy', () => {
     // Re-fills rebuild the prism from the current widget.stack, so panel
     // edits, resizes and theme changes land on fresh pages with the
     // current ancestor layout.
+    // Widget-in-widget DISABLED: do not mount stacked pages.
     const prismView = this._views.get(widget.id);
-
-    if (prismView) {
-      // Remember which page stays visible across the re-fill (theme/glass
-      // changes and panel edits rebuild the prism from scratch).
-      const previousActive = Number.isInteger(prismView._stackPrism?.getActivePage?.())
-        ? prismView._stackPrism.getActivePage()
-        : 0;
-
-      prismView._stackPrism?.dispose();
+    if (prismView && prismView._stackPrism) {
+      prismView._stackPrism.dispose();
       prismView._stackPrism = null;
-
-      console.log(`[CHECK-STACK] widget=${widget.type} id=${widget.id} hasStack=${Array.isArray(widget.stack)} stackLength=${widget.stack?.length ?? 0}`);
-      if (Array.isArray(widget.stack) && widget.stack.length > 0) {
-        console.log(`[CHECK-STACK] Calling attachWidgetStack for ${widget.type}...`);
-        try {
-          prismView._stackPrism = attachWidgetStack({
-            paneRoot: prismView.actor,
-            baseActor: prismView.box,
-            widget,
-            theme: this._gnomeTheme(),
-            // Added pages follow the SAME style engine as the primary: this
-            // pipeline is glass-aware and theme-aware, so the Glass switch
-            // and dark/light changes restyle page cards instead of leaving
-            // them forever on their add-time skin.
-            styleForEntry: entry => this._styleForStackPage(entry, widget.type),
-            wantsGlassEntry: entry => this._wantsGlassForStackPage(entry),
-            glassParams: () => this._glassParamsFor(),
-            startPage: previousActive,
-            // The page card's size by chip key (1×1 on a 2×2 host…).
-            pageSizeFor: sizeKey => widgetSizesFor(this._widgetGap ?? WIDGET_GAP)[sizeKey] ?? null,
-            renderPage: (record, pageBody, pageRoot) => this._fillWidgetBody(record, pageBody, pageRoot),
-            isEditMode: () => this._editMode,
-            onStateSaved: () => this._saveWidgets(),
-            // Raise edit controls above stack pages after page change
-            onPageChange: () => {
-              if (this._editMode && prismView) {
-                // Use timeout to ensure stack animation completes first
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-                  this._syncEditControls(widget, false);
-                  return GLib.SOURCE_REMOVE;
-                });
-              };
-            },
-          });
-
-        } catch (error) {
-          warn('stack-attach-failed', `Failed to attach widget stack: ${error.message}`);
-        };
-      };
     };
+
   };
 
   _refreshCalendarWeekdays() {

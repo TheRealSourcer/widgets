@@ -862,12 +862,19 @@ export default class WidgetsPrefs extends ExtensionPreferences {
             deleteButton.sensitive = hasPresets;
         };
 
-        restoreButton.connect('clicked', () => {
-            const name = presetCombo.get_selected_item()?.get_string();
-            if (name) {
-                this._restorePreset(settings, name);
-            };
-        });
+		restoreButton.connect('clicked', () => {
+		    let name = presetCombo.get_selected_item()?.get_string();
+		    if (!name) {
+		        const names = this._presetNames();
+		        name = names.length ? names[0] : null;
+		    };
+		    if (name) {
+		        this._restorePreset(settings, name);
+		    } else {
+		        this._showError(_('No saved layout selected'), '');
+		    };
+		});
+
         deleteButton.connect('clicked', () => {
             const name = presetCombo.get_selected_item()?.get_string();
             if (name) {
