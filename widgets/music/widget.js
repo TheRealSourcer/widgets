@@ -493,12 +493,12 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	card._gifPath = null;
 	card._coverSize = cover;
 
-	card.container = new St.BoxLayout({
+	card.container = new St.BoxLayout(boxLayoutProps({
 		x_expand: true,
 		y_expand: true,
 		y_align: Clutter.ActorAlign.CENTER,
 		style: `spacing: ${gap}px;`,
-	});
+	}));
 
 	// Bin wrapper so the lyrics overlay can cover the WHOLE widget instead
 	// of only the cover-art preview: the card is the lower layer, the lyrics
@@ -979,10 +979,10 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	card.artist.clutter_text.single_line_mode = true;
 	card.artist.clutter_text.ellipsize = Pango.EllipsizeMode.END;
 
-	card.times = new St.BoxLayout({
+	card.times = new St.BoxLayout(boxLayoutProps({
 		x_expand: true,
 		style: 'spacing: 10px;',
-	});
+	}));
 
 	card.timeElapsed = createLabel('0:00', 'widget-music-time', `font-size: ${timeFont}px; color: ${theme.muted};`);
 	card.timeElapsed.x_align = Clutter.ActorAlign.START;
@@ -1026,10 +1026,10 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		card.timeElapsed.text = formatUs(Math.round(length * f));
 	};
 
-	card.controls = new St.BoxLayout({
+	card.controls = new St.BoxLayout(boxLayoutProps({
 		style: 'spacing: 2px;',
 		x_align: Clutter.ActorAlign.CENTER,
-	});
+	}));
 
 	// The repeat control is painted in the widget accent color (system accent
 	// or style-accent-color), per the reference look.
