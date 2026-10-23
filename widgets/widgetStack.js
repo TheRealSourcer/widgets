@@ -57,9 +57,11 @@ export function attachWidgetStack({
 	onStateSaved = () => {},
 	onPageChange = () => {},
 }) {
+	console.log(`[ATTACH-STACK] Called for widget=${widget.type} id=${widget.id} hasStack=${!!widget.stack} stackLength=${widget.stack?.length ?? 0}`);
 	const entries = Array.isArray(widget.stack)
 		? widget.stack.filter(entry => entry && entry.type).slice(0, MAX_STACK_PAGES)
 		: [];
+	console.log(`[ATTACH-STACK] Filtered entries: ${entries.length}`);
 
 	// Sort entries by side: 'above' pages first, then 'below' pages, so the
 	// pages array order matches the visual top-to-bottom stack layout (page
