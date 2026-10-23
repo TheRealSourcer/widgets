@@ -3775,13 +3775,10 @@ sizeButton.connectObject('destroy', () => {
   // shows in an identically sized tile with a live preview, so an added
   // page looks exactly like the current widget. Done saves and closes.
   _openStackPanel(view) {
-    // Widget-in-widget DISABLED.
+    // Widget-in-widget DISABLED - код закоментовано для майбутнього використання.
     return;
-
-    if (!view?.actor || isActorDestroyed(view.actor)) {
-      return;
-    };
-
+    
+    /* eslint-disable no-unreachable */
     this._closeStackPanel();
 
     const theme = this._gnomeTheme();
@@ -4118,9 +4115,10 @@ sizeButton.connectObject('destroy', () => {
   // reopens on the new tiles. Reopening is unconditional: after deleting
   // the last page the panel shows just the current widget and the two «+».
   _applyStackChange(view) {
-    // Widget-in-widget DISABLED.
+    // Widget-in-widget DISABLED - код закоментовано для майбутнього використання.
     return;
-
+    
+    /* eslint-disable no-unreachable */
     // Guard: view must still be valid
     if (!view || !this._views.has(view.widget.id)) {
       console.warn('[stack-change] View no longer valid, aborting');
