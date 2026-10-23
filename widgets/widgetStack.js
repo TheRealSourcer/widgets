@@ -76,8 +76,10 @@ export function attachWidgetStack({
 
 	// No stack — the widget stays a plain widget: no rail, nothing mounted.
 	if (entries.length === 0) {
+		console.log(`[ATTACH-STACK] No entries, returning empty prism`);
 		return {dispose() {}, refresh() {}, restyle() {}, updateGlassGeometry() {}};
 	};
+	console.log(`[ATTACH-STACK] Building pages for ${entries.length} entries...`);
 
 	const pageW = Math.max(1, Math.floor(baseActor.get_width()) || 200);
 	const pageH = Math.max(1, Math.floor(baseActor.get_height()) || 200);
@@ -284,8 +286,10 @@ export function attachWidgetStack({
 	};
 
 	for (const entry of entries) {
+		console.log(`[ATTACH-STACK] Building page for entry type=${entry.type} side=${entry.side}`);
 		pages.push(buildPage(entry));
 	};
+	console.log(`[ATTACH-STACK] Total pages built: ${pages.length} (including primary)`);
 
 	const placeIdle = () => {
 		// startPage may outnumber the built pages (a sibling was deleted
