@@ -3390,7 +3390,13 @@ sizeButton.connectObject('destroy', () => {
         return Clutter.EVENT_PROPAGATE;
       };
 
-      if (!this._editMode || view.widget.pinned) {
+      // Check edit mode and pinned status - pinned widgets cannot be dragged
+      if (!this._editMode) {
+        return Clutter.EVENT_PROPAGATE;
+      };
+
+      if (widget.pinned) {
+        console.log(`[drag] Cannot drag pinned widget: ${widget.type} id=${widget.id}`);
         return Clutter.EVENT_PROPAGATE;
       };
 
