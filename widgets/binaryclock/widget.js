@@ -59,7 +59,7 @@ const BinaryClockFace = GObject.registerClass(
 				? [accent.r ?? 0, accent.g ?? 0, accent.b ?? 0, accent.a ?? 1]
 				: this._dark ? [1, 1, 1, 1] : [0.14, 0.12, 0.18, 1];
 			this._inactive = this._dark ? [1, 1, 1, 0.2] : [0, 0, 0, 0.1];
-			console.log('[debug] binary-accent', accentCss, '->', this._active, 'dark=', this._dark);
+	
 
 			this._scheduleRepaint();
 			this.connect('destroy', this._onDestroy.bind(this));

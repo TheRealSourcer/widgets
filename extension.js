@@ -934,6 +934,8 @@ class WidgetController {
                   key: String(entry.key ?? Math.random().toString(36).slice(2, 9)),
                   data: entry.data && typeof entry.data === 'object' ? entry.data : {},
                   size: pageSize,
+                  // Migration: old entries without side default to 'below'
+                  side: entry.side === 'above' || entry.side === 'below' ? entry.side : 'below',
                 };
               })
             : [],
@@ -1119,7 +1121,6 @@ class WidgetController {
 
     this._layer = new St.Widget({
       style_class: 'widget-layer',
-      //Oh my god the bitch stole my money
       reactive: false,
       x_expand: true,
       y_expand: true,
@@ -1131,8 +1132,6 @@ class WidgetController {
     this._workspaceIntegration.setSource(this._layer);
   };
 
-  // Behold a thousand cereals I call it the cereals it took me 9 yeareals to
-  // call it the cereals nyum nyum cereals good
   _isDingWindow(metaWindow) {
     if (!metaWindow) {
       return false;
@@ -1141,9 +1140,6 @@ class WidgetController {
     const title = metaWindow.get_title() ?? '';
     const appId = metaWindow.get_gtk_application_id?.() ?? '';
     const wmClass = metaWindow.get_wm_class?.() ?? '';
-
-    // What am I working on? I have zero idea this code is kept up
-    // by my hopes and dreams
     const dingToken = /(^|[._-])ding($|[._-])/i;
 
     return title.startsWith('@!') ||
@@ -1151,8 +1147,6 @@ class WidgetController {
       dingToken.test(wmClass);
   };
 
-  // I have some simple idea on what to do but this code does not guarantee it
-  // be careful comrade
   _placeLayerAboveDesktopIcons() {
     const layer = this._layer;
     const windowGroup = global.window_group;
@@ -1188,7 +1182,6 @@ class WidgetController {
   };
 
   _keepLayerAboveDesktopIcons(_backgroundGroup) {
-    // Mutter is a CIA psyop
     const markDirty = () => {
       this._layerStackDirty = true;
 
@@ -1615,6 +1608,7 @@ class WidgetController {
     view.pinButton?.destroy();
     view.sizeButton?.destroy();
     view.photoButton?.destroy();
+    view.stackIndicator?.destroy();
     view.actor.disconnectObject(this);
     view.actor.destroy();
 
@@ -2150,6 +2144,33 @@ class WidgetController {
     });
   };
 
+  // Helper: get the currently active stacked page entry, or null if on primary page
+  _getActiveStackEntry(view) {
+    if (!view?._stackPrism?.getActivePage || !Array.isArray(view.widget.stack)) {
+      return null;
+    };
+    
+    const activePage = view._stackPrism.getActivePage();
+    if (activePage === 0) {
+      return null; // Primary page, not a stack entry
+    };
+    
+    // Map page index back to entry (pages are sorted: above first, then below)
+    const entries = view.widget.stack;
+    const aboveEntries = entries.filter(e => e.side === 'above');
+    const belowEntries = entries.filter(e => (e.side ?? 'below') !== 'above');
+    const sortedEntries = [...aboveEntries, ...belowEntries];
+    const entryIndex = activePage - 1;
+    
+    return sortedEntries[entryIndex] ?? null;
+  };
+
+  // Get the effective size for edit controls (active stack page or widget size)
+  _getEffectiveSize(view) {
+    const activeEntry = this._getActiveStackEntry(view);
+    return activeEntry?.size || view.widget.size;
+  };
+
   _onWidgetSizeChange(widget, sizeKey) {
     if (!widget || !WIDGET_SIZE_KEYS.has(sizeKey)) {
       return;
@@ -2181,15 +2202,123 @@ class WidgetController {
   };
 
   _setWidgetSize(widget, sizeKey) {
-    if (!widget || !WIDGET_SIZE_KEYS.has(sizeKey) || widget.size === sizeKey) {
+    if (!widget || !WIDGET_SIZE_KEYS.has(sizeKey)) {
       return;
     };
 
+    const view = this._views.get(widget.id);
+    
+    // Check if this is a container with stacked widgets
+    const hasStack = Array.isArray(widget.stack) && widget.stack.length > 0;
+    
+    if (hasStack) {
+      // Container mode: change size of ALL widgets (main + stack)
+      if (widget.size === sizeKey) {
+        // Check if all stack entries already have this size
+        const allSameSize = widget.stack.every(entry => entry.size === sizeKey);
+        if (allSameSize) {
+          return; // Already this size for all widgets
+        }
+      }
+      
+      console.log(`[size-change] Container resize: ${widget.type} id=${widget.id} oldSize=${widget.size} newSize=${sizeKey} stackCount=${widget.stack.length}`);
+      
+      const oldSize = widget.size;
+      
+      // Change main widget size
+      widget.size = sizeKey;
+      widget.data = {...(widget.data ?? {}), sizeManual: true};
+      
+      // Change ALL stack entries to the same size
+      for (const entry of widget.stack) {
+        entry.size = sizeKey;
+      }
+      
+      this._syncWidgetSizeClass(widget);
+      view?.sizeMenu?.close();
+      this._clampWidget(widget);
+      this._resolveLayout(widget, true, true);
+      this._animateWidget(widget, true);
+      this._saveWidgets();
+      
+      // Completely rebuild the widget and stack with new sizes
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 280, () => {
+        const currentView = this._views.get(widget.id);
+        if (!currentView || !currentView.body) {
+          return GLib.SOURCE_REMOVE;
+        };
+
+        // Update box and glass sizes
+        const [wrapperW, wrapperH] = currentView.actor?.get_size() ?? [0, 0];
+        if (currentView.box && wrapperW > 0 && wrapperH > 0) {
+          currentView.box.set_size(wrapperW, wrapperH);
+        };
+
+        if (currentView.glass && wrapperW > 0 && wrapperH > 0) {
+          currentView.glass.set_size(wrapperW, wrapperH);
+          const [gsx, gsy] = currentView.actor.get_transformed_position();
+          if (Number.isFinite(gsx) && Number.isFinite(gsy)) {
+            currentView.glass.setGeometry(gsx, gsy, wrapperW, wrapperH);
+          };
+        };
+
+        // Rebuild stack with new sizes
+        if (currentView._stackPrism) {
+          const activePage = currentView._stackPrism.getActivePage();
+          currentView._stackPrism.dispose();
+          currentView._stackPrism = null;
+          
+          try {
+            currentView._stackPrism = attachWidgetStack({
+              paneRoot: currentView.actor,
+              baseActor: currentView.box,
+              widget,
+              theme: this._gnomeTheme(),
+              styleForEntry: entry => this._styleForStackPage(entry, widget.type),
+              wantsGlassEntry: entry => this._wantsGlassForStackPage(entry),
+              glassParams: () => this._glassParamsFor(),
+              startPage: activePage,
+              pageSizeFor: sizeKey => widgetSizesFor(this._widgetGap ?? WIDGET_GAP)[sizeKey] ?? null,
+              renderPage: (record, pageBody, pageRoot) => this._fillWidgetBody(record, pageBody, pageRoot),
+              isEditMode: () => this._editMode,
+              onStateSaved: () => this._saveWidgets(),
+              onPageChange: () => {
+                if (this._editMode && currentView) {
+                  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                    this._syncEditControls(widget, false);
+                    return GLib.SOURCE_REMOVE;
+                  });
+                };
+              },
+            });
+          } catch (error) {
+            warn('stack-attach-failed', `Stack rebuild failed: ${error.message}`);
+          };
+        };
+        
+        // Re-render the main widget with the new size
+        this._safeFillWidgetBody(widget, currentView.body);
+        
+        console.log(`[size-change] Container resize complete: ${widget.type} ${oldSize} -> ${sizeKey}`);
+        
+        return GLib.SOURCE_REMOVE;
+      });
+      
+      return;
+    };
+
+    // Single widget: standard size change
+    if (widget.size === sizeKey) {
+      return;
+    };
+
+    // Primary widget size change
+    console.log(`[size-change] _setWidgetSize: primary widget type=${widget.type} id=${widget.id} oldSize=${widget.size ?? 'undefined'} newSize=${sizeKey}`);
     const [prevW, prevH] = this._sizeFor(widget);
     widget.size = sizeKey;
     widget.data = {...(widget.data ?? {}), sizeManual: true};
     this._syncWidgetSizeClass(widget);
-    this._views.get(widget.id)?.sizeMenu?.close();
+    view?.sizeMenu?.close();
     this._clampWidget(widget);
     this._resolveLayout(widget, true, true);
     this._animateWidget(widget, true);
@@ -2199,30 +2328,30 @@ class WidgetController {
     // reflow smoothly with the box). Re-render once the ease has fully
     // settled so fonts and internals land on final allocations.
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 260, () => {
-      const view = this._views.get(widget.id);
+      const currentView = this._views.get(widget.id);
 
-      if (!view || !view.body) {
+      if (!currentView || !currentView.body) {
         return GLib.SOURCE_REMOVE;
       };
 
-      const [wrapperW, wrapperH] = view.actor?.get_size() ?? [0, 0];
-      const [boxW, boxH] = view.box?.get_size() ?? [0, 0];
+      const [wrapperW, wrapperH] = currentView.actor?.get_size() ?? [0, 0];
+      const [boxW, boxH] = currentView.box?.get_size() ?? [0, 0];
 
       // Force-sync children to the settled wrapper size (notify hooks miss).
-      if (view.box && wrapperW > 0 && wrapperH > 0) {
-        view.box.set_size(wrapperW, wrapperH);
+      if (currentView.box && wrapperW > 0 && wrapperH > 0) {
+        currentView.box.set_size(wrapperW, wrapperH);
       };
 
-      if (view.glass && wrapperW > 0 && wrapperH > 0) {
-        view.glass.set_size(wrapperW, wrapperH);
-        const [gsx, gsy] = view.actor.get_transformed_position();
+      if (currentView.glass && wrapperW > 0 && wrapperH > 0) {
+        currentView.glass.set_size(wrapperW, wrapperH);
+        const [gsx, gsy] = currentView.actor.get_transformed_position();
 
         if (Number.isFinite(gsx) && Number.isFinite(gsy)) {
-          view.glass.setGeometry(gsx, gsy, wrapperW, wrapperH);
+          currentView.glass.setGeometry(gsx, gsy, wrapperW, wrapperH);
         };
       };
 
-      this._safeFillWidgetBody(widget, view.body);
+      this._safeFillWidgetBody(widget, currentView.body);
 
       return GLib.SOURCE_REMOVE;
     });
@@ -2323,13 +2452,64 @@ class WidgetController {
     wrapper.set_size(width, height);
     wrapper.set_position(widget.x, widget.y);
     this._layer.add_child(wrapper);
+    
+    // Add position indicator ONLY for stacked widgets - vertical layout, NON-BLOCKING
+    let stackIndicator = null;
+    const hasStack = Array.isArray(widget.stack) && widget.stack.length > 0;
+    if (hasStack) {
+      const totalWidgets = 1 + widget.stack.length;
+      const aboveCount = widget.stack.filter(e => e.side === 'above').length;
+      const currentPos = aboveCount + 1;
+      
+      // Main container - vertical, completely non-interactive
+      const container = new St.BoxLayout({
+        vertical: true,
+        style: 'spacing: 3px; padding: 4px 6px; background: rgba(0,0,0,0.85); border-radius: 10px;',
+        x: widget.x + 8,
+        y: widget.y + 8,
+        reactive: false,
+        can_focus: false,
+        track_hover: false,
+      });
+      container.set_reactive(false);
+      
+      // Large current position number on top
+      const currentLabel = new St.Label({
+        text: `${currentPos}`,
+        style: 'font-size: 20px; font-weight: 700; color: #3584e4; text-align: center;',
+      });
+      container.add_child(currentLabel);
+      
+      // Small divider
+      const separator = new St.Widget({
+        style: 'height: 1px; width: 100%; background: rgba(255,255,255,0.15); margin: 2px 0;',
+      });
+      container.add_child(separator);
+      
+      // Small buttons vertically
+      for (let i = 1; i <= Math.min(totalWidgets, 5); i++) {
+        const active = i === currentPos;
+        const btn = new St.Label({
+          text: `${i}`,
+          style: `width: 18px; height: 18px; text-align: center; line-height: 18px; border-radius: 3px;`
+            + ` font-size: 10px; font-weight: 700;`
+            + ` color: ${active ? '#fff' : '#777'};`
+            + ` background: ${active ? '#3584e4' : 'transparent'};`,
+        });
+        container.add_child(btn);
+      }
+      
+      stackIndicator = container;
+      this._layer.add_child(stackIndicator);
+    }
 
     const view = {
       widget,
-      actor: wrapper,       // drag/position/resize operate on the wrapper
-      box: actor,           // styled content box (the former root actor)
+      actor: wrapper,
+      box: actor,
       body,
-      glass,  // Store glass reference
+      glass,
+      stackIndicator,
       draggable: false,
       editBorder: null,
       removeButton: null,
@@ -2603,13 +2783,16 @@ class WidgetController {
 
   _safeFillWidgetBody(widget, body) {
     if (!body) {
+      console.log(`[fill-body] SKIP: widget=${widget.type} id=${widget.id} body=null`);
       return;
     };
 
+    console.log(`[fill-body] START: widget=${widget.type} id=${widget.id} size=${widget.size ?? 'default'} bodyKids=${body.get_children().length}`);
     try {
       this._fillWidgetBody(widget, body);
+      console.log(`[fill-body] SUCCESS: widget=${widget.type} id=${widget.id}`);
     } catch (error) {
-      console.error(`[debug] fill-catch ${widget.type}/${widget.size ?? 'default'}: ${error.message} bodyKids=${body.get_children().length}`);
+      logError(error, `Widget fill failed: ${widget.type}/${widget.size ?? 'default'}`);
       warn('widget-render-failed', `Failed to render ${widget.type}: ${error.message}\n${error.stack}`);
     };
   };
@@ -2672,11 +2855,35 @@ class WidgetController {
       return;
     };
 
-    const overlay = this._rectFor(widget);
-    const button = this._removeButtonPosition(widget, view.removeButton);
-    const pin = this._pinButtonPosition(widget);
-    const size = this._sizeButtonPosition(widget, view.sizeButton);
-    const photo = this._photoButtonPosition(widget, view.photoButton);
+    // For stacked widgets, use the active page's size for edit controls
+    const effectiveSize = this._getEffectiveSize(view);
+    const effectiveWidget = effectiveSize !== widget.size 
+      ? {...widget, size: effectiveSize}
+      : widget;
+
+    const overlay = this._rectFor(effectiveWidget);
+    const button = this._removeButtonPosition(effectiveWidget, view.removeButton);
+    const pin = this._pinButtonPosition(effectiveWidget);
+    const size = this._sizeButtonPosition(effectiveWidget, view.sizeButton);
+    const photo = this._photoButtonPosition(effectiveWidget, view.photoButton);
+    
+    // Update stack indicator position
+    if (view.stackIndicator) {
+      const indicatorPos = {
+        x: effectiveWidget.x + 6,
+        y: effectiveWidget.y + 6,
+      };
+      if (animate) {
+        view.stackIndicator.ease({
+          x: indicatorPos.x,
+          y: indicatorPos.y,
+          duration: 130,
+          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
+      } else {
+        view.stackIndicator.set_position(indicatorPos.x, indicatorPos.y);
+      }
+    }
 
     if (animate) {
       view.editBorder?.ease({
@@ -2743,6 +2950,10 @@ class WidgetController {
     if (view.photoButton) {
       raiseActor(view.photoButton);
     };
+    
+    if (view.stackIndicator) {
+      raiseActor(view.stackIndicator);
+    };
   };
 
   _addEditControls(view) {
@@ -2801,7 +3012,13 @@ class WidgetController {
     let sizeButton = null;
     let sizeMenu = null;
 
-    if (supportedSizes.length > 0) {
+    // Show size button if widget supports multiple sizes
+    // OR if there are 2+ widgets in stack (main + at least 1 added)
+    const hasStack = Array.isArray(view.widget.stack) && view.widget.stack.length > 0;
+    const totalWidgets = 1 + (view.widget.stack?.length ?? 0);
+    const canResize = supportedSizes.length > 0 || (hasStack && totalWidgets >= 2);
+
+    if (canResize) {
       sizeButton = new St.Button({
         style_class: 'icon-button widget-edit-size',
         icon_name: 'view-grid-symbolic',
@@ -2837,11 +3054,49 @@ sizeMenu.connect('open-state-changed', (_menu, isOpen) => {
   };
 });
 
+// Collect all possible sizes from main widget and stack
+// For stacked widgets, show all sizes but disable those not supported by all widgets
+const allSizes = new Set();
+const widgetTypes = [view.widget.type];
+if (hasStack) {
+  for (const entry of view.widget.stack) {
+    if (entry?.type) {
+      widgetTypes.push(entry.type);
+    }
+  }
+}
+
+// If widget has native sizes, use them; otherwise use all standard sizes
+if (supportedSizes.length > 0) {
+  for (const size of supportedSizes) {
+    allSizes.add(size);
+  }
+} else if (hasStack) {
+  // For stacked widgets without native sizes, show common sizes
+  for (const size of ['small', 'medium', 'large', 'portrait', 'compact']) {
+    allSizes.add(size);
+  }
+}
+
 const sizeMenuItems = new Map();
-for (const sizeKey of orderedSizes(supportedSizes)) {
+for (const sizeKey of orderedSizes([...allSizes])) {
+  // Check if ALL widgets in the container support this size
+  let allSupport = true;
+  for (const type of widgetTypes) {
+    const mod = WIDGETS.get(type);
+    const modSizes = mod?.supportedSizes ?? [];
+    if (modSizes.length > 0 && !modSizes.includes(sizeKey)) {
+      allSupport = false;
+      break;
+    }
+  }
+
   const menuItem = new PopupMenu.PopupMenuItem(sizeLabel(sizeKey));
+  menuItem.setSensitive(allSupport);
   menuItem.connectObject('activate', () => {
-    this._setWidgetSize(view.widget, sizeKey);
+    if (allSupport) {
+      this._setWidgetSize(view.widget, sizeKey);
+    }
   }, this);
   sizeMenu.addMenuItem(menuItem);
   sizeMenuItems.set(sizeKey, menuItem);
@@ -2868,9 +3123,12 @@ sizeButton.connectObject('clicked', () => {
     return;
   };
 
-  // Dot ornament marks the current size — the PCM behavior.
+  // Dot ornament marks the current size
+  // For stacked widgets, show the active page's size instead of host widget size
+  const currentSize = this._getEffectiveSize(view);
+  
   for (const [sizeKey, menuItem] of sizeMenuItems) {
-    menuItem.setOrnament(view.widget.size === sizeKey
+    menuItem.setOrnament(currentSize === sizeKey
       ? PopupMenu.Ornament.DOT
       : PopupMenu.Ornament.NONE);
   };
@@ -3231,6 +3489,11 @@ sizeButton.connectObject('destroy', () => {
         return Clutter.EVENT_PROPAGATE;
       };
 
+      // Ignore BUTTON_PRESS if a drag is already active on this widget
+      if (drag) {
+        return Clutter.EVENT_STOP;
+      };
+
       this._cancelActiveDrag();
       view.sizeMenu?.close();
       view.contextMenu?.close();
@@ -3250,12 +3513,9 @@ sizeButton.connectObject('destroy', () => {
       raiseActor(actor);
       this._syncEditControls(widget);
 
-      // Pointer grab like GNOME's own DnD: motion keeps arriving even when
-      // the pointer travels over application windows or off the widget —
-      // without it drag events die mid-move on a Wayland session.
+      // Capture pointer events globally while dragging. No pushModal needed —
+      // captured-event on stage works without it, like music widget seek.
       this._dragActor = actor;
-      this._dragGrab = Main.pushModal(actor, {actionMode: Shell.ActionMode.NONE});
-      console.log(`[drag-start] pushModal done, dragGrab=${this._dragGrab ? 'obtained' : 'null'}`);
       global.stage.connectObject('captured-event', (_stage, capturedEvent) => {
         if (!drag) {
           return Clutter.EVENT_PROPAGATE;
@@ -3267,7 +3527,7 @@ sizeButton.connectObject('destroy', () => {
         const isKeyPress = eventType === Clutter.EventType.KEY_PRESS;
 
         if (!isMotion) {
-          console.log(`[drag-event] type=${eventType} isRelease=${isRelease} isKeyPress=${isKeyPress}`);
+          console.log(`[drag-event] type=${eventType} BUTTON_RELEASE=${Clutter.EventType.BUTTON_RELEASE} isRelease=${isRelease} isKeyPress=${isKeyPress}`);
         }
 
         if (isMotion) {
@@ -3303,21 +3563,11 @@ sizeButton.connectObject('destroy', () => {
   };
 
   _cancelActiveDrag() {
-    if (this._dragGrab) {
-      try {
-        Main.popModal(this._dragGrab);
-      } catch (error) {
-        console.warn(`[debug] drag grab release failed: ${error.message}`);
-      };
-      this._dragGrab = null;
-    };
-
     if (!this._dragActor) {
       return;
     };
 
-    // Careful: this drops EVERY stage connection tied to the drag actor —
-    // the capture handler installed for the drag is the only one.
+    // Disconnect the stage capture handler installed for the drag.
     global.stage.disconnectObject(this._dragActor);
     this._dragActor = null;
   };
@@ -3591,7 +3841,7 @@ sizeButton.connectObject('destroy', () => {
       if (pressed) {
         const actualIndex = view.widget.stack.findIndex(e => (e.key || '') === entryKey);
         if (actualIndex !== -1) {
-          console.log(`[debug] delete page key=${entryKey} type=${entry.type}`);
+
           view.widget.stack.splice(actualIndex, 1);
           this._applyStackChange(view);
         };
@@ -3669,9 +3919,53 @@ sizeButton.connectObject('destroy', () => {
       y_align: Clutter.ActorAlign.CENTER,
       style: 'spacing: 8px;',
     }));
+    
+    // TEST: Show widget position buttons (current widget number, not total count)
+    const totalWidgets = 1 + entries.length;
+    const aboveCount = aboveEntries.length;
+    
+    // Determine current position based on active page
+    let currentPosition = aboveCount + 1; // Default: main widget position
+    
+    if (view._stackPrism && view._stackPrism.getActivePage) {
+      const activePage = view._stackPrism.getActivePage();
+      if (activePage === 0) {
+        // Showing main widget
+        currentPosition = aboveCount + 1;
+      } else {
+        // Showing a stack page
+        currentPosition = activePage;
+      }
+    }
+    
+    const countBox = new St.BoxLayout({
+      style: 'spacing: 4px;',
+    });
+    for (let i = 1; i <= totalWidgets; i++) {
+      const isActive = i === currentPosition; // Highlight CURRENT position
+      const btn = new St.Button({
+        label: `${i}`,
+        style: `width: 28px; height: 28px; border-radius: 6px; padding: 0;`
+          + ` color: ${isActive ? '#ffffff' : theme.text}; font-size: 13px; font-weight: 700;`
+          + ` background-color: ${isActive ? theme.accent : theme.dark ? '#2a2a2a' : '#e5e2e6'};`
+          + ` border: ${isActive ? 'none' : `1px solid ${theme.border}`};`,
+        reactive: false,
+      });
+      countBox.add_child(btn);
+    }
+    header.add_child(countBox);
+    
     header.add_child(this._label(_('Widget pages'), 'widget-text',
       `font-size: 16px; font-weight: 700; color: ${theme.text};`));
     header.add_child(new St.Widget({x_expand: true}));
+    
+    // Debug label showing position and total count
+    const debugLabel = new St.Label({
+      text: `Pos: ${currentPosition}/${totalWidgets} | Above: ${aboveCount}, Below: ${belowEntries.length}`,
+      style: `font-size: 11px; color: ${theme.muted}; padding-right: 8px;`,
+    });
+    header.add_child(debugLabel);
+    
     const closeButton = new St.Button({
       label: '✕',
       style: `width: 30px; height: 30px; border-radius: 15px; padding: 0;`
@@ -3714,7 +4008,7 @@ sizeButton.connectObject('destroy', () => {
       addAboveButton.connect('button-release-event', (_actor, event) => {
         if (event.get_button() === 1 && addAboveArmed) {
           addAboveArmed = false;
-          console.log('[debug] add page ABOVE current');
+
           this._closeStackPanel();
           this._openStackGallery(view, 'above');
         };
@@ -3778,7 +4072,7 @@ sizeButton.connectObject('destroy', () => {
       addBelowButton.connect('button-release-event', (_actor, event) => {
         if (event.get_button() === 1 && addBelowArmed) {
           addBelowArmed = false;
-          console.log('[debug] add page BELOW current');
+
           this._closeStackPanel();
           this._openStackGallery(view, 'below');
         };
@@ -3814,7 +4108,7 @@ sizeButton.connectObject('destroy', () => {
     doneButton.connect('button-release-event', (_actor, event) => {
       if (event.get_button() === 1 && doneArmed) {
         doneArmed = false;
-        console.log('[debug] Done — closing panel');
+
         this._saveWidgets();
         this._closeStackPanel();
       };
@@ -3878,7 +4172,7 @@ sizeButton.connectObject('destroy', () => {
     // every input to the shell and gives the overlay key focus.
     overlay.modalGrab = Main.pushModal(overlay, {actionMode: Shell.ActionMode.NORMAL});
 
-    console.log(`[debug] stack panel opened (single column) pages=${entries.length} limit=${STACK_PAGE_LIMIT}`);
+
   };
 
   _closeStackPanel() {
@@ -3904,50 +4198,128 @@ sizeButton.connectObject('destroy', () => {
   // reopens on the new tiles. Reopening is unconditional: after deleting
   // the last page the panel shows just the current widget and the two «+».
   _applyStackChange(view) {
+    const stackLength = view.widget.stack?.length ?? 0;
+
+    
     this._closeStackGallery();
-    this._safeFillWidgetBody(view.widget, view.body);
     this._saveWidgets();
+    
+    // Recreate edit controls ONLY if stack size changed enough to affect visibility
+    // (2+ widgets show size button, <2 widgets don't)
+    if (this._editMode) {
+      const hadControls = view.sizeButton !== null && view.sizeButton !== undefined;
+      const totalWidgets = 1 + stackLength;
+      const shouldHaveControls = totalWidgets >= 2;
+      
+      // Only recreate if the state changed (appeared or disappeared)
+      if (hadControls !== shouldHaveControls) {
+        // Remove old edit controls
+        view.editBorder?.destroy();
+        view.removeButton?.destroy();
+        view.pinButton?.destroy();
+        view.sizeButton?.destroy();
+        view.sizeMenu?.destroy();
+        view.photoButton?.destroy();
+        
+        view.editBorder = null;
+        view.removeButton = null;
+        view.pinButton = null;
+        view.sizeButton = null;
+        view.sizeMenu = null;
+        view.photoButton = null;
+        
+        // Recreate edit controls with new stack size
+        this._addEditControls(view);
+      }
+    }
+    
+    // Rebuild the stack prism if it exists
+    if (view._stackPrism && stackLength > 0) {
+      const activePage = view._stackPrism.getActivePage();
+      view._stackPrism.dispose();
+      view._stackPrism = null;
+      
+      try {
+        view._stackPrism = attachWidgetStack({
+          paneRoot: view.actor,
+          baseActor: view.box,
+          widget: view.widget,
+          theme: this._gnomeTheme(),
+          styleForEntry: entry => this._styleForStackPage(entry, view.widget.type),
+          wantsGlassEntry: entry => this._wantsGlassForStackPage(entry),
+          glassParams: () => this._glassParamsFor(),
+          startPage: activePage,
+          pageSizeFor: sizeKey => widgetSizesFor(this._widgetGap ?? WIDGET_GAP)[sizeKey] ?? null,
+          renderPage: (record, pageBody, pageRoot) => this._fillWidgetBody(record, pageBody, pageRoot),
+          isEditMode: () => this._editMode,
+          onStateSaved: () => this._saveWidgets(),
+          onPageChange: () => {
+            if (this._editMode && view) {
+              GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                this._syncEditControls(view.widget, false);
+                return GLib.SOURCE_REMOVE;
+              });
+            };
+          },
+        });
+      } catch (error) {
+        warn('stack-attach-failed', `Stack rebuild failed: ${error.message}`);
+      };
+    } else if (stackLength === 0 && view._stackPrism) {
+      // No more stack, remove prism
+      view._stackPrism.dispose();
+      view._stackPrism = null;
+      
+      // Re-render the main widget
+      this._safeFillWidgetBody(view.widget, view.body);
+    }
+    
+    // Reopen the panel to show updated state
     this._openStackPanel(view);
   };
 
 
   _stackGalleryAllowedSizes(hostWidget) {
+    // Use the HOST widget's size (the first/main widget), not the active page
     const hostSize = hostWidget?.size ?? 'small';
-    const [hostCols, hostRows] = WIDGET_SIZE_SHAPES[hostSize] ?? [1, 1];
-
-    return PAGE_SIZE_ORDER.filter(sizeKey => {
-      const [cols, rows] = WIDGET_SIZE_SHAPES[sizeKey] ?? [9, 9];
-      return cols <= hostCols && rows <= hostRows;
-    });
+    
+    // Show ONLY the exact same size as the host widget
+    // If host is medium (2x1), show only medium, not mini (2x1 mini)
+    return [hostSize];
   };
 
   // Catalog for the pages drawer: every module type whose supported sizes
   // intersect the ones that fit the host's slot.
   _stackGalleryCatalog(hostWidget) {
-    const allowed = this._stackGalleryAllowedSizes(hostWidget);
+    // Use the HOST widget's size (the first/main widget), not the active page
     const hostSize = hostWidget?.size ?? 'small';
 
+    // Show ONLY widgets that support the EXACT same size as host widget
+    // If host is medium (2x1), show only widgets that support medium, not mini
     return WIDGET_MODULES
       .map(widgetModule => {
         const type = widgetModule.type;
         const native = Array.isArray(widgetModule.supportedSizes) && widgetModule.supportedSizes.length > 0
           ? widgetModule.supportedSizes
           : null;
-        let sizes = allowed.filter(sizeKey => !native || native.includes(sizeKey));
-
-        // A module with no listed size stays stackable at the smallest one.
-        if (sizes.length === 0) {
-          sizes = ['small'];
+        
+        // Check if widget supports host size
+        const supportsHostSize = !native || native.includes(hostSize);
+        
+        // If widget doesn't support host size, exclude it
+        if (!supportsHostSize) {
+          return null;
         };
 
         return {
           type,
           label: _(WIDGET_TYPE_LABELS[type] ?? type),
           description: _(GALLERY_HINTS[type] ?? ''),
-          sizes,
-          defaultSize: sizes.includes(hostSize) ? hostSize : sizes[sizes.length - 1],
+          sizes: [hostSize], // Only show host size, no other sizes
+          defaultSize: hostSize,
         };
-      });
+      })
+      .filter(record => record !== null); // Remove excluded widgets
   };
 
   // Widget-type → SVG display shown in the gallery cards: the real files
@@ -4072,7 +4444,7 @@ sizeButton.connectObject('destroy', () => {
     });
     closeButton.connect('button-release-event', (_actor, event) => {
       if (event.get_button() === 1 && closePressY !== null) {
-        console.log('[debug] gallery close button clicked');
+
         this._closeStackGallery();
       };
       closePressY = null;
@@ -4191,7 +4563,7 @@ sizeButton.connectObject('destroy', () => {
                 view.widget.stack.push(entry);
               };
               this._applyStackChange(view);
-              console.log(`[debug] gallery picked ${record.type}/${selectedSize}/${entry.side} for ${view.widget.type}`);
+
             };
           };
           pressPoint = null;
@@ -4308,7 +4680,6 @@ sizeButton.connectObject('destroy', () => {
     // open — screenshots (Print) must still work inside these windows.
     overlay.modalGrab = Main.pushModal(overlay, {actionMode: Shell.ActionMode.NORMAL});
     
-    console.log('[debug] gallery opened (centered modal)');
   };
 
   _closeStackGallery() {
@@ -4383,7 +4754,7 @@ sizeButton.connectObject('destroy', () => {
           this._suppressAppClickUntil = Date.now() + 400;
         },
       });
-      console.log(`[debug] fill ${widget.type}/${widget.size ?? 'default'} bodyKids=${body.get_children().length}`);
+
 
     // Widget-in-widget: after the primary content is rendered (and its own
     // pane overlays attached), mount the stacked pages + the flip rail.
@@ -4422,8 +4793,18 @@ sizeButton.connectObject('destroy', () => {
             renderPage: (record, pageBody, pageRoot) => this._fillWidgetBody(record, pageBody, pageRoot),
             isEditMode: () => this._editMode,
             onStateSaved: () => this._saveWidgets(),
+            // Raise edit controls above stack pages after page change
+            onPageChange: () => {
+              if (this._editMode && prismView) {
+                // Use timeout to ensure stack animation completes first
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                  this._syncEditControls(widget, false);
+                  return GLib.SOURCE_REMOVE;
+                });
+              };
+            },
           });
-          console.log(`[debug] stack attached ${widget.type} pages=${widget.stack.length}`);
+
         } catch (error) {
           warn('stack-attach-failed', `Failed to attach widget stack: ${error.message}`);
         };

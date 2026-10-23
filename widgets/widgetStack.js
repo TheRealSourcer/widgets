@@ -25,11 +25,11 @@ import { MAX_STACK_PAGES } from '../lib/widgetTypes.js';
 import { LiquidGlass } from '../lib/glass.js';
 
 // The same constants the music widget's cross uses (2x1 system monitor's).
-const SWIPE_THRESHOLD = 36;
+const SWIPE_THRESHOLD = 12;  // Reduced from 36 for easier swipe triggering
 const ANIMATION_DURATION = 250;
 const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2); // 500ms
 
-const RAIL_HEIGHT = 24;  // Per-edge swipe zones (top AND bottom rails).
+const RAIL_HEIGHT = 48;  // Increased from 24 for easier swipe zone targeting
 
 function newPageKey() {
 	return Math.random().toString(36).slice(2, 9);
@@ -55,15 +55,11 @@ export function attachWidgetStack({
 	pageSizeFor = null,
 	isEditMode = () => false,
 	onStateSaved = () => {},
+	onPageChange = () => {},
 }) {
 	const entries = Array.isArray(widget.stack)
 		? widget.stack.filter(entry => entry && entry.type).slice(0, MAX_STACK_PAGES)
 		: [];
-
-	console.log(`[stack-init] widget=${widget.type} entries.length=${entries.length}`);
-	entries.forEach((e, i) => {
-		console.log(`[stack-init]   entry[${i}]: type=${e.type} side=${e.side ?? 'undefined'} key=${e.key}`);
-	});
 
 	// Sort entries by side: 'above' pages first, then 'below' pages, so the
 	// pages array order matches the visual top-to-bottom stack layout (page
@@ -74,11 +70,6 @@ export function attachWidgetStack({
 		const aSide = a.side === 'above' ? 0 : 1;
 		const bSide = b.side === 'above' ? 0 : 1;
 		return aSide - bSide;
-	});
-
-	console.log(`[stack-init] After sort:`);
-	entries.forEach((e, i) => {
-		console.log(`[stack-init]   sorted[${i}]: type=${e.type} side=${e.side ?? 'undefined'} key=${e.key}`);
 	});
 
 	// No stack — the widget stays a plain widget: no rail, nothing mounted.
@@ -280,7 +271,7 @@ export function attachWidgetStack({
 		try {
 			renderPage(record, body, cardActor);
 		} catch (error) {
-			console.error('[debug] stack page fill failed: ' + error.message);
+			logError(error, 'Stack page render failed');
 		};
 
 		paneRoot.add_child(pageActor);
@@ -316,7 +307,6 @@ export function attachWidgetStack({
 	const crossTo = (target) => {
 		if (disposed || crossBusy || target === active
 			|| target < 0 || target >= pages.length) {
-			console.log(`[stack-cross] BLOCKED: disposed=${disposed} crossBusy=${crossBusy} target=${target} active=${active} pages.length=${pages.length}`);
 			return;
 		};
 
@@ -330,12 +320,6 @@ export function attachWidgetStack({
 		// match the panel layout (pages added above sit on top).
 		const enteringSide = entering.entry?.side ?? 'below';
 		const entryDir = enteringSide === 'above' ? -1 : 1;
-
-		console.log(`[stack-cross] widget=${widget.type} from page ${pages.indexOf(leaving)} to ${target}`);
-		console.log(`[stack-cross]   leaving: type=${leaving.entry?.type ?? 'primary'} side=${leaving.entry?.side ?? 'n/a'}`);
-		console.log(`[stack-cross]   entering: type=${entering.entry?.type ?? 'primary'} side=${enteringSide} entryDir=${entryDir}`);
-		console.log(`[stack-cross]   translation: entering starts at ${entryDir * baseDistance()}, moves to 0`);
-		console.log(`[stack-cross]   translation: leaving starts at 0, moves to ${-entryDir * baseDistance()}`);
 
 		// Both pages travel in lockstep by their own translation_y; nothing
 		// fades, the seam between them is the only thing crossing the slot.
@@ -365,6 +349,14 @@ export function attachWidgetStack({
 				// translation), below pages sit below (positive translation),
 				// relative to the currently active page at translation_y=0.
 				const index = pages.indexOf(leaving);
+				// PRIMARY page (index 0, entry=null) stays at translation_y=0
+				// as the base reference point. Only ADDED pages move to idle.
+				if (index === 0) {
+					leaving.actor.translation_y = 0;
+					leaving.actor.visible = false;
+					updatePageGlassGeometry(leaving);
+					return;
+				};
 				const leavingSide = leaving.entry?.side ?? 'below';
 				// Pages with side='above' have lower indices (sorted first);
 				// their idle position is ABOVE active (negative). Pages with
@@ -373,7 +365,6 @@ export function attachWidgetStack({
 				leaving.actor.translation_y = idleDir * Math.abs(index - active) * baseDistance();
 				leaving.actor.visible = false;
 				updatePageGlassGeometry(leaving);
-				console.log(`[stack-cross] leaving animation complete, hidden at translation_y=${leaving.actor.translation_y} (side=${leavingSide}, idleDir=${idleDir})`);
 			},
 		});
 		entering.actor.ease({
@@ -383,11 +374,9 @@ export function attachWidgetStack({
 			onComplete: () => {
 				crossBusy = false;
 				updatePageGlassGeometry(entering);
-				console.log(`[stack-cross] entering animation complete, now active page ${active}`);
+				onPageChange();
 			},
 		});
-
-		console.log(`[stack-cross] Animation started: ${widget.type} -> page ${active}/${pages.length - 1} side=${enteringSide}`);
 	};
 
 	// ── Rails: swipe zones at BOTH edges ─────────────────────────────────
@@ -401,7 +390,6 @@ export function attachWidgetStack({
 	// id. They must be NON-reactive in edit mode so panel/gallery overlays
 	// catch clicks.
 	const railReactive = !isEditMode();
-	console.log(`[debug] rails created reactive=${railReactive} editMode=${isEditMode()} pageW=${pageW} pageH=${pageH}`);
 
 	const makeRail = (edge) => {
 		const rail = new St.Widget({
@@ -417,22 +405,18 @@ export function attachWidgetStack({
 
 		rail.connect('button-press-event', (_actor, event) => {
 			if (crossBusy) {
-				console.log(`[stack-rail-${edge}] PRESS ignored: crossBusy=true`);
 				return Clutter.EVENT_PROPAGATE;
 			};
 			const [stageX, stageY] = event.get_coords();
 			if (!Number.isFinite(stageY)) {
-				console.log(`[stack-rail-${edge}] PRESS ignored: invalid stageY`);
 				return Clutter.EVENT_PROPAGATE;
 			};
 			dragStartY = stageY;
-			console.log(`[stack-rail-${edge}] PRESS at Y=${stageY.toFixed(1)} button=${event.get_button()}`);
 			return Clutter.EVENT_STOP;
 		});
 
 		rail.connect('button-release-event', (_actor, event) => {
 			if (dragStartY === null) {
-				console.log(`[stack-rail-${edge}] RELEASE ignored: no dragStartY`);
 				return Clutter.EVENT_PROPAGATE;
 			};
 			const startY = dragStartY;
@@ -440,33 +424,82 @@ export function attachWidgetStack({
 
 			const [stageX, stageY] = event.get_coords();
 			if (!Number.isFinite(stageY)) {
-				console.log(`[stack-rail-${edge}] RELEASE ignored: invalid stageY`);
 				return Clutter.EVENT_STOP;
 			};
 
 			const delta = stageY - startY;
-			console.log(`[stack-rail-${edge}] RELEASE: startY=${startY.toFixed(1)} endY=${stageY.toFixed(1)} delta=${delta.toFixed(1)} (${delta < 0 ? 'UP' : 'DOWN'})`);
 			
 			if (Math.abs(delta) <= SWIPE_THRESHOLD) {
-				console.log(`[stack-rail-${edge}] RELEASE ignored: delta too small (threshold=${SWIPE_THRESHOLD})`);
 				return Clutter.EVENT_STOP;
 			};
 
-			// Content follows the finger. Bottom rail: UP (delta < 0) opens
-			// the page below, DOWN walks back. Top rail mirrors it: DOWN
-			// reveals the previous page from above, UP pushes toward the
-			// next one — the mirrored («навпаки») gesture.
-			const target = edge === 'bottom'
-				? active + (delta < 0 ? 1 : -1)
-				: active + (delta > 0 ? -1 : 1);
-
-			console.log(`[stack-rail-${edge}] computed target=${target} from active=${active} (pages.length=${pages.length})`);
+			// Improved navigation: seamless flow through pages of the same side
+			// without forcing return to primary between each step.
+			let target = -1;
+			
+			if (edge === 'bottom') {
+				// BOTTOM rail: swipe UP opens below pages, swipe DOWN navigates back
+				if (delta < 0) {
+					// Swipe UP: advance through below pages
+					if (active === 0) {
+						// From primary: jump to first below page
+						const firstBelow = pages.findIndex((p, i) => i > 0 && p.entry?.side !== 'above');
+						target = firstBelow !== -1 ? firstBelow : -1;
+					} else {
+						const currentSide = pages[active]?.entry?.side ?? 'below';
+						if (currentSide === 'below') {
+							// From below page: try next below page (sequential flow)
+							const nextBelow = pages.findIndex((p, i) => i > active && p.entry?.side !== 'above');
+							target = nextBelow !== -1 ? nextBelow : -1;
+						} else {
+							// From above page: return to primary first
+							target = 0;
+						}
+					}
+				} else {
+					// Swipe DOWN: navigate backward (toward primary)
+					if (active > 0 && pages[active]?.entry?.side !== 'above') {
+						// From below page: go to previous below or primary
+						for (let i = active - 1; i >= 0; i--) {
+							if (i === 0 || pages[i]?.entry?.side !== 'above') {
+								target = i;
+								break;
+							}
+						}
+					}
+				}
+			} else {
+				// TOP rail: swipe DOWN opens above pages, swipe UP navigates back
+				if (delta > 0) {
+					// Swipe DOWN: advance through above pages
+					if (active === 0) {
+						// From primary: jump to first above page
+						const firstAbove = pages.findIndex((p, i) => i > 0 && p.entry?.side === 'above');
+						target = firstAbove !== -1 ? firstAbove : -1;
+					} else {
+						const currentSide = pages[active]?.entry?.side ?? 'below';
+						if (currentSide === 'above') {
+							// From above page: try next above page (sequential flow)
+							const nextAbove = pages.findIndex((p, i) => i > active && p.entry?.side === 'above');
+							target = nextAbove !== -1 ? nextAbove : -1;
+						}
+					}
+				} else {
+					// Swipe UP: navigate backward (toward primary)
+					if (active > 0 && pages[active]?.entry?.side === 'above') {
+						// From above page: go to previous above or primary
+						for (let i = active - 1; i >= 0; i--) {
+							if (i === 0 || pages[i]?.entry?.side === 'above') {
+								target = i;
+								break;
+							}
+						}
+					}
+				}
+			}
 
 			if (target >= 0 && target < pages.length) {
-				console.log(`[stack-rail-${edge}] calling crossTo(${target})`);
 				crossTo(target);
-			} else {
-				console.log(`[stack-rail-${edge}] target out of bounds, ignoring`);
 			};
 			return Clutter.EVENT_STOP;
 		});
@@ -486,11 +519,9 @@ export function attachWidgetStack({
 			return;
 		};
 		const reactive = !isEditMode();
-		const wasReactive = bottomRail.reactive;
 		for (const rail of rails) {
 			rail.reactive = reactive;
 		};
-		console.log(`[debug] rail reactive: ${wasReactive} → ${reactive} (editMode=${isEditMode()})`);
 	};
 
 	return {

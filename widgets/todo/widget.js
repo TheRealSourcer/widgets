@@ -253,11 +253,11 @@ export function render({ body, widget, theme, sizeForWidget }) {
                 if (relY < 0.02 || relY > 0.98 || relX < 0.015 || relX > 0.985) {
                     squash = false;
                 };
-                console.log(`[debug] todo-row enter h=${Math.round(rowH)} relY=${relY.toFixed(3)} relX=${relX.toFixed(3)} squash=${squash}`);
+
             } catch (e) {
                 // Unallocated row mid-flight: keep the squash (the safest
                 // default for the common hover case).
-                console.log(`[debug] todo-row enter probe-failed ${e.message}`);
+
             };
 
             if (!squash) return Clutter.EVENT_PROPAGATE;

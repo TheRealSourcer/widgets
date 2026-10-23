@@ -709,7 +709,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
   monitor = getSystemMonitor();
   const size = widget?.size || defaultSize;
   const [width, height] = sizeForWidget(widget);
-  console.log(`[debug] system render size=${size} paneRoot=${!!paneRoot}`);
+
   const accentColor = theme.accent || '#3584e4';
 
   let currentMetric = METRIC_CPU;
@@ -1095,7 +1095,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       // built row goes to the journal.
       currentRow.connect('notify::allocation', (actor) => {
         const b = actor.get_allocation_box();
-        console.log(`[debug] sysmon rowbox w=${b.get_width()} h=${b.get_height()} x1=${b.x1} y1=${b.y1}`);
+
       });
 
       return currentRow;
@@ -1115,7 +1115,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
       try {
         applyData(data);
       } catch (e) {
-        console.error('[debug] sysmon onData fail: ' + e.message);
+        logError(e, 'System monitor data update failed');
       }
     };
 
@@ -1196,7 +1196,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
         const paneBox = container.get_allocation_box();
         const pageW = Math.max(1, Math.floor(paneBox.get_width()) - CONTAINER_PAD * 2);
         const pageH = Math.max(1, Math.floor(paneBox.get_height()) - CONTAINER_PAD * 2);
-        console.log(`[debug] sysmon swipe pageW=${pageW} pageH=${pageH} pageKids=${container.get_children().length}`);
+
 
         // Remember the page we are leaving BEFORE currentView moves on.
         const leavingPageIndex = currentView;
@@ -1262,7 +1262,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
             if (finalData && (finalData.cpu > 0 || finalData.ram > 0)) {
               onData(finalData);
             }
-            console.log(`[debug] sysmon cross-settled pageKids=${container.get_children().length}`);
+
           },
         });
 
@@ -1379,7 +1379,7 @@ export function render({body, theme, widget, sizeForWidget, paneRoot, settings})
   };
   container.connect('destroy', teardown);
   body.connect('destroy', teardown);
-  console.log(`[debug] system fill size=${size} bodyKids=${body.get_children().length} pageKids=${container.get_children().length}`);
+
 }
 
 export function style(theme) {
