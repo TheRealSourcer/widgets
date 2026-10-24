@@ -154,6 +154,11 @@ export default class WidgetsPrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         this._window = window;
         this._pages = [];
+        // Handlers and one-shot sources registered while building the pages
+        // close over destroyed widgets once the window closes. Everything is
+        // tracked here and released in _releasePageHandlers() on close-request.
+        this._trackedPageSignals = [];
+        this._trackedPageSources = [];
 
         window.set_default_size(900, 700);
         window.set_title(_('Desktop Widgets'));
@@ -173,6 +178,28 @@ export default class WidgetsPrefs extends ExtensionPreferences {
 
         const settings = this.getSettings();
 
+        // Page builders throughout this file call settings.connect(...) with
+        // callbacks that read exposed GTK widgets. The pages die with the
+        // window, but the GSettings handlers stay connected — they fire on
+        // destroyed widgets later (fresh JS errors in the journal and stale
+        // schema writes). Track every connect so close-request can release
+        // them, and keep our tracking consistent when page code disconnects
+        // explicitly (the folder and app-launcher pages do their own cleanup).
+        const trackedConnect = settings.connect.bind(settings);
+        const trackedDisconnect = settings.disconnect.bind(settings);
+        settings.connect = (signal, callback) => {
+            const id = trackedConnect(signal, (source, ...args) => callback(source, ...args));
+            this._trackedPageSignals.push([settings, id]);
+            return id;
+        };
+        settings.disconnect = (id) => {
+            const index = this._trackedPageSignals.findIndex(entry => entry[1] === id);
+            if (index !== -1) {
+                this._trackedPageSignals.splice(index, 1);
+            }
+            trackedDisconnect(id);
+        };
+
         // Never leave a slider "grabbed" state behind when the window closes.
         window.connect('close-request', () => {
             settings.set_boolean('drag-active', false);
@@ -183,12 +210,12 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         if (settings.get_boolean('open-widget-picker')) {
             settings.set_boolean('open-widget-picker', false);
             // Open widget picker after window is shown
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._trackSource(GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
                 openWidgetPicker(window, this.path, _, (widgetType) => {
                     this._addWidget(settings, widgetType);
                 });
                 return GLib.SOURCE_REMOVE;
-            });
+            }));
         }
 
         this._switchToSidebar(window);
@@ -315,22 +342,60 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         const openPage = settings.get_string('open-prefs-page');
         if (openPage) {
             settings.set_string('open-prefs-page', '');
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._trackSource(GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
                 const row = this._sidebarRows.get(openPage)
                     ?? this._sidebarRows.get('appearance');
                 row?.emit('activate');
                 return GLib.SOURCE_REMOVE;
-            });
+            }));
         }
 
-        // Handle window close
+        // Handle window close: pages are destroyed with the window, but the
+        // handlers/sources they registered while being built live on —release
+        // everything tracked (GSettings handlers, debounces, one-shot timers).
         window.connect('close-request', () => {
             for (const page of this._pages)
                 page?.destroy?.();
 
             this._pages = [];
+
+            this._releasePageHandlers();
             return false;
         });
+    }
+
+    /** Registers one one-shot GLib source so close-request can cancel it. */
+    _trackSource(sourceId) {
+        this._trackedPageSources.push(sourceId);
+    }
+
+    /** Registers one signal so close-request can disconnect it later. */
+    _trackSignal(proxy, id) {
+        this._trackedPageSignals.push([proxy, id]);
+    }
+
+    _releasePageHandlers() {
+        for (const sourceId of this._trackedPageSources) {
+            GLib.source_remove(sourceId);
+        }
+        this._trackedPageSources = [];
+
+        for (const [proxy, id] of this._trackedPageSignals) {
+            try {
+                proxy.disconnect(id);
+            } catch (error) {
+                // Peer already gone.
+            }
+        }
+        this._trackedPageSignals = [];
+
+        for (const key in (this._debounceTimers ?? {})) {
+            const id = this._debounceTimers[key];
+            if (id) {
+                GLib.source_remove(id);
+            }
+        }
+        this._debounceTimers = {};
     }
 
     _switchToSidebar(window) {
@@ -1740,12 +1805,13 @@ export default class WidgetsPrefs extends ExtensionPreferences {
         const applyUsernameRow = () => {
             applyUsername();
 
-            // Brief green pulse to confirm the value was committed.
+            // Brief green pulse to confirm the value was committed. Tracked
+            // so a closed window cannot let it touch the destroyed button.
             applyUsernameButton.get_style_context().add_class('suggested-action');
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
+            this._trackSource(GLib.timeout_add(GLib.PRIORITY_DEFAULT, 350, () => {
                 applyUsernameButton.get_style_context().remove_class('suggested-action');
                 return GLib.SOURCE_REMOVE;
-            });
+            }));
         };
 
         const applyUsernameButton = new Gtk.Button({
@@ -3302,7 +3368,10 @@ export default class WidgetsPrefs extends ExtensionPreferences {
                 icon.set_from_icon_name(iconName); // fallback for third-party icons
         };
         applyIcon();
-        Adw.StyleManager.get_default().connect('notify::dark', applyIcon);
+        // Theme flips after the window closes would call set_from_file on a
+        // destroyed Gtk.Image: tracked like every other page signal.
+        const applyIconId = Adw.StyleManager.get_default().connect('notify::dark', applyIcon);
+        this._trackSignal(Adw.StyleManager.get_default(), applyIconId);
         row.add_prefix(icon);
 
         row.add_suffix(new Gtk.Image({

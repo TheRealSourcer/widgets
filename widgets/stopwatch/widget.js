@@ -94,6 +94,11 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 	let isRunning = false;
 	let timerId = null;
 	let tickCount = 0;
+	// The display derives from a monotonic anchor, not from per-tick
+	// increments: delayed 10 ms timers would otherwise drop centiseconds
+	// permanently and the stopwatch would drift slow.
+	let runBaseCs = 0;
+	let runAnchorMono = 0;
 
 	const state = openStopwatchState({body, widget,
 		isRunning: () => isRunning,
@@ -194,8 +199,10 @@ function renderSmallTimer({body, theme, sizeForWidget, widget}) {
 	const startTimer = () => {
 		if (isRunning) return;
 		isRunning = true;
+		runBaseCs = centiseconds;
+		runAnchorMono = GLib.get_monotonic_time();
 		timerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_INTERVAL_MS, () => {
-			centiseconds++;
+			centiseconds = Math.floor(runBaseCs + (GLib.get_monotonic_time() - runAnchorMono) / 10000);
 			updateDisplay();
 			// Keep the wall stamp fresh (≤ ~1s stale) for surprise teardowns.
 			if (++tickCount % 100 === 0) {
@@ -274,6 +281,10 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	let isRunning = false;
 	let timerId = null;
 	let tickCount = 0;
+	// Monotonic anchor (see renderSmallTimer) so the display cannot
+	// accumulate drift from delayed timer fires.
+	let runBaseCs = 0;
+	let runAnchorMono = 0;
 
 	const state = openStopwatchState({body, widget,
 		isRunning: () => isRunning,
@@ -469,29 +480,6 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	secondsLabel.translation_x = digitAlignment;
 	centisecondsLabel.translation_x = digitAlignment;
 
-	// DEBUG(probe): one-shot journal dump of the row's real numbers, to
-	// verify against the design (slot 123, gap 8, colon 16). Remove after
-	// the next verification round.
-	GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2500, () => {
-		const geo = (c) => `${Math.round(c.x)},${Math.round(c.y)} ${Math.round(c.allocation.get_width())}x${Math.round(c.allocation.get_height())}`;
-		const inkOf = (label) => {
-			const layout = label.get_clutter_text()?.get_layout();
-			return layout ? Math.round(layout.get_pixel_extents()[0].width) : -1;
-		};
-		console.warn(`[stopwatch-debug] row alloc ${Math.round(timeBox.allocation.get_width())}x${Math.round(timeBox.allocation.get_height())} tx ${Math.round(timeBox.translation_x)} | ${[minutesBox, separator1, secondsBox, separator2, centisecondsBox].map(geo).join(' | ')}`);
-		console.warn(`[stopwatch-debug] digit tx ${[minutesLabel, secondsLabel, centisecondsLabel].map((l) => Math.round(l.translation_x)).join(' / ')} ink ${inkOf(minutesLabel)} ${inkOf(secondsLabel)} ${inkOf(centisecondsLabel)}`);
-		const absInk = (col, label) => {
-			const layout = label.get_clutter_text()?.get_layout();
-			if (!layout) return 'no-layout';
-			const ink = layout.get_pixel_extents()[0];
-			const base = Math.round(col.x + label.allocation.get_x() + ink.x + label.translation_x);
-			return `${base}..${base + Math.round(ink.width)}`;
-		};
-		console.warn(`[stopwatch-debug] ink map digits ${absInk(minutesBox, minutesLabel)} | ${absInk(secondsBox, secondsLabel)} | ${absInk(centisecondsBox, centisecondsLabel)} vs sep1 box ${Math.round(separator1.x)} (dot cx ${px(8)}±${px(5)}) sep2 box ${Math.round(separator2.x)}`);
-		console.warn(`[stopwatch-debug] caption ink ${inkOf(minutesCaption)} ${inkOf(secondsCaption)} ${inkOf(centisecondsCaption)} | texts: ${[minutesCaption, secondsCaption, centisecondsCaption].map((l) => String(l.text)).join(' / ')}`);
-		return GLib.SOURCE_REMOVE;
-	});
-
 	mainBox.add_child(timeBox);
 
 	// Buttons
@@ -541,8 +529,10 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 	const startTimer = () => {
 		if (isRunning) return;
 		isRunning = true;
+		runBaseCs = centiseconds;
+		runAnchorMono = GLib.get_monotonic_time();
 		timerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_INTERVAL_MS, () => {
-			centiseconds++;
+			centiseconds = Math.floor(runBaseCs + (GLib.get_monotonic_time() - runAnchorMono) / 10000);
 			updateDisplay();
 			// Keep the wall stamp fresh (≤ ~1s stale) for surprise teardowns.
 			if (++tickCount % 100 === 0) {

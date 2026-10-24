@@ -268,9 +268,6 @@ export function render({ body, widget, theme, settings }) {
                     // The bound follows the insert; collapsing it removes any
                     // stale selection (GNOME 51 has no select_region API).
                     textEditor.set_selection_bound(textEditor.get_cursor_position());
-
-                    // TEMP probe: verify no stale/doubled inserts remain.
-                    log(`DW-NOTES-KEY: shift-enter at=${textEditor.get_cursor_position()} len=${textEditor.get_text().length}`);
                 }
                 return Clutter.EVENT_STOP;
             }
@@ -359,7 +356,6 @@ export function render({ body, widget, theme, settings }) {
 
         const src = event.get_source();
         if (!src || event.get_button() !== 1) {
-            log(`DW-NOTES-CLICK: stage press src=${src?.constructor?.name ?? 'null'} btn=${event.get_button()}`);
             return Clutter.EVENT_PROPAGATE;
         }
 
@@ -373,7 +369,6 @@ export function render({ body, widget, theme, settings }) {
         }
 
         const dbl = bodyDouble(event);
-        log(`DW-NOTES-CLICK: stage text press dbl=${dbl} src=${src.constructor.name} editing=${isEditing}`);
         if (isEditing || !dbl) {
             return Clutter.EVENT_PROPAGATE;
         }
@@ -393,13 +388,6 @@ export function render({ body, widget, theme, settings }) {
         // The double-click never reaches the text: no word selection.
         return Clutter.EVENT_STOP;
     }, body);
-
-    // TEMP probe: counts presses reaching the viewer text directly —
-    // compares against the stage-captured path when built-in selection wins.
-    displayLabel.connect('button-press-event', (_actor, event) => {
-        log(`DW-NOTES-CLICK: direct press btn=${event.get_button()}`);
-        return Clutter.EVENT_PROPAGATE;
-    });
 
     scrollContent.add_child(viewerContainer);
     scrollContent.add_child(editorContainer);

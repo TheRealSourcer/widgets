@@ -47,7 +47,6 @@ import * as FolderWidget from './widgets/folder/widget.js';
 import * as TimerWidget from './widgets/timer/widget.js';
 import { configureLogger, resetLogger, warn } from './logger.js';
 import { assetPath } from './paths.js';
-import { isActorDestroyed } from './utils/actorLifecycle.js';
 import { LiquidGlass } from './lib/glass.js';
 // (The screen-time engine runs inside the screentime widget; extension.js no
 // longer pauses it on fullscreen — fullscreen is real screen time.)
@@ -56,7 +55,7 @@ import { boxLayoutProps } from './utils/gnomeCompat.js';
 import { WorkspaceIntegration } from './workspaceIntegration.js';
 import { LAYOUT_KEY, LAYOUT_VERSION, layoutJson } from './layoutDoc.js';
 import { macColors } from './lib/colors.js';
-import { parseCssColor } from './utils/ported.js';
+import { isActorDestroyed, parseCssColor } from './utils/ported.js';
 // Widget-in-widget stack plumbing (vertical pages under a primary widget).
 import { attachWidgetStack, makeStackEntry } from './widgets/widgetStack.js';
 import { WIDGET_TYPE_LABELS, GALLERY_HINTS, MAX_STACK_PAGES as STACK_PAGE_LIMIT } from './lib/widgetTypes.js';
@@ -2097,9 +2096,7 @@ class WidgetController {
 
     this._resolveLayout(null, false, true);
 
-    console.log(`[REBUILD] Total widgets to create: ${this._widgets.length}`);
     for (const widget of this._widgets) {
-      console.log(`[REBUILD] Creating widget: type=${widget.type} id=${widget.id} hasStack=${Array.isArray(widget.stack)} stackLength=${widget.stack?.length ?? 0}`);
       try {
         this._createWidget(widget);
       } catch (error) {
@@ -2114,36 +2111,8 @@ class WidgetController {
       this._layer.queue_relayout();
     }
 
-    // Force glass geometry update after widgets are laid out.
-    // Multiple retries with increasing delays to handle slow allocation.
-    const updateGlassGeometry = () => {
-      if (this._glass) {
-        const views = [...this._views.values()]
-          .filter(view => view.actor && !this._widgetSkipsGlass(view.widget))
-          .map(view => ({...view, id: view.widget.id}));
-        
-        for (const view of views) {
-          const record = this._glass._records?.get(view.id);
-          if (record) {
-            this._glass._updateGeometry(record);
-          }
-        }
-      }
-    };
-
-    // Try at 50ms, 150ms, and 300ms to catch actors as they get allocation
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-      updateGlassGeometry();
-      return GLib.SOURCE_REMOVE;
-    });
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
-      updateGlassGeometry();
-      return GLib.SOURCE_REMOVE;
-    });
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-      updateGlassGeometry();
-      return GLib.SOURCE_REMOVE;
-    });
+    // Glass geometry needs no retry timers: the panes are per-widget child
+    // actors now (lib/glass.js) and follow their own allocation signals.
   };
 
   // Helper: get the currently active stacked page entry, or null if on primary page
@@ -2223,14 +2192,10 @@ class WidgetController {
         }
       }
       
-      console.log(`[size-change] Container resize: ${widget.type} id=${widget.id} oldSize=${widget.size} newSize=${sizeKey} stackCount=${widget.stack.length}`);
-      
-      const oldSize = widget.size;
-      
       // Change main widget size
       widget.size = sizeKey;
       widget.data = {...(widget.data ?? {}), sizeManual: true};
-      
+
       // Change ALL stack entries to the same size
       for (const entry of widget.stack) {
         entry.size = sizeKey;
@@ -2278,9 +2243,7 @@ class WidgetController {
         
         // Re-render the main widget with the new size
         this._safeFillWidgetBody(widget, currentView.body);
-        
-        console.log(`[size-change] Container resize complete: ${widget.type} ${oldSize} -> ${sizeKey}`);
-        
+
         return GLib.SOURCE_REMOVE;
       });
       
@@ -2293,7 +2256,6 @@ class WidgetController {
     };
 
     // Primary widget size change
-    console.log(`[size-change] _setWidgetSize: primary widget type=${widget.type} id=${widget.id} oldSize=${widget.size ?? 'undefined'} newSize=${sizeKey}`);
     const [prevW, prevH] = this._sizeFor(widget);
     widget.size = sizeKey;
     widget.data = {...(widget.data ?? {}), sizeManual: true};
@@ -2630,6 +2592,22 @@ class WidgetController {
       return;
     };
 
+    // Re-attaching (the photos widget toggles glass off/on) must not
+    // accumulate duplicate geometry handlers: drop the previous set first.
+    if (view._glassListenerIds) {
+      for (const id of view._glassListenerIds) {
+        try {
+          wrapper.disconnect(id);
+        } catch (error) {
+          // Handler already gone with the wrapper.
+        };
+      };
+    };
+    view._glassListenerIds = [];
+    const track = (signal, callback) => {
+      view._glassListenerIds.push(wrapper.connect(signal, callback));
+    };
+
     this._updateGlassParamsForView({glass: view.glass, widget, actor});
     this._updateGlassGeometryForView(view);
 
@@ -2641,22 +2619,19 @@ class WidgetController {
     // stacked widget that is 3–4 blur repaints per motion event, which is
     // exactly what made stacked widgets stutter while being dragged. The
     // queue coalesces such bursts into one pass per main-loop iteration.
-    wrapper.connect('notify::x', () => this._queueGlassGeometrySync(view));
-    wrapper.connect('notify::y', () => this._queueGlassGeometrySync(view));
-    wrapper.connect('notify::allocation', () => {
+    track('notify::x', () => this._queueGlassGeometrySync(view));
+    track('notify::y', () => this._queueGlassGeometrySync(view));
+    track('notify::width', () => this._queueGlassGeometrySync(view));
+    track('notify::height', () => this._queueGlassGeometrySync(view));
+    track('notify::allocation', () => {
       this._updateGlassGeometryForView(view);
       this._updateStackGlassGeometry(view);
+      this._queueGlassGeometrySync(view);
     });
-
-    wrapper.connect('notify::x', () => this._queueGlassGeometrySync(view));
-    wrapper.connect('notify::y', () => this._queueGlassGeometrySync(view));
-    wrapper.connect('notify::width', () => this._queueGlassGeometrySync(view));
-    wrapper.connect('notify::height', () => this._queueGlassGeometrySync(view));
-    wrapper.connect('notify::allocation', () => this._queueGlassGeometrySync(view));
 
     // Pointer tracking for specular highlights (reads view.glass late, so it
     // is safe while the pane is being added or removed).
-    wrapper.connect('motion-event', (_a, event) => {
+    track('motion-event', (_a, event) => {
       const pane = view.glass;
       if (!pane) return Clutter.EVENT_PROPAGATE;
       const [sx, sy] = event.get_coords();
@@ -2668,7 +2643,7 @@ class WidgetController {
       return Clutter.EVENT_PROPAGATE;
     });
 
-    wrapper.connect('notify::hover', () => {
+    track('notify::hover', () => {
       if (view.glass) view.glass.setPointer(-1, -1, wrapper.hover ? 1 : 0);
     });
 
@@ -2712,14 +2687,11 @@ class WidgetController {
 
   _safeFillWidgetBody(widget, body) {
     if (!body) {
-      console.log(`[fill-body] SKIP: widget=${widget.type} id=${widget.id} body=null`);
       return;
     };
 
-    console.log(`[fill-body] START: widget=${widget.type} id=${widget.id} size=${widget.size ?? 'default'} bodyKids=${body.get_children().length}`);
     try {
       this._fillWidgetBody(widget, body);
-      console.log(`[fill-body] SUCCESS: widget=${widget.type} id=${widget.id}`);
     } catch (error) {
       logError(error, `Widget fill failed: ${widget.type}/${widget.size ?? 'default'}`);
       warn('widget-render-failed', `Failed to render ${widget.type}: ${error.message}\n${error.stack}`);
@@ -3301,7 +3273,6 @@ sizeButton.connectObject('destroy', () => {
         return;
       };
 
-      console.log(`[drag-finish] widget=${widget.type} id=${widget.id} from (${widget.oldX}, ${widget.oldY}) to (${widget.x}, ${widget.y})`);
       drag = null;
       this._clampWidget(widget);
 
@@ -3314,7 +3285,6 @@ sizeButton.connectObject('destroy', () => {
       );
 
       if (hasOverlap) {
-        console.log(`[drag-finish] overlap detected, snapping to edge`);
         const snapped = this._snapToNearestEdge(widget);
         widget.x = snapped.x;
         widget.y = snapped.y;
@@ -3324,7 +3294,6 @@ sizeButton.connectObject('destroy', () => {
         // drop it into the nearest free cell so it never stays stuck.
         if (this._widgets.some(other =>
           other !== widget && rectsOverlap(this._rectFor(widget), this._rectFor(other), gap))) {
-          console.log(`[drag-finish] still overlapping after snap, finding open position`);
           const open = this._findOpenPosition(widget, this._widgets);
           widget.x = open.x;
           widget.y = open.y;
@@ -3338,7 +3307,6 @@ sizeButton.connectObject('destroy', () => {
       this._animateWidget(widget, true);
       this._cancelActiveDrag();
       this._saveWidgets();
-      console.log(`[drag-finish] complete, widget at (${widget.x}, ${widget.y})`);
     };
 
     const moveDrag = event => {
@@ -3351,7 +3319,6 @@ sizeButton.connectObject('destroy', () => {
       const monitor = monitorAtStage(effectiveMonitors(), stageX, stageY);
 
       if (!monitor) {
-        console.log(`[drag] moveDrag: no monitor at (${stageX}, ${stageY})`);
         return;
       };
 
@@ -3396,7 +3363,6 @@ sizeButton.connectObject('destroy', () => {
       };
 
       if (widget.pinned) {
-        console.log(`[drag] Cannot drag pinned widget: ${widget.type} id=${widget.id}`);
         return Clutter.EVENT_PROPAGATE;
       };
 
@@ -3427,8 +3393,6 @@ sizeButton.connectObject('destroy', () => {
         baseStageY: widget.y + (this._layerY ?? 0),
       };
 
-      console.log(`[drag-start] widget=${widget.type} id=${widget.id} at (${widget.x}, ${widget.y}) press at stage (${stageX}, ${stageY})`);
-
       raiseActor(actor);
       this._syncEditControls(widget);
 
@@ -3445,23 +3409,17 @@ sizeButton.connectObject('destroy', () => {
         const isRelease = eventType === Clutter.EventType.BUTTON_RELEASE;
         const isKeyPress = eventType === Clutter.EventType.KEY_PRESS;
 
-        if (!isMotion) {
-          console.log(`[drag-event] type=${eventType} BUTTON_RELEASE=${Clutter.EventType.BUTTON_RELEASE} isRelease=${isRelease} isKeyPress=${isKeyPress}`);
-        }
-
         if (isMotion) {
           moveDrag(capturedEvent);
           return Clutter.EVENT_STOP;
         };
 
         if (isRelease) {
-          console.log(`[drag-event] calling finishDrag()`);
           finishDrag();
           return Clutter.EVENT_STOP;
         };
 
         if (isKeyPress && capturedEvent.get_key_symbol() === Clutter.KEY_Escape) {
-          console.log(`[drag-event] ESC pressed, canceling drag`);
           drag = null;
           widget.x = widget.oldX;
           widget.y = widget.oldY;
@@ -4645,7 +4603,10 @@ sizeButton.connectObject('destroy', () => {
       duration: 200,
       mode: Clutter.AnimationMode.EASE_IN_QUAD,
       onComplete: () => {
-        if (!overlay.is_finalized?.()) {
+        // Calling destroy() on an already-finalized actor raises; the
+        // try/get_stage-based helper is the one check that actually catches
+        // actor destruction in GJS (is_finalized/is_destroyed do not exist).
+        if (!isActorDestroyed(overlay)) {
           overlay.destroy();
         };
       },
@@ -4655,17 +4616,14 @@ sizeButton.connectObject('destroy', () => {
 
 
   _fillWidgetBody(widget, body, paneRootOverride = null) {
-    console.log(`[FILL-BODY] Called: type=${widget.type} id=${widget.id} bodyExists=${!!body} paneRootOverride=${!!paneRootOverride}`);
     body.destroy_all_children();
     const widgetModule = WIDGETS.get(widget.type);
 
     if (!widgetModule?.render) {
-      console.log(`[FILL-BODY] No module or render: type=${widget.type}`);
       body.add_child(this._label(_('Unknown widget'), 'widget-text'));
       return;
     };
 
-    console.log(`[FILL-BODY] Calling module.render for type=${widget.type}`);
     widgetModule.render({
         body,
         widget,
@@ -4687,15 +4645,8 @@ sizeButton.connectObject('destroy', () => {
           this._suppressAppClickUntil = Date.now() + 400;
         },
       });
-    console.log(`[FILL-BODY] After render: type=${widget.type} bodyChildren=${body.get_n_children()}`);
-
-
-    // Widget-in-widget: after the primary content is rendered (and its own
-    // pane overlays attached), mount the stacked pages + the flip rail.
-    // Re-fills rebuild the prism from the current widget.stack, so panel
-    // edits, resizes and theme changes land on fresh pages with the
-    // current ancestor layout.
-    // Widget-in-widget DISABLED: do not mount stacked pages.
+    // The stacked-pages prism is intentionally not mounted (widget-in-widget
+    // disabled); dispose any stale one so a re-enable starts clean.
     const prismView = this._views.get(widget.id);
     if (prismView && prismView._stackPrism) {
       prismView._stackPrism.dispose();

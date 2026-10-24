@@ -38,27 +38,55 @@ function cleanupOldFiles(retentionDays) {
 	const dir = getDataDir();
 	const cutoff = GLib.DateTime.new_now_local().add_days(-retentionDays);
 	const cutoffDate = `${cutoff.get_year()}-${String(cutoff.get_month()).padStart(2, '0')}-${String(cutoff.get_day_of_month()).padStart(2, '0')}`;
+	const dirFile = Gio.File.new_for_path(dir);
 
-	try {
-		const dirFile = Gio.File.new_for_path(dir);
-		const enumerator = dirFile.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
-		let info;
-		while ((info = enumerator.next_file(null)) !== null) {
-			const name = info.get_name();
-			const match = name.match(/^(\d{4}-\d{2}-\d{2})\.json$/);
-			if (!match) continue;
-			if (match[1] < cutoffDate) {
-				try {
-					dirFile.get_child(name).delete(null);
-				} catch (e) {
-					warn('screen-time-cleanup', `Failed to delete old screen time file ${name}: ${e.message}`);
-				}
+	// Enumerate asynchronously so startup and midnight rollover don't block the UI thread.
+	dirFile.enumerate_children_async(
+		'standard::name', Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_LOW, null,
+		(source, result) => {
+			let enumerator;
+			try {
+				enumerator = source.enumerate_children_finish(result);
+			} catch (e) {
+				// Directory may not exist yet — that's fine.
+				return;
 			}
-		}
-		enumerator.close(null);
-	} catch (e) {
-		warn('screen-time-cleanup', `Failed to cleanup old screen time files: ${e.message}`);
-	}
+
+			const deleteNext = () => {
+				enumerator.next_files_async(10, GLib.PRIORITY_LOW, null, (src, res) => {
+					let infos;
+					try {
+						infos = src.next_files_finish(res);
+					} catch (e) {
+						warn('screen-time-cleanup', `Error iterating screen time files: ${e.message}`);
+						enumerator.close_async(GLib.PRIORITY_LOW, null, null);
+						return;
+					}
+
+					if (infos.length === 0) {
+						enumerator.close_async(GLib.PRIORITY_LOW, null, null);
+						return;
+					}
+
+					for (const info of infos) {
+						const name = info.get_name();
+						const match = name.match(/^(\d{4}-\d{2}-\d{2})\.json$/);
+						if (match && match[1] < cutoffDate) {
+							dirFile.get_child(name).delete_async(GLib.PRIORITY_LOW, null, (_f, r) => {
+								try { _f.delete_finish(r); } catch (e) {
+									warn('screen-time-cleanup', `Failed to delete old screen time file ${name}: ${e.message}`);
+								}
+							});
+						}
+					}
+
+					deleteNext();
+				});
+			};
+
+			deleteNext();
+		},
+	);
 }
 
 function loadJsonFromFileAsync(filePath, callback) {
@@ -122,12 +150,18 @@ export const screenTimeEngine = {
 	setPaused(paused) {
 		if (this._paused === paused) return;
 		this._paused = paused;
-		
+
+		const now = GLib.get_real_time();
+
 		if (paused) {
 			// Keep the current focus and elapsed time while paused
-			const now = GLib.get_real_time();
 			this._flushFocused(now);
 			this._saveNow();
+		} else {
+			// Resume: re-anchor the focus start so the paused stretch
+			// (fullscreen / locked — not screen time) is not credited to the
+			// focused app on the next flush. The next tick re-resolves focus.
+			this._focusStartMicro = now;
 		}
 	},
 
@@ -244,6 +278,9 @@ export const screenTimeEngine = {
 		this._listeners.clear();
 		this._focusedKey = null;
 		this._focusStartMicro = null;
+		// A stopped engine must not wake up still paused: the next widget to
+		// acquire it defines its own pause state.
+		this._paused = false;
 	},
 
 	_onFocusChanged() {
@@ -295,7 +332,17 @@ export const screenTimeEngine = {
 			const segmentStart = GLib.DateTime.new_from_unix_local(epochSecond);
 			const secondsIntoHour = segmentStart.get_minute() * 60 + segmentStart.get_second();
 
-			this._maybeRollover();
+			// Rollover happens per-SEGMENT, not per-flush: a flush spanning
+			// midnight must credit the pre-midnight hour to the old day's
+			// file (the rollover is what switches the in-memory map, so doing
+			// it first would write hour 23 of yesterday into today's file).
+			const segmentDate = `${segmentStart.get_year()}-${String(segmentStart.get_month()).padStart(2, '0')}-${String(segmentStart.get_day_of_month()).padStart(2, '0')}`;
+			if (segmentDate !== this._currentDate) {
+				this._saveNow();
+				this._currentDate = segmentDate;
+				this._appHours.clear();
+				cleanupOldFiles(this._retentionDays);
+			}
 
 			const boundaryEpochSecond = epochSecond - secondsIntoHour + SECONDS_PER_HOUR;
 			const cursorEnd = Math.min(nowMicro, boundaryEpochSecond * MICROSECONDS_PER_SECOND);

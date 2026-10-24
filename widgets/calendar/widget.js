@@ -8,6 +8,7 @@ import St from 'gi://St';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import { clamp } from '../../utils.js';
+import { isActorDestroyed } from '../../utils/ported.js';
 import { warn } from '../../logger.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
 
@@ -1052,9 +1053,27 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 		});
 	};
 
+	// The events view registers one eventsClient listener per build; each
+	// swipe rebuilds the view, so the CURRENT swap's dispose is kept here
+	// and released when that view goes away (see rebuild + the swipe path).
+	let pendingEventsDispose = null;
+
 	const rebuild = (enterX = 0) => {
 		if (viewContainer) {
 			container.remove_child(viewContainer);
+			// Swapped-out views are never destroyed (they are only removed),
+			// so an onChange listener registered through viewContainer's
+			// 'destroy' hook would survive every swap. Cancel the previous
+			// one explicitly so events view swipes cannot accumulate
+			// stale refresh closures.
+			pendingEventsDispose?.();
+			pendingEventsDispose = null;
+			// ...and drop the view itself: its cached layout is useless, and
+			// keeping it alive holds every label actor it created.
+			if (!animatingActors.has(viewContainer)) {
+				viewContainer.destroy();
+			};
+			viewContainer = null;
 		}
 
 		if (currentView === VIEW_CALENDAR) {
@@ -1093,7 +1112,10 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 			viewContainer = result.view;
 			currentEventBox = result.eventsBox;
 
-			// Setup events refresh for events view
+			// Setup events refresh for events view. The dispose handle is
+			// tracked per-swap (pendingEventsDispose): viewContainer is only
+			// ever REMOVED from the container, never destroyed mid-widget —
+			// a 'destroy' hook alone would leak one listener per swipe.
 			if (events) {
 				const refresh = () => {
 					if (currentEventBox && currentView === VIEW_EVENTS) {
@@ -1101,8 +1123,13 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 					}
 				};
 
-				const dispose = events.onChange(refresh);
-				viewContainer.connect('destroy', dispose);
+				pendingEventsDispose = events.onChange(refresh);
+				// Maltese-cross: if the view ever IS destroyed (widget teardown),
+				// release the listener with it.
+				viewContainer.connect('destroy', () => {
+					pendingEventsDispose?.();
+					pendingEventsDispose = null;
+				});
 			}
 		}
 
@@ -1161,18 +1188,28 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 				mode: Clutter.AnimationMode.EASE_IN_QUAD,
 				onComplete: () => {
 					animatingActors.delete(oldView);
+					if (isActorDestroyed(oldView)) {
+						return;
+					};
 					if (oldView.get_parent()) {
 						oldView.get_parent().remove_child(oldView);
 					}
+					// Its layout cache is worthless after the swap; keep it
+					// alive would pin hundreds of label actors per swipe.
+					oldView.destroy();
 				},
 			});
 
 			// Toggle between views (any swipe direction switches to the other view)
 			currentView = currentView === VIEW_CALENDAR ? VIEW_EVENTS : VIEW_CALENDAR;
 			lastCalendarView = currentView;
-			
+
+			// One-shot flashback of the entering view may outlive the widget
+			// (destroy mid-swipe) — guard against touching dead actors.
 			GLib.timeout_add(GLib.PRIORITY_DEFAULT, ANIMATION_DURATION / 2, () => {
-				rebuild(-exitX);
+				if (!isActorDestroyed(container)) {
+					rebuild(-exitX);
+				};
 				return GLib.SOURCE_REMOVE;
 			});
 		}

@@ -35,7 +35,21 @@ const CROSS_DURATION = Math.round(ANIMATION_DURATION * 2); // 500ms
 // Cover fallback: every candidate GIF is decoded once and cached, so cards
 // after the first one paint instantly instead of re-reading the file.
 const GIF_CANDIDATES = ['pushy.gif', 'pushy2.gif', 'pushy3.gif', 'pushy4.gif', 'pushy5.gif'];
+// Each cache entry holds up to ~240 decoded frames; without a cap a session
+// that sweeps through many GIFs grows the shell's memory without bound.
+const GIF_CACHE_LIMIT = 4;
 const gifFramesCache = new Map();
+function cacheGifFrames(path, frames) {
+	if (gifFramesCache.has(path)) {
+		gifFramesCache.delete(path);
+	};
+
+	gifFramesCache.set(path, frames);
+
+	if (gifFramesCache.size > GIF_CACHE_LIMIT) {
+		gifFramesCache.delete(gifFramesCache.keys().next().value);
+	};
+}
 const CHROMIUM_MARKERS = ['chromium', 'chrome', 'brave', 'vivaldi', 'opera', 'edge', 'yandex', 'thorium', 'helium', 'firefox'];
 
 function isChromiumName(name) {
@@ -99,27 +113,48 @@ function arraysEqual(a, b) {
 	return true;
 };
 
-function pixbufFrames(path) {
-	const frames = [];
+// GdkPixbuf GIF decode — runs in an idle so it doesn't block the UI thread.
+// The 240-frame loop + pixel comparison can take 50-200 ms on a large GIF;
+// yielding to the main loop every N frames keeps compositor latency healthy.
+function pixbufFramesAsync(path, onDone) {
+	let frames = [];
 	let firstPixels = null;
+	let animation, iter, guard;
 
 	try {
-		const animation = GdkPixbuf.PixbufAnimation.new_from_file(path);
-		const iter = animation.get_iter(null);
-		let guard = 0;
+		animation = GdkPixbuf.PixbufAnimation.new_from_file(path);
+		iter = animation.get_iter(null);
+		guard = 0;
+	} catch (error) {
+		warn('music: failed to open gif animation', error);
+		onDone([]);
+		return;
+	};
 
-		while (guard++ < 240) {
-			const pixbuf = iter.get_pixbuf();
-			const pixels = pixbuf.get_pixels();
+	// Process up to CHUNK frames per idle tick so the UI stays responsive.
+	const CHUNK = 8;
+	const idleId = GLib.idle_add(GLib.PRIORITY_LOW, () => {
+		let count = 0;
+		while (guard++ < 240 && count++ < CHUNK) {
+			let pixbuf, pixels;
+			try {
+				pixbuf = iter.get_pixbuf();
+				pixels = pixbuf.get_pixels();
+			} catch (error) {
+				warn('music: failed to read gif frame', error);
+				onDone(frames);
+				return GLib.SOURCE_REMOVE;
+			};
 
 			if (firstPixels && arraysEqual(pixels, firstPixels)) {
-				break;
+				onDone(frames);
+				return GLib.SOURCE_REMOVE;
 			};
 
 			const icon = pixbufToBytesIcon(pixbuf);
-
 			if (!icon) {
-				break;
+				onDone(frames);
+				return GLib.SOURCE_REMOVE;
 			};
 
 			if (!firstPixels) {
@@ -128,15 +163,24 @@ function pixbufFrames(path) {
 
 			frames.push({icon, delay: Math.max(40, iter.get_delay_time())});
 
-			if (!iter.advance(null)) {
-				break;
+			let advanced = false;
+			try {
+				advanced = iter.advance(null);
+			} catch (_e) {}
+			if (!advanced) {
+				onDone(frames);
+				return GLib.SOURCE_REMOVE;
 			};
 		};
-	} catch (error) {
-		warn('music: failed to decode gif frames', error);
-	};
 
-	return frames;
+		if (guard >= 240) {
+			onDone(frames);
+			return GLib.SOURCE_REMOVE;
+		};
+
+		return GLib.SOURCE_CONTINUE;
+	});
+	return idleId;
 };
 
 function removeGifTempDir(baseDir) {
@@ -228,7 +272,7 @@ function decodeGifFrames(path, onDone) {
 
 	const finish = decoded => {
 		if (decoded && decoded.length > 1) {
-			gifFramesCache.set(path, decoded);
+			cacheGifFrames(path, decoded);
 		};
 
 		onDone(decoded ?? null);
@@ -246,14 +290,19 @@ function decodeGifFrames(path, onDone) {
 				return;
 			};
 
-			const pixbufDecoded = pixbufFrames(path);
-			finish(pixbufDecoded.length > 1 ? pixbufDecoded : null);
+			// ffmpeg fallback: decode via GdkPixbuf asynchronously (idle-chunked)
+			// so the 240-frame pixel loop does not block the compositor.
+			pixbufFramesAsync(path, decoded => {
+				finish(decoded.length > 1 ? decoded : null);
+			});
 		});
 		return;
 	};
 
-	const pixbufDecoded = pixbufFrames(path);
-	finish(pixbufDecoded.length > 1 ? pixbufDecoded : null);
+	// No ffmpeg: decode via idle-chunked GdkPixbuf path.
+	pixbufFramesAsync(path, decoded => {
+		finish(decoded.length > 1 ? decoded : null);
+	});
 };
 
 function gifFrameDelay(path) {
@@ -839,8 +888,6 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 
 			card._buildLyrics(result);
 		}).catch(error => {
-			log(`[debug] lyrics resolve failed: ${error}`);
-
 			if (token !== card._lyricsToken) {
 				return;
 			};
@@ -908,10 +955,6 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		const adjustment = card._lyricsScroll.vadjustment ?? null;
 
 		if (!adjustment) {
-			if (!card._lyricsNoAdjustLogged) {
-				card._lyricsNoAdjustLogged = true;
-				log('[debug] lyrics scroll: no vadjustment on the view');
-			};
 			return;
 		};
 
@@ -927,8 +970,6 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 		if (!isFinite(clamped)) {
 			return;
 		};
-
-		log(`[debug] lyrics scroll line=${index} y=${Math.round(rowY)} upper=${Math.round(adjustment.upper)} page=${Math.round(adjustment.page_size)} -> ${Math.round(clamped)}`);
 
 		// Kill a running follow tween so two writes never race.
 		if (card._lyricsScrollTween) {
@@ -1318,6 +1359,13 @@ let Controller = class Controller {
 
 		const bestRow = await this._pickActive();
 
+		// destroy() may have run while the player list was resolving; wiring
+		// a player after that would re-subscribe D-Bus signals and re-arm
+		// the timers destroy() already removed (leak until extension disable).
+		if (this._relisten === false || !this._card) {
+			return;
+		};
+
 		if (bestRow && typeof bestRow.name === 'string' && bestRow.name) {
 			this._name = bestRow.name;
 			this._wire(bestRow.name);
@@ -1579,14 +1627,26 @@ let Controller = class Controller {
 
 	_applyStatus(status) {
 		this._status = status;
+		const wasPlaying = this._playing;
 		this._playing = status === 'Playing';
 
 		if (status === 'Playing') {
 			this._acceptUntil = Date.now() + 1500;
+			// Re-anchor posAt so the timer's first accumulation step starts
+			// from now, not from whenever the last update arrived.
+			this._posAt = Date.now();
 
 			if (this._chromium) {
 				this._refreshMeta();
 			};
+		};
+
+		if (wasPlaying && status === 'Paused') {
+			// Freeze the accumulated position so re-play doesn't add the
+			// pause duration to the extrapolated offset.
+			const now = Date.now();
+			this._position = Math.max(0, this._position + (Math.max(0, this._rate) || 1) * (now - this._posAt) * 1000);
+			this._posAt = now;
 		};
 
 		if (status === 'Stopped') {
@@ -2178,7 +2238,6 @@ let Controller = class Controller {
 					return;
 				};
 
-				log(`[debug] music PlayPause ignored by ${name.slice('org.mpris.MediaPlayer2.'.length)}; falling back to explicit ${before === 'Playing' ? 'Pause' : 'Play'}`);
 				this._fakePlayPause = this._fakePlayPause || {};
 				this._fakePlayPause[name] = true;
 
@@ -2244,6 +2303,13 @@ let Controller = class Controller {
 
 		if (this._card) {
 			stopEmptyGif(this._card);
+
+			// The 16 ms lyrics scroll tween writes adjustment.value and must
+			// not fire into a destroyed card after this.
+			if (this._card._lyricsScrollTween) {
+				GLib.source_remove(this._card._lyricsScrollTween);
+				this._card._lyricsScrollTween = null;
+			};
 		};
 
 		if (this._settingsId && this._settings) {
@@ -2284,9 +2350,31 @@ export function render({body, createLabel, theme, sizeForWidget, widget, setting
 	const [widgetWidth, widgetHeight] = sizeForWidget(widget);
 	const card = createCard(theme, createLabel, widgetWidth, widgetHeight);
 	card._settings = settings;
+
+	// Restore lyrics state across theme/style re-renders: when _rebuildWidgets
+	// destroys the old card and creates a new one, the lyrics view should stay
+	// open if it was open before. Store in widget._runtimeState (survives rebuild).
+	widget._runtimeState = widget._runtimeState || {};
+	if (widget._runtimeState.lyricsWasOn) {
+		card._lyricsOn = true;
+		card.lyricsPanel.visible = true;
+		card.container.visible = false;
+	}
+
+	// Track state on toggle for next rebuild
+	const originalToggle = card.toggleLyrics;
+	card.toggleLyrics = function(opts) {
+		originalToggle.call(card, opts);
+		widget._runtimeState.lyricsWasOn = card._lyricsOn;
+	};
+
 	const controller = new Controller(card, sessionBus(), settings);
 
 	body.add_child(card.stage);
-	body.connect('destroy', () => controller.destroy());
+	body.connect('destroy', () => {
+		// Save lyrics state before destruction so next render can restore it
+		widget._runtimeState.lyricsWasOn = card._lyricsOn;
+		controller.destroy();
+	});
 	controller.start();
 };
