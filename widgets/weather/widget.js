@@ -701,16 +701,13 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 		rendered.temp,
 		'widget-weather-temp-main',
 		`color: ${tempColor ?? theme.accent}; font-size: ${scaledFont(52, scale)}px; font-weight: 600;`));
-	body.add_child(new St.Widget({y_expand: true}));
 
 	const bottom = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
 		x_align: Clutter.ActorAlign.START,
-		y_align: Clutter.ActorAlign.END,
-		// With swipe pages the "lift" frees a strip above the card's bottom
-		// edge — the page dots sit there, clear of the H/L line (the system
-		// monitor's dashes hang below the content the same way).
-		style: `spacing: 2px;${opts.bottomLift ? ` margin-bottom: ${opts.bottomLift}px;` : ''}`,
+		// Removed y_align: END and bottomLift margin — content naturally sits
+		// in the middle now that the spacer below (not above) pushes it up.
+		style: `spacing: 2px;`,
 	}));
 	const iconParams = {
 		style_class: 'widget-weather-icon',
@@ -741,6 +738,15 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 	};
 
 	body.add_child(bottom);
+
+	// Spacer for page dots: when page dots are visible (bottomLift > 0),
+	// add a fixed-height spacer at the bottom to reserve space for them.
+	if (opts.bottomLift && opts.bottomLift > 0) {
+		body.add_child(new St.Widget({
+			height: opts.bottomLift,
+			y_expand: false,
+		}));
+	}
 };
 
 export function render({body, widget, createLabel, theme, weather, weatherLocation, sizeForWidget, settings}) {
