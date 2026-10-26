@@ -1136,14 +1136,34 @@ class WidgetController {
       return false;
     };
 
-    const title = metaWindow.get_title() ?? '';
+    // DING's desktop window is titled like "@!0,0;BDHF",this will identify them
+    if ((metaWindow.get_title() ?? '').startsWith('@!')) {
+      return true;
+    };
+
     const appId = metaWindow.get_gtk_application_id?.() ?? '';
     const wmClass = metaWindow.get_wm_class?.() ?? '';
     const dingToken = /(^|[._-])ding($|[._-])/i;
 
-    return title.startsWith('@!') ||
-      dingToken.test(appId) ||
-      dingToken.test(wmClass);
+    if (!dingToken.test(appId) && !dingToken.test(wmClass)) {
+      return false;
+    };
+
+    // DING's dialog properties such as file finding is a part of the
+    // same App ID as DING,causing the widgets to
+    // teleport over some apps when those properties are called
+    // This patch is for fixing them and it is not guaranteed to fix it
+    // This patch is still experimental,please report any problems you can find :3
+    const monitorIndex = metaWindow.get_monitor();
+
+    if (monitorIndex < 0) {
+      return false;
+    };
+
+    const rect = metaWindow.get_frame_rect();
+    const monitor = global.display.get_monitor_geometry(monitorIndex);
+
+    return rect.width >= monitor.width * 0.9 && rect.height >= monitor.height * 0.9;
   };
 
   _placeLayerAboveDesktopIcons() {
