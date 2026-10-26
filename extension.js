@@ -2394,7 +2394,7 @@ class WidgetController {
     const theme = this._gnomeTheme();
     const radius = theme.radius;
     if (radius > 0) {
-      wrapper.set_style(`border-radius: ${radius}px; overflow: hidden;`);
+      wrapper.set_style(`border-radius: ${radius}px; overflow: hidden; background-color: rgba(0,0,0,0);`);
     }
 
     // Add glass as first child (backdrop) if widget uses glass effect
@@ -2550,7 +2550,7 @@ class WidgetController {
 
     return {
       radius: s.get_int('style-border-radius'),
-      roundness: 2.0,  // Exact circular arcs — identical CSS border-radius silhouette
+      roundness: s.get_int('roundness-x10') / 10,  // Use setting instead of hardcoded value
       refractThickness: s.get_int('refract-thickness'),
       refractIOR: s.get_int('refract-ior-x100') / 100,
       refractScale: s.get_int('refract-scale'),
