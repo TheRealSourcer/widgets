@@ -1339,11 +1339,20 @@ class WidgetController {
     const glassRoot = theme.isGlass && !this._widgetSkipsGlass(widget);
     let styleStr = widgetModule.style(theme);
 
-    // Glass draws its own squircle backdrop behind the widget. Make only the
-    // root actor transparent so the blur/refraction shows; nested elements
-    // still get their regular theme.background fills.
-    if (glassRoot) {
+    // Solid mode must be fully opaque and clipped to its own rounded edges;
+    // otherwise the transparent wrapper + nested widget fills create the
+    // visible "glass halo" artifacts on the borders and the corners leak.
+    if (theme.isSolid) {
+      styleStr += ` background-color: ${theme.background};`;
+      styleStr += ` border-radius: ${theme.radius}px;`;
+      styleStr += ' overflow: hidden;';
+      styleStr += ' box-shadow: none;';
+    } else if (glassRoot) {
+      // Glass draws its own squircle backdrop behind the widget. Make only the
+      // root actor transparent so the blur/refraction shows; nested elements
+      // still get their regular theme.background fills.
       styleStr += ' background-color: transparent;';
+      styleStr += ` border-radius: ${theme.radius}px;`;
     }
 
     // The edit-border text color is set here, not in stylesheet.css: there it was
@@ -2390,11 +2399,15 @@ class WidgetController {
     const opacity = this._layoutSettings.get_double('style-widget-opacity');
     wrapper.opacity = Math.round(clamp(opacity, 0, 1) * 255);
 
-    // Apply border-radius and overflow:hidden to wrapper for glass corner clipping
+    // Apply border-radius and clipping to the outer wrapper. In solid mode the
+    // wrapper must stay opaque so the card does not leak the wallpaper through
+    // the rounded edges; in glass mode it stays transparent so the LiquidGlass
+    // backdrop remains visible underneath.
     const theme = this._gnomeTheme();
     const radius = theme.radius;
     if (radius > 0) {
-      wrapper.set_style(`border-radius: ${radius}px; overflow: hidden; background-color: rgba(0,0,0,0);`);
+      const wrapperBg = theme.isSolid ? theme.background : 'rgba(0,0,0,0)';
+      wrapper.set_style(`border-radius: ${radius}px; overflow: hidden; background-color: ${wrapperBg};`);
     }
 
     // Add glass as first child (backdrop) if widget uses glass effect
