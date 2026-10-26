@@ -1,0 +1,1047 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: desktop-widgets@r3nhick\n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: Turkish\n"
+"Language: tr_TR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.10\n"
+
+msgid "%s commits"
+msgstr "%s commit"
+
+msgid "%sh %sm"
+msgstr "%s sa %s dk"
+
+msgid "%sm"
+msgstr "%s dk"
+
+msgid ""
+"- [ ] Task 1\n"
+"- [x] Task 2\n"
+"\n"
+"**Click edit to start**"
+msgstr ""
+"- [ ] Görev 1\n"
+"- [x] Görev 2\n"
+"\n"
+"**Başlamak için düzenle’ye tıklayın**"
+
+msgid "12-hour"
+msgstr "12 saatlik"
+
+msgid "1×1"
+msgstr "1×1"
+
+msgid "1×1 mini"
+msgstr "1×1 mini"
+
+msgid "1×2"
+msgstr "1×2"
+
+msgid "1×2 mini"
+msgstr "1×2 mini"
+
+msgid "24-hour"
+msgstr "24 saatlik"
+
+msgid "2×1"
+msgstr "2×1"
+
+msgid "2×1 mini"
+msgstr "2×1 mini"
+
+msgid "2×2"
+msgstr "2×2"
+
+msgid "2×2 mini"
+msgstr "2×2 mini"
+
+msgid "2×4"
+msgstr "2×4"
+
+msgid "4×2"
+msgstr "4×2"
+
+msgid "4×4"
+msgstr "4×4"
+
+msgid "AM"
+msgstr "ÖÖ"
+
+msgid "About"
+msgstr "Hakkında"
+
+msgid "Accent Color"
+msgstr "Vurgu Rengi"
+
+msgid "Add"
+msgstr "Ekle"
+
+msgid "Add Applications"
+msgstr "Uygulama Ekle"
+
+msgid "Add Apps"
+msgstr "Uygulamalar Ekle"
+
+msgid "Add Folder"
+msgstr "Klasör Ekle"
+
+msgid "Add Widget"
+msgstr "Araç Ekle"
+
+msgid "Add a Folder Launcher widget from the General page first"
+msgstr "Önce Genel sayfasından bir Klasör Başlatıcı aracını ekleyin"
+
+msgid "Add a new widget to your desktop."
+msgstr "Masaüstünüze yeni bir araç ekleyin."
+
+msgid "Add an App Launcher widget from the General page first"
+msgstr "Önce Genel sayfasından bir Uygulama Başlatıcı aracını ekleyin"
+
+msgid ""
+"Adjust the visual size of the device indicators displayed inside the battery "
+"charge rings."
+msgstr ""
+"Pil şarj halkalarının içinde görüntülenen cihaz göstergelerinin boyutunu "
+"ayarlayın."
+
+msgid "Align all widgets into a grid of columns and rows"
+msgstr "Tüm araçları satır ve sütunlardan oluşan bir ızgaraya hizalayın"
+
+msgid "All day"
+msgstr "Tüm gün"
+
+msgid "Animation shown when no track is playing"
+msgstr "Hiçbir parça çalmadığında gösterilen animasyon"
+
+msgid "App Launcher"
+msgstr "Uygulama Başlatıcı"
+
+msgid "App Launcher Widget"
+msgstr "Uygulama Başlatıcı Aracı"
+
+msgid ""
+"App launched when the widget is clicked. Takes priority over built-in players"
+msgstr ""
+"Araca tıklandığında başlatılan uygulama. Yerleşik oynatıcılara öncelik verir"
+
+msgid "Appearance"
+msgstr "Görünüm"
+
+msgid "Appearance of the clock on your desktop."
+msgstr "Masaüstünüzdeki saatin görünümü."
+
+msgid "Application to open folders with"
+msgstr "Klasörleri açmak için kullanılacak uygulama"
+
+msgid "Applied to all GitHub widgets. Empty to set a username per widget"
+msgstr ""
+"Tüm GitHub araçlarına uygulanır. Her araç için ayrı kullanıcı adı belirlemek "
+"üzere boş bırakın"
+
+msgid "Apply a glass effect with transparency and blur to all widgets"
+msgstr "Tüm araçlara şeffaflık ve bulanıklık içeren cam efekti uygulayın"
+
+msgid "Apps"
+msgstr "Uygulamalar"
+
+msgid "Apps shown on this widget, in grid order"
+msgstr "Bu araçta ızgara sırasıyla gösterilen uygulamalar"
+
+msgid "Apr"
+msgstr "Nis"
+
+msgid "Arrange widgets"
+msgstr "Araçları düzenle"
+
+msgid "Aug"
+msgstr "Ağu"
+
+msgid ""
+"Automatically pause widget animations when a window is fullscreen to save "
+"resources"
+msgstr ""
+"Kaynak tasarrufu için bir pencere tam ekran olduğunda araç animasyonlarını "
+"otomatik duraklatın"
+
+msgid "Available with the 12-hour format"
+msgstr "12 saatlik biçimde kullanılabilir"
+
+msgid "Background Color"
+msgstr "Arka Plan Rengi"
+
+msgid "Battery"
+msgstr "Pil"
+
+msgid "Battery Widget"
+msgstr "Pil Aracı"
+
+msgid "Battery icon size"
+msgstr "Pil simgesi boyutu"
+
+msgid "Battery slot count"
+msgstr "Pil yuvası sayısı"
+
+msgid "Binary Clock"
+msgstr "İkili Saat"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Blur radius of the glass effect"
+msgstr "Cam efektinin bulanıklık yarıçapı"
+
+msgid "Blur radius of the shadow"
+msgstr "Gölgenin bulanıklık yarıçapı"
+
+msgid "Border Color"
+msgstr "Kenarlık Rengi"
+
+msgid "Border Radius"
+msgstr "Kenarlık Yarıçapı"
+
+msgid "Border Width"
+msgstr "Kenarlık Kalınlığı"
+
+msgid "Box Shadow"
+msgstr "Kutu Gölgesi"
+
+msgid "Break"
+msgstr "Mola"
+
+msgid "Browse all widgets with icons and search"
+msgstr "Tüm araçlara simgelerle göz atın ve arayın"
+
+msgid "Cached"
+msgstr "Önbelleğe alındı"
+
+msgid "Calendar"
+msgstr "Takvim"
+
+msgid "Calendar Widget"
+msgstr "Takvim Aracı"
+
+msgid "Cancel"
+msgstr "İptal"
+
+msgid "Centiseconds"
+msgstr "Santisaniye"
+
+msgid "Change photo"
+msgstr "Fotoğrafı değiştir"
+
+msgid "Choose application"
+msgstr "Uygulama seç"
+
+msgid "Choose background color"
+msgstr "Arka plan rengini seç"
+
+msgid "Choose border color"
+msgstr "Kenarlık rengini seç"
+
+msgid "Choose shadow color. Leave unset for default."
+msgstr "Gölge rengini seçin. Varsayılan için boş bırakın."
+
+msgid "Clear"
+msgstr "Temizle"
+
+msgid "Click to set username"
+msgstr "Kullanıcı adını ayarlamak için tıklayın"
+
+msgid "Click username to configure"
+msgstr "Yapılandırmak için kullanıcı adına tıklayın"
+
+msgid "Clock"
+msgstr "Saat"
+
+msgid "Close"
+msgstr "Kapat"
+
+msgid "Completed:"
+msgstr "Tamamlandı:"
+
+msgid "Computer"
+msgstr "Bilgisayar"
+
+msgid "Configure desktop widgets. Changes apply immediately."
+msgstr "Masaüstü araçlarını yapılandırın. Değişiklikler hemen uygulanır."
+
+msgid ""
+"Configure how your pictures are scaled and cropped inside the Photos widget "
+"bounds."
+msgstr ""
+"Fotoğraflar aracının sınırları içinde resimlerinizin nasıl ölçeklenip "
+"kırpılacağını yapılandırın."
+
+msgid "Configure the Pomodoro timer durations and work sessions."
+msgstr ""
+"Pomodoro zamanlayıcısının sürelerini ve çalışma oturumlarını yapılandırın."
+
+msgid "Configure the appearance of animated lava balls."
+msgstr "Hareketli lav toplarının görünümünü yapılandırın."
+
+msgid "Contain"
+msgstr "Sığdır"
+
+msgid "Content font size"
+msgstr "İçerik yazı tipi boyutu"
+
+msgid "Corner roundness of widgets"
+msgstr "Araç köşelerinin yuvarlaklığı"
+
+msgid "Could not delete the layout"
+msgstr "Düzen silinemedi"
+
+msgid "Could not export the layout"
+msgstr "Düzen dışa aktarılamadı"
+
+msgid "Could not import the layout"
+msgstr "Düzen içe aktarılamadı"
+
+msgid "Could not launch %s"
+msgstr "%s başlatılamadı"
+
+msgid "Could not open %s"
+msgstr "%s açılamadı"
+
+msgid "Could not read the file"
+msgstr "Dosya okunamadı"
+
+msgid "Could not restore the layout"
+msgstr "Düzen geri yüklenemedi"
+
+msgid "Could not save the layout"
+msgstr "Düzen kaydedilemedi"
+
+msgid "Could not write the file"
+msgstr "Dosyaya yazılamadı"
+
+msgid "Cover"
+msgstr "Kapla"
+
+msgid "Current streak"
+msgstr "Mevcut seri"
+
+msgid "Custom accent color used by all widgets"
+msgstr "Tüm araçlarda kullanılan özel vurgu rengi"
+
+msgid "Custom app"
+msgstr "Özel uygulama"
+
+msgid "Customize the GitHub Activity widget appearance."
+msgstr "GitHub Etkinliği aracının görünümünü özelleştirin."
+
+msgid "Customize the Notes widget font sizes."
+msgstr "Notlar aracının yazı tipi boyutlarını özelleştirin."
+
+msgid "Customize the appearance of all widgets."
+msgstr "Tüm araçların görünümünü özelleştirin."
+
+msgid "Days of data to keep before older days are deleted"
+msgstr "Eski günler silinmeden önce saklanacak veri günlerinin sayısı"
+
+msgid "Dec"
+msgstr "Ara"
+
+msgid "Delete"
+msgstr "Sil"
+
+msgid "Delete saved layout?"
+msgstr "Kaydedilmiş düzen silinsin mi?"
+
+msgid "Desktop Widgets"
+msgstr "Masaüstü Araçları"
+
+msgid "Device"
+msgstr "Cihaz"
+
+msgid "Digital Clock"
+msgstr "Dijital Saat"
+
+msgid "Digital Clock Widget"
+msgstr "Dijital Saat Aracı"
+
+msgid "Display folder names below icons"
+msgstr "Klasör adlarını simgelerin altında göster"
+
+msgid "Display the charge percentage below each ring"
+msgstr "Şarj yüzdesini her halkanın altında göster"
+
+msgid "Documents"
+msgstr "Belgeler"
+
+msgid "Download"
+msgstr "İndir"
+
+msgid "Downloads"
+msgstr "İndirilenler"
+
+msgid "Edit Mode Shortcut"
+msgstr "Düzenleme Modu Kısayolu"
+
+msgid "Edit mode"
+msgstr "Düzenleme modu"
+
+msgid "Empty state GIF"
+msgstr "Boş durum GIF’i"
+
+msgid "Enable to move and remove widgets on the desktop"
+msgstr "Masaüstündeki araçları taşımak ve kaldırmak için etkinleştirin"
+
+msgid "Error"
+msgstr "Hata"
+
+msgid "Error loading"
+msgstr "Yükleme hatası"
+
+msgid "Export"
+msgstr "Dışa aktar"
+
+msgid "Export layout"
+msgstr "Düzeni dışa aktar"
+
+msgid "F"
+msgstr "Cum"
+
+msgid "Feb"
+msgstr "Şub"
+
+msgid "Fetching…"
+msgstr "Getiriliyor…"
+
+msgid "File Manager"
+msgstr "Dosya Yöneticisi"
+
+msgid "Files"
+msgstr "Dosyalar"
+
+msgid "Firefox"
+msgstr "Firefox"
+
+msgid "Focus"
+msgstr "Odaklanma"
+
+msgid "Folder Launcher"
+msgstr "Klasör Başlatıcı"
+
+msgid "Folder Launcher Widget"
+msgstr "Klasör Başlatıcı Aracı"
+
+msgid "Folder Launcher Widgets"
+msgstr "Klasör Başlatıcı Araçları"
+
+msgid "Folder does not exist: %s"
+msgstr "Klasör mevcut değil: %s"
+
+msgid "Folders"
+msgstr "Klasörler"
+
+msgid "Folders shown on this widget, in grid order"
+msgstr "Bu araçta ızgara sırasıyla gösterilen klasörler"
+
+msgid "Font size in pixels for the notes content text"
+msgstr "Notlar içeriği metninin piksel cinsinden yazı tipi boyutu"
+
+msgid "Font size in pixels for the notes title"
+msgstr "Notlar başlığının piksel cinsinden yazı tipi boyutu"
+
+msgid "Fri"
+msgstr "Cum"
+
+msgid "GNOME Weather"
+msgstr "GNOME Hava Durumu"
+
+msgid "GNU General Public License, version 3 or later"
+msgstr "GNU Genel Kamu Lisansı, sürüm 3 veya üzeri"
+
+msgid "General"
+msgstr "Genel"
+
+msgid "GitHub Activity"
+msgstr "GitHub Etkinliği"
+
+msgid "GitHub Widget"
+msgstr "GitHub Aracı"
+
+msgid "GitHub username"
+msgstr "GitHub kullanıcı adı"
+
+msgid "Glass Blur"
+msgstr "Cam Bulanıklığı"
+
+msgid "Glass Opacity"
+msgstr "Cam Opaklığı"
+
+msgid "Glass Style"
+msgstr "Cam Stili"
+
+msgid ""
+"Glass widgets are redrawn every frame with transparency effects, which "
+"raises GPU load. If the desktop becomes slow or your GPU heats up, turn "
+"Glass Style off."
+msgstr ""
+"Cam araçlar, GPU yükünü artıran şeffaflık efektleriyle her karede yeniden "
+"çizilir. Masaüstü yavaşlarsa veya GPU’nuz ısınırsa Cam Stili’ni kapatın."
+
+msgid "Global Settings"
+msgstr "Genel Ayarlar"
+
+msgid "Global shortcut to toggle edit mode. Press Backspace to clear."
+msgstr ""
+"Düzenleme modunu açıp kapatan genel kısayol. Temizlemek için Backspace "
+"tuşuna basın."
+
+msgid "H:%s L:%s"
+msgstr "H:%s L:%s"
+
+msgid "Home"
+msgstr "Ana Sayfa"
+
+msgid "How large the device icon is inside the charging ring"
+msgstr "Şarj halkasının içindeki cihaz simgesinin boyutu"
+
+msgid "How the clock shows the hour"
+msgstr "Saatin saati gösterme biçimi"
+
+msgid "How the photo fits the widget bounds"
+msgstr "Fotoğrafın araç sınırlarına nasıl sığacağı"
+
+msgid "How weekday labels appear in the calendar header"
+msgstr "Hafta içi gün adlarının takvim başlığında görünme biçimi"
+
+msgid "I'm waiting 🐾"
+msgstr "Bekliyorum 🐾"
+
+msgid "Ignore Web Browsers"
+msgstr "Web Tarayıcılarını Yoksay"
+
+msgid "Import"
+msgstr "İçe aktar"
+
+msgid "Import layout"
+msgstr "Düzeni içe aktar"
+
+msgid "It feels like"
+msgstr "Hissedilen"
+
+msgid "Jan"
+msgstr "Oca"
+
+msgid "Jul"
+msgstr "Tem"
+
+msgid "Jun"
+msgstr "Haz"
+
+msgid "Keep history for"
+msgstr "Geçmişi şu süre boyunca sakla"
+
+msgid "Keyboard"
+msgstr "Klavye"
+
+msgid "Large"
+msgstr "Büyük"
+
+msgid "Launched when the widget is clicked: %s"
+msgstr "Araca tıklandığında başlatılır: %s"
+
+msgid "Lava Lamp"
+msgstr "Lav Lambası"
+
+msgid "Lava Lamp Widget"
+msgstr "Lav Lambası Aracı"
+
+msgid "Length of the focus/work phase in minutes"
+msgstr "Odaklanma/çalışma aşamasının dakika cinsinden süresi"
+
+msgid "Length of the long break in minutes"
+msgstr "Uzun molanın dakika cinsinden süresi"
+
+msgid "Length of the short break in minutes"
+msgstr "Kısa molanın dakika cinsinden süresi"
+
+msgid "Less"
+msgstr "Daha az"
+
+msgid "License"
+msgstr "Lisans"
+
+msgid "Linux os"
+msgstr "Linux işletim sistemi"
+
+msgid "Load a widget layout from a JSON file"
+msgstr "Bir JSON dosyasından araç düzeni yükleyin"
+
+msgid "Long Break"
+msgstr "Uzun Mola"
+
+msgid "Long break duration"
+msgstr "Uzun mola süresi"
+
+msgid "Longest streak"
+msgstr "En uzun seri"
+
+msgid "M"
+msgstr "Pzt"
+
+msgid "Make cake"
+msgstr "Kek yap"
+
+msgid "Make tea"
+msgstr "Çay yap"
+
+msgid "Manage apps for each widget. Changes apply instantly."
+msgstr "Her aracın uygulamalarını yönetin. Değişiklikler anında uygulanır."
+
+msgid "Manage folders for each widget. Changes apply instantly."
+msgstr "Her aracın klasörlerini yönetin. Değişiklikler anında uygulanır."
+
+msgid "Mar"
+msgstr "Mar"
+
+msgid "Maximum apps reached"
+msgstr "Maksimum uygulama sayısına ulaşıldı"
+
+msgid "Maximum number of devices shown"
+msgstr "Gösterilecek maksimum cihaz sayısı"
+
+msgid "May"
+msgstr "May"
+
+msgid "Medium"
+msgstr "Orta"
+
+msgid "Min : Sec"
+msgstr "Dk : Sn"
+
+msgid "Minutes"
+msgstr "Dakika"
+
+msgid "Mon"
+msgstr "Pzt"
+
+msgid "More"
+msgstr "Daha fazla"
+
+msgid "Mouse"
+msgstr "Fare"
+
+msgid "Move down"
+msgstr "Aşağı taşı"
+
+msgid "Move up"
+msgstr "Yukarı taşı"
+
+msgid "Music"
+msgstr "Müzik"
+
+msgid "Music Widget"
+msgstr "Müzik Aracı"
+
+msgid "New accelerator…"
+msgstr "Yeni kısayol…"
+
+msgid "New task…"
+msgstr "Yeni görev…"
+
+msgid "No App Launcher widgets found"
+msgstr "Uygulama Başlatıcı aracı bulunamadı"
+
+msgid "No Folder Launcher widgets found"
+msgstr "Klasör Başlatıcı aracı bulunamadı"
+
+msgid "No activity recorded"
+msgstr "Etkinlik kaydedilmedi"
+
+msgid "No apps configured"
+msgstr "Yapılandırılmış uygulama yok"
+
+msgid "No events today"
+msgstr "Bugün etkinlik yok"
+
+msgid "No folders configured"
+msgstr "Yapılandırılmış klasör yok"
+
+msgid "No matching applications"
+msgstr "Eşleşen uygulama yok"
+
+msgid "No tasks yet"
+msgstr "Henüz görev yok"
+
+msgid "Not a valid widget layout"
+msgstr "Geçerli bir araç düzeni değil"
+
+msgid "Notes"
+msgstr "Notlar"
+
+msgid "Notes Widget"
+msgstr "Notlar Aracı"
+
+msgid "Nov"
+msgstr "Kas"
+
+msgid "Number of completed work sessions before a long break"
+msgstr "Uzun moladan önce tamamlanacak çalışma oturumu sayısı"
+
+msgid "Oct"
+msgstr "Eki"
+
+msgid "Offline — cached"
+msgstr "Çevrimdışı — önbelleğe alınmış"
+
+msgid "Only available in the 2×1 and 2×1 mini sizes"
+msgstr "Yalnızca 2×1 ve 2×1 mini boyutlarında kullanılabilir"
+
+msgid "Opacity of the glass background"
+msgstr "Cam arka planın opaklığı"
+
+msgid "Open Weather to set a location"
+msgstr "Konum ayarlamak için Hava Durumu’nu açın"
+
+msgid "Override the system accent color for all widgets"
+msgstr "Tüm araçlar için sistem vurgu rengini geçersiz kılın"
+
+msgid "Overwrite"
+msgstr "Üzerine yaz"
+
+msgid "Overwrite existing layout?"
+msgstr "Mevcut düzenin üzerine yazılsın mı?"
+
+msgid "PM"
+msgstr "ÖS"
+
+msgid "Pause"
+msgstr "Duraklat"
+
+msgid "Pause animations in fullscreen"
+msgstr "Tam ekranda animasyonları duraklat"
+
+msgid ""
+"Per-app screen time is tracked automatically while the widget is on your "
+"desktop."
+msgstr ""
+"Araç masaüstünüzdeyken uygulama başına ekran süresi otomatik olarak izlenir."
+
+msgid "Photo size"
+msgstr "Fotoğraf boyutu"
+
+msgid "Photos"
+msgstr "Fotoğraflar"
+
+msgid "Photos Widget"
+msgstr "Fotoğraflar Aracı"
+
+msgid "Pick a saved layout to restore or delete"
+msgstr "Geri yüklemek veya silmek için kaydedilmiş bir düzen seçin"
+
+msgid "Pictures"
+msgstr "Resimler"
+
+msgid "Pin widget"
+msgstr "Aracı sabitle"
+
+msgid "Pinned Apps"
+msgstr "Sabitlenmiş Uygulamalar"
+
+msgid "Pinned Folders"
+msgstr "Sabitlenmiş Klasörler"
+
+msgid "Play something to get going"
+msgstr "Başlamak için bir şey çalın"
+
+msgid "Pomodoro"
+msgstr "Pomodoro"
+
+msgid "Pomodoro Widget"
+msgstr "Pomodoro Aracı"
+
+msgid "Preferences for the date widget on your desktop."
+msgstr "Masaüstünüzdeki tarih aracının tercihleri."
+
+msgid "Preferences for the media player widget on your desktop."
+msgstr "Masaüstünüzdeki medya oynatıcı aracının tercihleri."
+
+msgid "Preset name"
+msgstr "Ön ayar adı"
+
+msgid ""
+"Prevent browsers (Chrome, Firefox, etc.) from taking over the music widget."
+msgstr ""
+"Tarayıcıların (Chrome, Firefox vb.) müzik aracını devralmasını önleyin."
+
+msgid "Quick Notes"
+msgstr "Hızlı Notlar"
+
+msgid "Quick add"
+msgstr "Hızlı ekle"
+
+msgid "Remove"
+msgstr "Kaldır"
+
+msgid "Remove widget"
+msgstr "Aracı kaldır"
+
+msgid "Report an Issue"
+msgstr "Sorun bildir"
+
+msgid "Reset"
+msgstr "Sıfırla"
+
+msgid "Reset Style"
+msgstr "Stili sıfırla"
+
+msgid "Reset default widgets"
+msgstr "Varsayılan araçları sıfırla"
+
+msgid "Restore"
+msgstr "Geri yükle"
+
+msgid "Restore default widget appearance"
+msgstr "Varsayılan araç görünümünü geri yükle"
+
+msgid "Restore or delete the selected preset"
+msgstr "Seçili ön ayarı geri yükleyin veya silin"
+
+msgid "Restore the default widget layout"
+msgstr "Varsayılan araç düzenini geri yükle"
+
+msgid "Save layout"
+msgstr "Düzeni kaydet"
+
+msgid "Save the current widget layout to a JSON file"
+msgstr "Geçerli araç düzenini JSON dosyasına kaydedin"
+
+msgid "Save the current widget positions under a name and restore them later."
+msgstr ""
+"Geçerli araç konumlarını bir adla kaydedin ve daha sonra geri yükleyin."
+
+msgid "Saved Layouts"
+msgstr "Kaydedilmiş Düzenler"
+
+msgid "Saved presets"
+msgstr "Kaydedilmiş ön ayarlar"
+
+msgid "Screen Time"
+msgstr "Ekran Süresi"
+
+msgid "Screen Time Widget"
+msgstr "Ekran Süresi Aracı"
+
+msgid "Search applications..."
+msgstr "Uygulamaları ara..."
+
+msgid "Seconds"
+msgstr "Saniye"
+
+msgid "Select"
+msgstr "Seç"
+
+msgid "Select Folder"
+msgstr "Klasör Seç"
+
+msgid "Select Widget"
+msgstr "Araç Seç"
+
+msgid "Select a photo"
+msgstr "Bir fotoğraf seç"
+
+msgid "Select photo"
+msgstr "Fotoğraf seç"
+
+msgid "Select widget type from dropdown"
+msgstr "Açılır menüden araç türünü seçin"
+
+msgid "Sep"
+msgstr "Eyl"
+
+msgid "Sessions before long break"
+msgstr "Uzun moladan önceki oturumlar"
+
+msgid "Set user"
+msgstr "Kullanıcıyı ayarla"
+
+msgid "Settings"
+msgstr "Ayarlar"
+
+msgid "Settings that apply to all Folder Launcher widgets."
+msgstr "Tüm Klasör Başlatıcı araçları için geçerli ayarlar."
+
+msgid "Shadow Size"
+msgstr "Gölge Boyutu"
+
+msgid "Short break duration"
+msgstr "Kısa mola süresi"
+
+msgid "Show AM/PM"
+msgstr "ÖÖ/ÖS göster"
+
+msgid "Show battery percentage"
+msgstr "Pil yüzdesini göster"
+
+msgid "Show folder names"
+msgstr "Klasör adlarını göster"
+
+msgid "Show seconds"
+msgstr "Saniyeleri göster"
+
+msgid "Single letter (M T W)"
+msgstr "Tek harf (P S Ç)"
+
+msgid "Small"
+msgstr "Küçük"
+
+msgid "Space between widgets and screen edges"
+msgstr "Araçlar ile ekran kenarları arasındaki boşluk"
+
+msgid "Start"
+msgstr "Başlat"
+
+msgid "Stopwatch"
+msgstr "Kronometre"
+
+msgid "Stretch"
+msgstr "Uzat"
+
+msgid "Synced %s"
+msgstr "Senkronize edildi: %s"
+
+msgid "System Monitor"
+msgstr "Sistem Monitörü"
+
+msgid "T"
+msgstr "T"
+
+msgid "T %s"
+msgstr "T %s"
+
+msgid "Task"
+msgstr "Görev"
+
+msgid "Tasks"
+msgstr "Görevler"
+
+msgid "Terminal"
+msgstr "Terminal"
+
+msgid "Thickness of widget borders"
+msgstr "Araç kenarlıklarının kalınlığı"
+
+msgid "This file is not a valid layout"
+msgstr "Bu dosya geçerli bir düzen değil"
+
+msgid "Time format"
+msgstr "Saat biçimi"
+
+msgid "Timer"
+msgstr "Zamanlayıcı"
+
+msgid "Timer finished!"
+msgstr "Zamanlayıcı tamamlandı!"
+
+msgid "Title font size"
+msgstr "Başlık yazı tipi boyutu"
+
+msgid "Title..."
+msgstr "Başlık..."
+
+msgid "Today"
+msgstr "Bugün"
+
+msgid "Transparency of all desktop widgets"
+msgstr "Tüm masaüstü araçlarının şeffaflığı"
+
+msgid "Two letters (Mo Tu We)"
+msgstr "İki harf (Pt Sa Ça)"
+
+msgid "Type the shortcut to toggle edit mode. Press Backspace to clear."
+msgstr ""
+"Düzenleme modunu açıp kapatmak için kısayolu yazın. Temizlemek için "
+"Backspace tuşuna basın."
+
+msgid "Unknown artist"
+msgstr "Bilinmeyen sanatçı"
+
+msgid "Unknown widget"
+msgstr "Bilinmeyen araç"
+
+msgid "Unknown widget type"
+msgstr "Bilinmeyen araç türü"
+
+msgid "Unpin widget"
+msgstr "Araç sabitlemesini kaldır"
+
+msgid "Upload"
+msgstr "Yükle"
+
+msgid "Use Custom Accent Color"
+msgstr "Özel Vurgu Rengini Kullan"
+
+msgid "Use GitHub Green Colors"
+msgstr "GitHub Yeşil Renklerini Kullan"
+
+msgid ""
+"Use GitHub's default green color scheme instead of the theme accent color"
+msgstr ""
+"Tema vurgu rengi yerine GitHub’ın varsayılan yeşil renk düzenini kullanın"
+
+msgid "Use accent color"
+msgstr "Vurgu rengini kullan"
+
+msgid ""
+"Use system or custom accent color from Appearance settings. When disabled, "
+"uses neutral gray."
+msgstr ""
+"Görünüm ayarlarından sistemin veya özel vurgu rengini kullanın. Devre "
+"dışıyken nötr gri kullanılır."
+
+msgid "Version %s"
+msgstr "Sürüm %s"
+
+msgid "View sources on GitHub"
+msgstr "Kaynak kodunu GitHub’da görüntüle"
+
+msgid "W"
+msgstr "W"
+
+msgid "Weather"
+msgstr "Hava Durumu"
+
+msgid "Weather unavailable"
+msgstr "Hava durumu kullanılamıyor"
+
+msgid "Wed"
+msgstr "Çar"
+
+msgid "Weekday format"
+msgstr "Hafta içi gün biçimi"
+
+msgid "Widget"
+msgstr "Araç"
+
+msgid "Widget Styling"
+msgstr "Araç Stili"
+
+msgid "Widget gallery"
+msgstr "Araç galerisi"
+
+msgid "Widget gap (px)"
+msgstr "Araç aralığı (px)"
+
+msgid "Widget opacity"
+msgstr "Araç opaklığı"
+
+msgid "Widget size"
+msgstr "Araç boyutu"
+
+msgid "Widgets"
+msgstr "Araçlar"
+
+msgid "Work duration"
+msgstr "Çalışma süresi"
+
+msgid "⚠ Warning: Glass Style increases GPU usage"
+msgstr "⚠ Uyarı: Cam Stili GPU kullanımını artırır"
