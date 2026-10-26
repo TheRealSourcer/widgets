@@ -61,3 +61,15 @@
 .widget-weather-forecast-temp {
 	text-align: center;
 }
+
+.widget-weather-refresh-button {
+	background-color: transparent;
+	border-radius: 999px;
+	padding: 3px;
+	margin-left: 4px;
+}
+
+.widget-weather-refresh-button:hover,
+.widget-weather-refresh-button:focus {
+	background-color: rgba(0, 0, 0, 0.1);
+}

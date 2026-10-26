@@ -71,6 +71,11 @@
 			<summary>Screen Time retention in days</summary>
 			<description>Number of days of local per-application Screen Time history to retain.</description>
 		</key>
+		<key name="weather-location" type="s">
+			<default>''</default>
+			<summary>Weather location</summary>
+			<description>City name used by the Weather widget. Searched via the Open-Meteo geocoding API.</description>
+		</key>
 		<key name="style-border-radius" type="i">
 			<range min="12" max="40" />
 			<default>26</default>
