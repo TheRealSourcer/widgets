@@ -44,12 +44,12 @@
 }
 
 .widget-weather-week {
-  spacing: 6px;
-  margin-top: 6px;
+  spacing: 2px;
+  margin-top: 4px;
 }
 
 .widget-weather-day-row {
-  spacing: 6px;
+  spacing: 4px;
 }
 
 .widget-weather-day-name {

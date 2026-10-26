@@ -557,7 +557,7 @@ function buildHeader(rendered, theme, createLabel, scale, opts = {}) {
 };
 
 function buildTempBar(day, allDays, trackWidth = 110) {
-	const trackHeight = 4;
+	const trackHeight = 3;
 	const lows = allDays.map(d => tempNumber(d.low));
 	const highs = allDays.map(d => tempNumber(d.high));
 	const min = Math.min(...lows.filter(n => n !== null));
@@ -608,7 +608,8 @@ function buildWeekList(days, theme, createLabel, scale, barWidth = 110, fill = f
 	const list = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
 		style_class: 'widget-weather-week',
-		style: `spacing: ${Math.round(6 * scale)}px;`,
+		style: `spacing: ${Math.round(4 * scale)}px;`,
+		clip_to_allocation: true,
 	}));
 
 	// With fill the list itself claims every free pixel under the hourly
@@ -624,7 +625,7 @@ function buildWeekList(days, theme, createLabel, scale, barWidth = 110, fill = f
 			x_expand: true,
 			x_align: Clutter.ActorAlign.FILL,
 			y_align: Clutter.ActorAlign.CENTER,
-			style: `spacing: ${Math.round(6 * scale)}px;`,
+			style: `spacing: ${Math.round(4 * scale)}px;`,
 		}));
 
 		// With fill the rows share the leftover height of the card equally,
@@ -635,18 +636,18 @@ function buildWeekList(days, theme, createLabel, scale, barWidth = 110, fill = f
 		const name = createLabel(
 			day.day,
 			'widget-weather-day-name',
-			`color: ${theme.text}; font-size: ${scaledFont(16, scale)}px; font-weight: 500; width: ${Math.round(56 * scale)}px;`);
+			`color: ${theme.text}; font-size: ${scaledFont(14, scale)}px; font-weight: 500; width: ${Math.round(56 * scale)}px;`);
 
 		name.x_expand = false;
 		name.clutter_text.set_line_wrap(false);
 		name.clutter_text.set_ellipsize(Pango.EllipsizeMode.NONE);
 		row.add_child(name);
-		row.add_child(smallWeatherIcon(day.icon, 'widget-weather-day-icon', theme, scaledFont(24, scale)));
+		row.add_child(smallWeatherIcon(day.icon, 'widget-weather-day-icon', theme, scaledFont(20, scale)));
 
 		const low = createLabel(
 			day.low,
 			'widget-weather-day-temps widget-weather-day-low',
-			`color: ${theme.muted}; font-size: ${scaledFont(18, scale)}px; font-weight: 400; text-align: right; width: ${Math.round(30 * scale)}px;`);
+			`color: ${theme.muted}; font-size: ${scaledFont(16, scale)}px; font-weight: 400; text-align: right; width: ${Math.round(30 * scale)}px;`);
 
 		low.x_expand = false;
 		row.add_child(low);
@@ -655,7 +656,7 @@ function buildWeekList(days, theme, createLabel, scale, barWidth = 110, fill = f
 		const high = createLabel(
 			day.high,
 			'widget-weather-day-temps widget-weather-day-high',
-			`color: ${theme.text}; font-size: ${scaledFont(18, scale)}px; font-weight: 600; text-align: right; width: ${Math.round(30 * scale)}px;`);
+			`color: ${theme.text}; font-size: ${scaledFont(16, scale)}px; font-weight: 600; text-align: right; width: ${Math.round(30 * scale)}px;`);
 
 		high.x_expand = false;
 		row.add_child(high);
@@ -945,6 +946,7 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 			layout_manager: new Clutter.BinLayout(),
 			x_expand: true,
 			y_expand: true,
+			clip_to_allocation: true,
 		});
 		pageStack.add_child(pages[weatherCompactPage]);
 
@@ -1080,7 +1082,7 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 		if (renderedWeather.daily.length > 0) {
 			const stripContentH = Math.round((12 + 24 + 14 + 16) * scale);
 			const headerH = Math.round((17 + 2 + 38) * scale);
-			const availableH = Math.max(1, widgetHeight - Math.round(24 * scale) - headerH - stripContentH - (hourCount >= 4 ? Math.round(14 * scale) : 0) - Math.round(8 * scale));
+			const availableH = Math.max(1, widgetHeight - Math.round(20 * scale) - headerH - stripContentH - (hourCount >= 4 ? Math.round(12 * scale) : 0) - Math.round(4 * scale));
 			// 2x2 (square) can fit a longer week list, the 4x2 (wide) layout
 			// keeps a 5-day summary: square/tall widgets show as many days as
 			// the available height allows (up to 8 days, incl. the day after
@@ -1090,14 +1092,14 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 			if (!wideLayout) {
 				const maxDays = Math.min(8, renderedWeather.daily.length);
 				for (let n = targetDays + 1; n <= maxDays; n++) {
-					if (availableH / (n * 22 + (n - 1) * 6) >= 0.65)
+					if (availableH / (n * 20 + (n - 1) * 4) >= 0.6)
 						targetDays = n;
 					else
 						break;
 				};
 			};
 			const days = renderedWeather.daily.slice(0, targetDays);
-			const weeklyScale = Math.max(0.65, Math.min(scale, availableH / (targetDays * 22 + (targetDays - 1) * 6)));
+			const weeklyScale = Math.max(0.6, Math.min(scale, availableH / (targetDays * 20 + (targetDays - 1) * 4)));
 			const rowSpacing = Math.round(6 * weeklyScale);
 			const rowWidths = Math.round(56 * weeklyScale) + Math.round(20 * weeklyScale) + Math.round(30 * weeklyScale) + Math.round(30 * weeklyScale) + rowSpacing * 4;
 			const barWidth = Math.max(60, widgetWidth - Math.round(36 * weeklyScale) - rowWidths);
