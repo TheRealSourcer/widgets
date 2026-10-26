@@ -1,7 +1,7 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import GWeather from 'gi://GWeather';
+import Soup from 'gi://Soup?version=3.0';
 import St from 'gi://St';
 import {surfaceStyle} from '../../utils/widget.js';
 import {ease} from '../../utils/animation.js';
@@ -9,23 +9,335 @@ import {VERTICAL, boxOrientation} from '../../compatibility.js';
 
 import { warn } from '../../logger.js';
 
+let GWeather = null;
+
+try {
+	GWeather = (await import('gi://GWeather')).default;
+} catch (error) {
+	warn('weather-gweather-missing', `GWeather is unavailable: ${error.message}`);
+};
+
 export const type = 'weather';
 export const label = 'Weather';
 export const stylesheet = 'widgets/weather/stylesheet.css';
-export const appIds = ['org.gnome.Weather.desktop'];
 export const settingsSchema = 'org.gnome.Weather';
-export const cacheTtlMs = 10 * 60 * 1000;
+export const cacheTtlMs = 60 * 1000;
 export const defaultSize = 'small';
 export const supportedSizes = ['small', 'medium', 'large'];
 
+const legacyCacheTtlMs = 10 * 60 * 1000;
+const REFRESH_SECONDS = 60;
+const LEGACY_POLL_SECONDS = 30;
+const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
+const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
+const WEATHER_LOCATION_KEY = 'weather-location';
+
+const decoder = new TextDecoder();
 const temperatureState = new Map();
 const temperatureBodies = new WeakSet();
 
 const TEMPERATURE_ANIMATION_MS = 280;
 
+const WEATHER_CODES = new Map([
+	[0, ['Clear sky', 'weather-clear', 'weather-clear-night']],
+	[1, ['Mainly clear', 'weather-few-clouds', 'weather-few-clouds-night']],
+	[2, ['Partly cloudy', 'weather-few-clouds', 'weather-few-clouds-night']],
+	[3, ['Overcast', 'weather-overcast', 'weather-overcast']],
+	[45, ['Fog', 'weather-fog', 'weather-fog']],
+	[48, ['Rime fog', 'weather-fog', 'weather-fog']],
+	[51, ['Light drizzle', 'weather-showers-scattered', 'weather-showers-scattered']],
+	[53, ['Drizzle', 'weather-showers-scattered', 'weather-showers-scattered']],
+	[55, ['Heavy drizzle', 'weather-showers', 'weather-showers']],
+	[56, ['Freezing drizzle', 'weather-showers', 'weather-showers']],
+	[57, ['Heavy freezing drizzle', 'weather-showers', 'weather-showers']],
+	[61, ['Light rain', 'weather-showers-scattered', 'weather-showers-scattered']],
+	[63, ['Rain', 'weather-showers', 'weather-showers']],
+	[65, ['Heavy rain', 'weather-showers', 'weather-showers']],
+	[66, ['Freezing rain', 'weather-showers', 'weather-showers']],
+	[67, ['Heavy freezing rain', 'weather-showers', 'weather-showers']],
+	[71, ['Light snow', 'weather-snow', 'weather-snow']],
+	[73, ['Snow', 'weather-snow', 'weather-snow']],
+	[75, ['Heavy snow', 'weather-snow', 'weather-snow']],
+	[77, ['Snow grains', 'weather-snow', 'weather-snow']],
+	[80, ['Light showers', 'weather-showers-scattered', 'weather-showers-scattered']],
+	[81, ['Showers', 'weather-showers', 'weather-showers']],
+	[82, ['Violent showers', 'weather-showers', 'weather-showers']],
+	[85, ['Light snow showers', 'weather-snow', 'weather-snow']],
+	[86, ['Snow showers', 'weather-snow', 'weather-snow']],
+	[95, ['Thunderstorm', 'weather-storm', 'weather-storm']],
+	[96, ['Thunderstorm with hail', 'weather-storm', 'weather-storm']],
+	[99, ['Severe thunderstorm with hail', 'weather-storm', 'weather-storm']],
+]);
+
+function describeCode(code, isDay = true) {
+	const entry = WEATHER_CODES.get(Number(code)) ?? ['Unknown conditions', 'weather-clear', 'weather-clear-night'];
+
+	return {summary: entry[0], icon: isDay ? entry[1] : entry[2]};
+};
+
+function roundedTemperature(value) {
+	return Number.isFinite(Number(value)) && value !== null ? `${Math.round(Number(value))}°` : '--';
+};
+
+function forecastFromDaily(daily) {
+	const times = daily?.time ?? [];
+	const days = [];
+
+	for (let index = 1; index < times.length && days.length < 5; index++) {
+		const [year, month, day] = String(times[index]).split('-').map(Number);
+		const temp = roundedTemperature(daily.temperature_2m_max?.[index]);
+
+		if (!year || temp === '--') {
+			continue;
+		};
+
+		days.push({
+			time: index,
+			day: new Date(year, month - 1, day).toLocaleDateString(undefined, {weekday: 'short'}),
+			temp,
+			icon: describeCode(daily.weather_code?.[index]).icon,
+		});
+	};
+
+	return days;
+};
+
+function weatherFromOpenMeteo(data, name) {
+	const current = data?.current;
+
+	if (!current) {
+		throw new Error('Missing current conditions');
+	};
+
+	const {summary, icon} = describeCode(current.weather_code, current.is_day !== 0);
+	const apparent = roundedTemperature(current.apparent_temperature);
+
+	return {
+		temp: roundedTemperature(current.temperature_2m),
+		summary,
+		location: name,
+		icon,
+		feelsLike: apparent !== '--' ? `It feels like ${apparent}` : null,
+		forecast: forecastFromDaily(data.daily),
+	};
+};
+
+function notFoundWeather(name) {
+	return {
+		temp: '--',
+		summary: 'Location not found',
+		location: name,
+		icon: 'weather-severe-alert',
+		feelsLike: null,
+		forecast: [],
+	};
+};
+
+export class OpenMeteoService {
+	constructor(onUpdate) {
+		this._onUpdate = onUpdate;
+		this._session = new Soup.Session({timeout: 15, idle_timeout: 15});
+		this._cancellable = null;
+		this._timerId = 0;
+		this._query = '';
+		this._place = null;
+		this._weather = null;
+		this._updatedAt = 0;
+		this._updating = false;
+		this._generation = 0;
+		this._destroyed = false;
+		this.cacheTtlMs = cacheTtlMs;
+	};
+
+	get weather() {
+		return this._weather;
+	};
+
+	get locationName() {
+		return this._place?.name ?? (this._query || null);
+	};
+
+	hasLocation() {
+		return this._query !== '';
+	};
+
+	start() {
+		if (this._destroyed || this._timerId) {
+			return;
+		};
+
+		this._timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, REFRESH_SECONDS, () => {
+			this.refresh(true);
+			return GLib.SOURCE_CONTINUE;
+		});
+	};
+
+	stopTimer() {
+		if (this._timerId) {
+			GLib.Source.remove(this._timerId);
+		};
+
+		this._timerId = 0;
+	};
+
+	setLocation(query) {
+		const normalized = String(query ?? '').trim();
+
+		if (this._destroyed || normalized === this._query) {
+			return false;
+		};
+
+		this._cancel();
+		this._query = normalized;
+		this._place = null;
+		this._weather = null;
+		this._updatedAt = 0;
+		return true;
+	};
+
+	refresh(force = false) {
+		if (this._destroyed || !this._query) {
+			return;
+		};
+
+		if (!force && (this._updating || Date.now() - this._updatedAt < this.cacheTtlMs)) {
+			return;
+		};
+
+		this._cancel();
+
+		const cancellable = new Gio.Cancellable();
+		const generation = this._generation;
+
+		this._cancellable = cancellable;
+		this._updating = true;
+		this._load(generation, cancellable);
+	};
+
+	destroy() {
+		if (this._destroyed) {
+			return;
+		};
+
+		this._destroyed = true;
+		this.stopTimer();
+		this._cancel();
+		this._session?.abort();
+		this._session = null;
+		this._onUpdate = null;
+		this._weather = null;
+		this._place = null;
+	};
+
+	_cancel() {
+		this._generation++;
+		this._updating = false;
+
+		if (this._cancellable) {
+			this._cancellable.cancel();
+			this._cancellable = null;
+		};
+	};
+
+	_stale(generation) {
+		return this._destroyed || generation !== this._generation;
+	};
+
+	_finish(generation, weather) {
+		if (this._stale(generation)) {
+			return;
+		};
+
+		this._cancellable = null;
+		this._updating = false;
+		this._updatedAt = Date.now();
+		this._weather = weather;
+		this._onUpdate?.();
+	};
+
+	_getJson(url, cancellable) {
+		return new Promise((resolve, reject) => {
+			const message = Soup.Message.new('GET', url);
+
+			if (!message || !this._session) {
+				reject(new Error('Request could not be created'));
+				return;
+			};
+
+			this._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, cancellable, (session, result) => {
+				try {
+					const bytes = session.send_and_read_finish(result);
+
+					if (message.get_status() !== Soup.Status.OK) {
+						throw new Error(`HTTP ${message.get_status()}`);
+					};
+
+					resolve(JSON.parse(decoder.decode(bytes.get_data())));
+				} catch (error) {
+					reject(error);
+				};
+			});
+		});
+	};
+
+	async _load(generation, cancellable) {
+		try {
+			if (!this._place) {
+				const geocode = await this._getJson(
+					`${GEOCODE_URL}?name=${encodeURIComponent(this._query)}&count=1&language=en&format=json`,
+					cancellable);
+
+				if (this._stale(generation)) {
+					return;
+				};
+
+				const hit = geocode?.results?.[0];
+
+				if (!hit) {
+					this._finish(generation, notFoundWeather(this._query));
+					return;
+				};
+
+				this._place = {
+					name: hit.name || this._query,
+					latitude: hit.latitude,
+					longitude: hit.longitude,
+				};
+			};
+
+			const params = [
+				`latitude=${this._place.latitude}`,
+				`longitude=${this._place.longitude}`,
+				'current=temperature_2m,apparent_temperature,weather_code,is_day',
+				'hourly=temperature_2m,weather_code',
+				'daily=weather_code,temperature_2m_max,temperature_2m_min',
+				'forecast_days=6',
+				'timezone=auto',
+			].join('&');
+			const data = await this._getJson(`${FORECAST_URL}?${params}`, cancellable);
+
+			if (this._stale(generation)) {
+				return;
+			};
+
+			this._finish(generation, weatherFromOpenMeteo(data, this._place.name));
+		} catch (error) {
+			if (this._stale(generation)) {
+				return;
+			};
+
+			this._updating = false;
+			this._cancellable = null;
+			warn('weather-open-meteo', `Could not fetch weather: ${error.message}`);
+		};
+	};
+};
+
 export const weatherService = {
 	listeners: new Set(),
 	settings: null,
+	extensionSettings: null,
+	openMeteo: null,
 	info: null,
 	timerId: 0,
 	updating: false,
@@ -34,9 +346,9 @@ export const weatherService = {
 	locationName: null,
 	weather: null,
 
-	subscribe(callback) {
+	subscribe(callback, extensionSettings = null) {
 		if (this.listeners.size === 0) {
-			this.start();
+			this.start(extensionSettings);
 		};
 		this.listeners.add(callback);
 		callback(this.weather, this.locationName);
@@ -48,21 +360,57 @@ export const weatherService = {
 		};
 	},
 
-	start() {
+	locationQuery() {
+		return this.extensionSettings?.get_string(WEATHER_LOCATION_KEY)?.trim() ?? '';
+	},
+
+	start(extensionSettings = null) {
+		this.stop();
+		this.extensionSettings = extensionSettings;
+		this.extensionSettings?.connectObject(
+			`changed::${WEATHER_LOCATION_KEY}`, () => this.onLocationChanged(), this);
+
+		this.openMeteo = new OpenMeteoService(() => this.onOpenMeteoUpdate());
+		this.openMeteo.start();
+
 		const schema = Gio.SettingsSchemaSource.get_default()?.lookup(settingsSchema, true);
 		this.settings = schema ? new Gio.Settings({settings_schema: schema}) : null;
 		this.settings?.connectObject('changed::locations', () => this.refresh(true), this);
-    this.refresh();
 
-    if (this.timerId) {
-      GLib.Source.remove(this.timerId);
-      this.timerId = 0
-    };
+		this.refresh();
 
-		this.timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => {
-			this.refresh();
+		this.timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, LEGACY_POLL_SECONDS, () => {
+			if (!this.locationQuery()) {
+				this.refresh();
+			};
 			return GLib.SOURCE_CONTINUE;
 		});
+	},
+
+	onLocationChanged() {
+		this.clearInfo();
+		this.locationKey = null;
+		this.locationName = null;
+		this.weather = null;
+		this.updatedAt = 0;
+		if (!this.locationQuery()) {
+			this.openMeteo?.setLocation('');
+		};
+		this.refresh(true);
+		this.notify();
+	},
+
+	onOpenMeteoUpdate() {
+		if (!this.openMeteo || !this.locationQuery()) {
+			return;
+		};
+		const next = this.openMeteo.weather;
+		const unchanged = next && this.weather && JSON.stringify(next) === JSON.stringify(this.weather);
+		this.weather = next;
+		this.locationName = this.openMeteo.locationName;
+		if (!unchanged) {
+			this.notify();
+		};
 	},
 
 	clearInfo() {
@@ -75,6 +423,20 @@ export const weatherService = {
 	},
 
 	refresh(force = false) {
+		const query = this.locationQuery();
+		if (query && this.openMeteo) {
+			this.clearInfo();
+			if (this.openMeteo.setLocation(query)) {
+				this.weather = null;
+			};
+			this.locationName = this.openMeteo.locationName;
+			this.openMeteo.refresh(force);
+			return;
+		};
+		this.refreshLegacy(force);
+	},
+
+	refreshLegacy(force = false) {
 		const key = this.settings?.get_value('locations').print(true) ?? '';
 		if (key !== this.locationKey) {
 			this.clearInfo();
@@ -84,7 +446,7 @@ export const weatherService = {
 			this.updatedAt = 0;
 			this.notify();
 		};
-		if (!force && (this.updating || Date.now() - this.updatedAt < cacheTtlMs)) return;
+		if (!force && (this.updating || Date.now() - this.updatedAt < legacyCacheTtlMs)) return;
 		this.clearInfo();
 		const location = locationFromSettings(this.settings);
 		if (!location) {
@@ -119,9 +481,13 @@ export const weatherService = {
 			GLib.Source.remove(this.timerId);
 		};
 		this.timerId = 0;
+		this.extensionSettings?.disconnectObject(this);
+		this.extensionSettings = null;
 		this.settings?.disconnectObject(this);
 		this.settings = null;
 		this.clearInfo();
+		this.openMeteo?.destroy();
+		this.openMeteo = null;
 	},
 };
 
@@ -162,7 +528,7 @@ function locationStringsFromSettings(settings) {
 };
 
 export function locationFromSettings(settings) {
-	if (!settings) {
+	if (!settings || !GWeather) {
 		return null;
 	};
 
@@ -482,31 +848,48 @@ export function render(context) {
 	const unsubscribe = weatherService.subscribe((weather, weatherLocation) => {
 		body.destroy_all_children();
 		renderWeather({...context, weather, weatherLocation});
-	});
+	}, context.settings);
 	body.connectObject('destroy', unsubscribe, body);
 };
 
 function renderWeather({body, widget, createLabel, theme, weather, weatherLocation, sizeForWidget}) {
 	const detail = widget.data.detail || 'Weather unavailable';
+	const openMeteoActive = weatherService.openMeteo?.hasLocation() ?? false;
 	const renderedWeather = weather ?? {
-		temp: formatTemperature(String(detail).split(/\s+/)[0] || '--'),
-		summary: String(detail).replace(/^\S+\s*/, '') || 'Open Weather to set a location',
-		location: weatherLocation || widget.data.location || 'GNOME Weather',
+		temp: '--',
+		summary: openMeteoActive ? 'Loading weather…' : 'Weather unavailable',
+		location: weatherLocation || 'Weather',
 		icon: fallbackIcon(detail),
 		feelsLike: null,
+		hint: openMeteoActive ? null : 'Use Open-Meteo: set a city in Widgets preferences',
 	};
 	const [widgetWidth, widgetHeight] = sizeForWidget ? sizeForWidget(widget) : [220, 220];
 	const layout = weatherLayout(widgetWidth, widgetHeight);
 	const forecast = renderedWeather.forecast ?? [];
 	const showForecast = forecast.length > 0 &&
 		['medium', 'large', 'tall', 'wide', 'huge'].includes(widget.size);
+	const sideBySide = showForecast && widgetWidth / widgetHeight > 1.55;
 	if (showForecast && widgetHeight < 260) {
-		layout.tempFont = Math.min(layout.tempFont, 52);
+		layout.tempFont = Math.min(layout.tempFont, sideBySide ? 60 : 52);
 		layout.tempHeight = Math.round(layout.tempFont * 1.22);
 	};
 	const locationRow = new St.BoxLayout({
 		style_class: 'widget-weather-location-row',
-		x_align: Clutter.ActorAlign.START,
+		x_expand: true,
+		x_align: Clutter.ActorAlign.FILL,
+	});
+	const refreshIconSize = Math.max(12, Math.round(layout.locationFont * 0.85));
+	const refreshButton = new St.Button({
+		style_class: 'widget-weather-refresh-button',
+		reactive: true,
+		can_focus: true,
+		track_hover: true,
+		x_align: Clutter.ActorAlign.END,
+		y_align: Clutter.ActorAlign.CENTER,
+		child: new St.Icon({
+			icon_name: 'view-refresh-symbolic',
+			style: `color: ${theme.muted}; icon-size: ${refreshIconSize}px;`,
+		}),
 	});
 	const locationIcon = new St.Icon({
 		icon_name: 'find-location-symbolic',
@@ -553,9 +936,34 @@ function renderWeather({body, widget, createLabel, theme, weather, weatherLocati
 	locationLabel.x_expand = true;
 	locationRow.add_child(locationLabel);
 	locationRow.add_child(locationIcon);
+	locationRow.add_child(refreshButton);
+	const refreshIcon = refreshButton.get_child();
+	refreshIcon.set_pivot_point(0.5, 0.5);
+	refreshIcon.connectObject('destroy', () => refreshIcon.remove_all_transitions(), refreshIcon);
+	refreshButton.connectObject('clicked', () => {
+		refreshIcon.remove_all_transitions();
+		refreshIcon.rotation_angle_z = 0;
+		ease(refreshIcon, {
+			rotation_angle_z: 360,
+			duration: 700,
+			mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+		});
+		if (weatherService.openMeteo?.hasLocation()) {
+			weatherService.openMeteo.refresh(true);
+		} else {
+			weatherService.refresh(true);
+		};
+	}, refreshButton);
+	const main = sideBySide ? new St.BoxLayout({x_expand: true, y_expand: true}) : body;
+	const left = sideBySide
+		? new St.BoxLayout({...VERTICAL, x_expand: false, y_expand: true})
+		: body;
+	if (sideBySide) {
+		left.set_width(Math.round((widgetWidth - 30) * 0.5));
+	};
 	body.add_child(locationRow);
-	body.add_child(temperatureActor(body, widget, renderedWeather.temp, createLabel, theme.text, layout));
-	body.add_child(new St.Widget({y_expand: true}));
+	left.add_child(temperatureActor(body, widget, renderedWeather.temp, createLabel, theme.text, layout));
+	left.add_child(new St.Widget({y_expand: true}));
 
 	details.add_child(createLabel(
 		renderedWeather.summary,
@@ -570,37 +978,64 @@ function renderWeather({body, widget, createLabel, theme, weather, weatherLocati
 
 	bottomRow.add_child(icon);
 	bottomRow.add_child(details);
-	body.add_child(bottomRow);
+	left.add_child(bottomRow);
+	if (renderedWeather.hint) {
+		const hint = createLabel(
+			renderedWeather.hint,
+			'widget-weather-hint',
+			`color: ${theme.muted}; font-size: ${Math.max(11, layout.feelsFont - 2)}px;`);
+		hint.set_width(Math.max(100, widgetWidth - 40));
+		hint.clutter_text.line_wrap = true;
+		body.add_child(hint);
+	};
 	if (showForecast) {
-		const days = ['large', 'huge', 'wide'].includes(widget.size) ? 5 : 3;
+		const days = sideBySide ? 3 : ['large', 'huge', 'wide'].includes(widget.size) ? 5 : 3;
 		const forecastRow = new St.BoxLayout({
-			style_class: 'widget-weather-forecast',
-			style: `spacing: ${layout.sectionGap}px; margin-top: ${widgetHeight < 260 ? 4 : 12}px;`,
+			style_class: sideBySide ? 'widget-weather-forecast widget-weather-forecast-panel' : 'widget-weather-forecast',
+			style: sideBySide
+				? 'spacing: 4px; margin-left: 12px; margin-top: 4px;'
+				: `spacing: ${layout.sectionGap}px; margin-top: ${widgetHeight < 260 ? 4 : 12}px;`,
 			x_expand: true,
+			y_expand: sideBySide,
 		});
 		for (const day of forecast.slice(0, days)) {
 			const column = new St.BoxLayout({
 				...VERTICAL,
 				x_expand: true,
+				y_expand: sideBySide,
 				x_align: Clutter.ActorAlign.FILL,
+				y_align: Clutter.ActorAlign.CENTER,
+				style: sideBySide ? 'spacing: 3px;' : '',
 			});
 			const title = createLabel(day.day, 'widget-weather-forecast-day',
-				`color: ${theme.muted}; font-size: ${widgetHeight < 260 ? 12 : 14}px;`);
+				`color: ${theme.muted}; font-size: ${sideBySide ? 13 : widgetHeight < 260 ? 12 : 14}px;`);
 			title.x_align = Clutter.ActorAlign.CENTER;
 			column.add_child(title);
 			const gicon = fullColorWeatherIcon(day.icon);
 			const dayIcon = new St.Icon({
 				...(gicon ? {gicon} : {icon_name: day.icon}),
-				icon_size: widgetHeight < 260 ? 20 : 28,
+				icon_size: sideBySide ? 30 : widgetHeight < 260 ? 20 : 28,
 				x_align: Clutter.ActorAlign.CENTER,
 			});
 			column.add_child(dayIcon);
 			const temperature = createLabel(day.temp, 'widget-weather-forecast-temp',
-				`color: ${theme.text}; font-size: ${widgetHeight < 260 ? 14 : 17}px;`);
+				`color: ${theme.text}; font-size: ${sideBySide ? 18 : widgetHeight < 260 ? 14 : 17}px;`);
 			temperature.x_align = Clutter.ActorAlign.CENTER;
 			column.add_child(temperature);
 			forecastRow.add_child(column);
 		};
-		body.add_child(forecastRow);
+		if (sideBySide) {
+			main.add_child(left);
+			main.add_child(forecastRow);
+			body.add_child(main);
+		} else {
+			body.add_child(forecastRow);
+		};
+	};
+	if (openMeteoActive) {
+		body.add_child(createLabel(
+			'Weather data by Open-Meteo.com',
+			'widget-weather-attribution',
+			`color: ${theme.muted}; font-size: 10px;`));
 	};
 };
