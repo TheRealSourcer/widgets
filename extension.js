@@ -2550,7 +2550,7 @@ class WidgetController {
 
     return {
       radius: s.get_int('style-border-radius'),
-      roundness: s.get_int('roundness-x10') / 10,  // Use setting instead of hardcoded value
+      roundness: 2, // Match CSS border-radius used by the widget frame.
       refractThickness: s.get_int('refract-thickness'),
       refractIOR: s.get_int('refract-ior-x100') / 100,
       refractScale: s.get_int('refract-scale'),
