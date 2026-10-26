@@ -150,12 +150,18 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
     const avatarSize = layout.avatar;
     const cellGap = layout.gap;
     const dayLabelsWidth = layout.daysW;
+    // Day-label gap: a clear 7px strip between the Mon/Wed/Fri column and
+    // the first column of activity squares (the mini variants already sit
+    // at 6). Put on both the month-labels row and the grid row, so the
+    // month labels keep the canvas's exact coordinate space and stay
+    // centered over the months they belong to.
+    const dayLabelGap = isMini ? 6 : 7;
 
     const mainGaps = isMini ? layout.spacing : layout.spacing * 2;
     const matrixBudget = contentH - layout.avatar - layout.month - layout.footer - mainGaps - 1;
     const cellMax = layout.cellMax ?? (isLarge ? 20 : 16);
     const cellSize = Math.max(4, Math.min(cellMax, Math.floor((matrixBudget - 6 * cellGap) / 7)));
-    const weeks = Math.max(6, Math.min(layout.maxWeeks, Math.floor((contentW - dayLabelsWidth + cellGap) / (cellSize + cellGap))));
+    const weeks = Math.max(6, Math.min(layout.maxWeeks, Math.floor((contentW - dayLabelsWidth - (isMini ? 0 : dayLabelGap) + cellGap) / (cellSize + cellGap))));
 
     const dataFilePath = GLib.build_filenamev([getDataDir('github'), `github-${widget?.id}.json`]);
 
@@ -293,7 +299,7 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         orientation: Clutter.Orientation.HORIZONTAL,
         x_align: Clutter.ActorAlign.FILL,
         x_expand: true,
-        style: `spacing: ${isMini ? 6 : 0}px;`,
+        style: `spacing: ${dayLabelGap}px;`,
     });
     matrixBox.add_child(monthLabelsContainer);
 
@@ -316,7 +322,7 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         x_align: Clutter.ActorAlign.FILL,
         x_expand: true,
         y_expand: isLarge ? false : true,
-        style: `spacing: ${isMini ? 6 : 0}px;`,
+        style: `spacing: ${dayLabelGap}px;`,
     });
     matrixBox.add_child(matrixBody);
 
@@ -326,9 +332,13 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
     });
     matrixBody.add_child(dayLabelsColumn);
 
+    // x_align: START — cells are drawn from x = 0 inside the canvas, so the
+    // canvas must not slide right by the leftover width (END did that): the
+    // month label row then shares the exact same coordinate space, keeping
+    // labels centered over the months they belong to.
     const gridCanvas = new St.DrawingArea({
         x_expand: true,
-        x_align: Clutter.ActorAlign.END,
+        x_align: Clutter.ActorAlign.START,
         style: `background-color: ${theme.background};`,
     });
     matrixBody.add_child(gridCanvas);
@@ -420,84 +430,59 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         ctx.$dispose();
     });
 
-    function renderMonthLabels(weeksToRender, startUnix) {
+    function renderMonthLabels(startUnix) {
         if (isMini) return;
         const pitch = cellSize + cellGap;
         monthLabelsRow.destroy_all_children();
         const monthBottomMargin = isMini ? 0 : 4;
         monthLabelsRow.style = `height: ${layout.month}px; margin-bottom: ${monthBottomMargin}px;`;
 
-        const minLabelSpacing = isLarge ? 20 : 30;
-        const estimatedLabelWidth = 30;
-        const maxLabelX = contentW - dayLabelsWidth - estimatedLabelWidth;
+        // One coordinate space with the canvas: the drawn grid spans exactly
+        // weeks * pitch - gap starting at row x = 0 (see gridCanvas above).
+        const gridEndX = weeks * pitch - cellGap;
 
-        // First week column in which each month of the grid starts.
-        let prevMonth = -1;
-        const monthStarts = [];
-        for (let w = 0; w < weeksToRender; w++) {
-            for (let d = 0; d < 7; d++) {
-                const dt = GLib.DateTime.new_from_unix_local(startUnix + (w * 7 + d) * 86400);
-                const month = dt.get_month() - 1;
+        // First and last grid column each month is visible in, so a label can
+        // be centered over the month's own column block.
+        const spans = [];
+        for (let day = 0; day < weeks * 7; day++) {
+            const dt = GLib.DateTime.new_from_unix_local(startUnix + day * 86400);
+            const month = dt.get_month() - 1;
+            const col = Math.floor(day / 7);
 
-                if (month === prevMonth) continue;
-
-                prevMonth = month;
-
-                if (monthStarts.length && monthStarts[monthStarts.length - 1].w === w) {
-                    // Both months start in the same week — keep the newer one.
-                    monthStarts[monthStarts.length - 1].month = month;
-                } else {
-                    monthStarts.push({w, month});
-                }
-                break;
-            }
+            const span = spans[spans.length - 1];
+            if (span && span.month === month)
+                span.lastCol = col;
+            else
+                spans.push({month, firstCol: col, lastCol: col});
         }
 
-        // A label must not overlap the previous one: when the week columns of adjacent
-        // months end up too close (a partial month at the grid edge),
-        // shift the new label by the minimum spacing instead of dropping it.
-        const placed = [];
-        for (const start of monthStarts) {
-            let x = start.w * pitch;
-
-            if (!placed.length) x += 4;
-            if (x > maxLabelX) x = maxLabelX;
-
-            if (placed.length && x < placed[placed.length - 1].x + minLabelSpacing) {
-                x = placed[placed.length - 1].x + minLabelSpacing;
-            }
-
-            placed.push({x, month: start.month});
-        }
-
-        // If the size defines a label count and more were produced —
+        // The size defines a label count: when more months are visible,
         // trim the OLDEST ones (partial months on the left edge of the grid).
-        if (Number.isFinite(layout.monthLabels) && placed.length > layout.monthLabels) {
-            placed.splice(0, placed.length - layout.monthLabels);
-        }
+        if (Number.isFinite(layout.monthLabels) && spans.length > layout.monthLabels)
+            spans.splice(0, spans.length - layout.monthLabels);
 
-        // Even spacing between labels: the first and last keep their positions,
-        // the in-between ones are distributed evenly (otherwise the spacing
-        // would jump between 48/60px — months have different week counts).
-        if (placed.length > 1) {
-            const firstX = placed[0].x;
-            const lastX = placed[placed.length - 1].x;
-            const step = (lastX - firstX) / (placed.length - 1);
+        for (const span of spans) {
+            const startX = span.firstCol * pitch;
+            const endX = (span.lastCol + 1) * pitch - cellGap;
 
-            placed.forEach((p, i) => {
-                p.x = Math.round(firstX + step * i);
-            });
-        }
-
-        for (const {x, month} of placed) {
             const lbl = new St.Label({
-                text: monthNames()[month],
-                x_align: Clutter.ActorAlign.START,
+                text: monthNames()[span.month],
                 y_align: Clutter.ActorAlign.CENTER,
                 style: `font-size: ${layout.month}px; font-weight: 700; color: ${textColor}; opacity: ${SECONDARY_OPACITY};`,
             });
+            const [, labelWidth] = lbl.get_preferred_width(-1);
 
-            lbl.translation_x = x;
+            // A month that only slivers into the grid cannot host its label
+            // under itself — skip it instead of pinning it to an edge.
+            if (endX - startX < labelWidth)
+                continue;
+
+            // Centered over the month's visible column block — no first-label
+            // pins, no cumulative min-spacing shifts, no even-spacing
+            // interpolation that drifted middle labels off their months.
+            lbl.translation_x = Math.max(0, Math.min(
+                gridEndX - labelWidth,
+                Math.round((startX + endX - labelWidth) / 2)));
             monthLabelsRow.add_child(lbl);
         }
     }
@@ -565,7 +550,7 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         const gridEnd = today.add_days(6 - (today.get_day_of_week() % 7));
         const alignedStart = gridEnd.add_days(-(daysInGrid - 1));
 
-        renderMonthLabels(weeks + 1, alignedStart.to_unix());
+        renderMonthLabels(alignedStart.to_unix());
 
         const cells = [];
         for (let i = 0; i < daysInGrid; i++) {

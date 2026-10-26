@@ -8,6 +8,7 @@ import St from 'gi://St';
 import { warn } from '../../logger.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
+import { createPageIndicator, indicatorBandHeight } from '../../lib/pageIndicator.js';
 
 const EXTENSION_PATH = GLib.path_get_dirname(GLib.path_get_dirname(GLib.path_get_dirname(import.meta.url.replace('file://', ''))));
 
@@ -20,6 +21,10 @@ export const cacheTtlMs = 10 * 60 * 1000;
 export const defaultSize = 'medium';
 export const supportedSizes = ['small', 'medium', 'large', 'wide'];
 
+// Load marker: lets you verify in the journal that the shell imported the
+// fresh module instead of a cached copy (log() goes to the journal).
+log('[desktop-widgets] weather widget module imported (page-dots build)');
+
 const HOUR_MS = 3600 * 1000;
 const HOURS_AHEAD = 24;
 // 1x1 page flip: the calendar's two-leg slide (30px swipe, 250ms beats).
@@ -30,7 +35,10 @@ const WEATHER_FLIP_DURATION = 250;
 let weatherCompactPage = 0;
 
 export function style(theme) {
-	return `background-color: ${theme.background}; border-color: ${theme.border}; color: ${theme.text}; border-radius: 16px; padding: 18px 18px 10px 18px;`;
+	// Bottom padding matches the calendar widget (4px): the 1x1 page
+	// indicator dots must sit at the exact same offset from the frame edge,
+	// inside the card, + the dots row's own 2px bottom margin.
+	return `background-color: ${theme.background}; border-color: ${theme.border}; color: ${theme.text}; border-radius: 16px; padding: 18px 18px 4px 18px;`;
 };
 
 export function locationNameFromSettings(settings) {
@@ -407,7 +415,7 @@ function tempNumber(value) {
 	return match ? Number(match[0].replace(',', '.')) : null;
 };
 
-function temperatureRange(daily, theme, createLabel, scale, size = 11, weight = 400) {
+function temperatureRange(daily, theme, createLabel, scale, size = 11, weight = 400, color) {
 	const today = daily[0];
 
 	if (!today) {
@@ -424,7 +432,7 @@ function temperatureRange(daily, theme, createLabel, scale, size = 11, weight = 
 	return createLabel(
 		_('H:%s L:%s').format(today.high, today.low),
 		'widget-weather-range',
-		`color: ${theme.muted}; font-size: ${scaledFont(size, scale)}px; font-weight: ${weight};`);
+		`color: ${color ?? theme.muted}; font-size: ${scaledFont(size, scale)}px; font-weight: ${weight};`);
 };
 
 function buildHeader(rendered, theme, createLabel, scale, opts = {}) {
@@ -667,8 +675,11 @@ function stripDivider() {
 // Compact (1×1) card in the W01 style: location label, a bold accent-colored
 // temperature, then the condition icon, the sky summary and the day's
 // high/low, stacked in a single left-aligned column.
-function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor, opts = {}) {
-	// City name with navigation icon
+function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor, settings) {
+	// City name with navigation icon — one standard horizontal layout box:
+	// the arrow joins the name on the same visual line through the box's
+	// cross-axis centering (vertical-align: middle), no absolute
+	// positioning and no manual margins.
 	const cityRow = new St.BoxLayout(boxLayoutProps({
 		vertical: false,
 		x_align: Clutter.ActorAlign.START,
@@ -684,23 +695,65 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 	const iconName = theme.dark ? 'navigation-white' : 'navigation-black';
 	const iconPath = `${EXTENSION_PATH}/icons/widgets_settings/weather/${iconName}.svg`;
 	const iconFile = Gio.File.new_for_path(iconPath);
-	
+
 	if (iconFile.query_exists(null)) {
 		const navIcon = new St.Icon({
 			gicon: Gio.icon_new_for_string(iconPath),
 			icon_size: scaledFont(12, scale),
-			y_align: Clutter.ActorAlign.START,
-			style: `margin-top: ${scaledFont(1, scale)}px;`,
+			// Standard box alignment: the icon centers on the name's line
+			// box, so label and arrow share one visual baseline.
+			y_align: Clutter.ActorAlign.CENTER,
 		});
 		cityRow.add_child(navIcon);
 	}
 
 	body.add_child(cityRow);
 
-	body.add_child(createLabel(
-		rendered.temp,
+	// Main temperature, restored: plain labels only — a Pango markup span
+	// invalid-attribute parse failure is what cleared the text before, so
+	// markup stays out. The temperature is the card's focal point: double
+	// the previous mid size (48 base, capped at 56 so the page never
+	// feels clipped); the degree mark is its own small label pinned to
+	// the digits' line top — the superscript look — with no fixed
+	// heights and no manual margins.
+	const tempFont = Math.min(scaledFont(48, scale), 56);
+	const tint = tempColor ?? theme.accent;
+
+	const tempRow = new St.BoxLayout(boxLayoutProps({
+		vertical: false,
+		x_align: Clutter.ActorAlign.START,
+		style: 'spacing: 1px;',
+	}));
+
+	const digitsLabel = createLabel(
+		String(rendered.temp ?? '--').replace('°', ''),
 		'widget-weather-temp-main',
-		`color: ${tempColor ?? theme.accent}; font-size: ${scaledFont(52, scale)}px; font-weight: 600;`));
+		`color: ${tint}; font-size: ${tempFont}px; font-weight: 600;`);
+	const degFont = Math.max(11, Math.min(Math.round(tempFont * 0.5), 30));
+	const degLabel = createLabel(
+		'°',
+		'widget-weather-temp-degree',
+		`color: ${tint}; font-size: ${degFont}px; font-weight: 600;`);
+	// createLabel defaults to x_expand: true (the framework's _label) —
+	// in a full-width row that would fling the ° toward the right edge;
+	// pin both to their natural width, packed left after the digits.
+	digitsLabel.x_expand = false;
+	degLabel.x_expand = false;
+	// Superscript: cross-axis start keeps the mark at the top of the
+	// digits' line box, sharing the digits' baseline as ordinary type.
+	degLabel.y_align = Clutter.ActorAlign.START;
+
+	tempRow.add_child(digitsLabel);
+	tempRow.add_child(degLabel);
+	body.add_child(tempRow);
+
+	// Balanced lower half: an equal expanding filler above the condition
+	// block and one below it split the page's remaining air, so the gap
+	// between the big temperature and the icon/summary/H-L rows equals
+	// the gap between that block and the dots at the bottom edge — the
+	// lower group centers in the space under the temperature instead of
+	// packing tight against it.
+	body.add_child(new St.Widget({y_expand: true}));
 
 	const bottom = new St.BoxLayout(boxLayoutProps({
 		vertical: true,
@@ -729,24 +782,28 @@ function buildCompactRegime(body, rendered, theme, createLabel, scale, tempColor
 		'widget-weather-summary',
 		`color: ${theme.text}; font-size: ${scaledFont(13, scale)}px; font-weight: 600;`));
 
-	// H/L: same as the Overcast line above it (13 units); the 600 weight
-	// (Overcast-like) stays.
-	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 12, 600);
+	// H/L: mirrors the condition line directly above it — same 13-unit
+	// font, same 600 weight, same full-strength text color (no muted
+	// dimming), so the two small rows read as one visual voice.
+	const range = temperatureRange(rendered.daily, theme, createLabel, scale, 13, 600, theme.text);
 
 	if (range) {
 		bottom.add_child(range);
 	};
 
+	// Clear dot gap: the expanding filler under the condition block keeps
+	// its equal share with the filler above it (proportional air), and a
+	// fixed foot under that reserves the dots band (dot/dash + its row
+	// margin, height from the shared component) plus a small extra
+	// margin. The H/L line therefore always sits a clear distance above
+	// the pagination indicators — never touching or sliding under them —
+	// and the dots render on top of the transparent foot.
 	body.add_child(bottom);
-
-	// Spacer for page dots: when page dots are visible (bottomLift > 0),
-	// add a fixed-height spacer at the bottom to reserve space for them.
-	if (opts.bottomLift && opts.bottomLift > 0) {
-		body.add_child(new St.Widget({
-			height: opts.bottomLift,
-			y_expand: false,
-		}));
-	}
+	body.add_child(new St.Widget({y_expand: true}));
+	body.add_child(new St.Widget({
+		width: 1,
+		height: indicatorBandHeight(settings),
+	}));
 };
 
 export function render({body, widget, createLabel, theme, weather, weatherLocation, sizeForWidget, settings}) {
@@ -789,14 +846,12 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 		// and temperature per column, the wide card's hourly strip scaled
 		// down. The right-button swipe plays the calendar's sequential
 		// leg: the page slides out and fades, the other one waits
-		// off-stage, then slides in from the opposite side. Page dots sit
-		// at the very bottom of both pages.
-		// Page dots (calendar's classic look): toggleable in prefs →
-		// Weather Widget; dash/dot follows the global page-indicator-style,
-		// the color is the accent while the weather accent toggle is on,
-		// otherwise the neutral theme text.
-		const showPageDots = settings?.get_boolean('weather-show-page-dots') ?? true;
-
+		// off-stage, then slides in from the opposite side. Page dots
+		// accompany both pages, always rendered.
+		// Page dots (calendar's classic look, ALWAYS rendered): dash/dot
+		// follows the global page-indicator-style, the color is the accent
+		// while the weather accent toggle is on, otherwise the neutral
+		// theme text.
 		const pages = [];
 
 		const conditionsPage = new St.BoxLayout(boxLayoutProps({
@@ -804,9 +859,7 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 			x_expand: true,
 			y_expand: true,
 		}));
-		buildCompactRegime(conditionsPage, renderedWeather, theme, createLabel, compactScale, tempColor, {
-			bottomLift: showPageDots ? 16 : 0,
-		});
+		buildCompactRegime(conditionsPage, renderedWeather, theme, createLabel, compactScale, tempColor, settings);
 		pages.push(conditionsPage);
 
 		const hoursPage = new St.BoxLayout(boxLayoutProps({
@@ -844,11 +897,22 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 				}));
 			});
 
-			// Vertical centering: BoxLayout stretches its children, namely
-			// filler widgets pin the grid to the middle of the page.
+			// Vertical centering that accounts for the indicator band: the
+			// dots overlay the page's bottom band (7px), so plain equal
+			// fillers would leave the air to the top border and the air
+			// to the dots unequal. A fixed foot (exactly the dots band
+			// height, from the shared component) sits under the bottom
+			// filler, so the two equal fillers only split the space ABOVE
+			// the band — the grid centers within (page height - band) and
+			// the air above it equals the air between it and the dots.
+			// The foot is invisible; the dots render on top of it.
 			hoursPage.add_child(new St.Widget({y_expand: true}));
 			hoursPage.add_child(hoursGrid);
 			hoursPage.add_child(new St.Widget({y_expand: true}));
+			hoursPage.add_child(new St.Widget({
+				width: 1,
+				height: indicatorBandHeight(settings),
+			}));
 		} else {
 			// No forecast payload: keep the page real but quiet.
 			const emptyLabel = createLabel(
@@ -869,32 +933,13 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 
 		// dash/dot follows the global page-indicator-style,
 		// the color is the accent while the page-indicator toggle is on,
-		// otherwise the neutral theme text — a separate SwitchRow in prefs
-		// (the calendar's page-indicator accent toggle, per widget).
-		const dashStyle = (settings?.get_int('page-indicator-style') ?? 0) === 1;
+		// otherwise the neutral theme text — the shared page indicator
+		// component (the calendar's pagination, identical spacing, size,
+		// active-state opacity and vertical offset).
 		const indicatorColor = settings?.get_boolean('weather-page-indicator-accent') ?? true
 			? (theme?.accent ?? theme.text)
 			: theme.text;
-		const dotsRow = new St.BoxLayout(boxLayoutProps({
-			x_expand: true,
-			x_align: Clutter.ActorAlign.CENTER,
-			style: 'spacing: 6px; margin-bottom: 2px;',
-		}));
-		const dots = pages.map(() => new St.Widget({
-			width: dashStyle ? 10 : 5,
-			height: dashStyle ? 3 : 5,
-			opacity: 90,
-			style: `border-radius: 999px; background-color: ${indicatorColor};`,
-		}));
-		dots.forEach(dot => dotsRow.add_child(dot));
-
-		const dotsWrap = new St.BoxLayout(boxLayoutProps({
-			vertical: true,
-			x_expand: true,
-			y_expand: true,
-		}));
-		dotsWrap.add_child(new St.Widget({y_expand: true}));
-		dotsWrap.add_child(dotsRow);
+		const indicator = createPageIndicator({settings, count: pages.length, color: indicatorColor});
 
 		const pageStack = new St.Widget({
 			layout_manager: new Clutter.BinLayout(),
@@ -902,24 +947,24 @@ export function render({body, widget, createLabel, theme, weather, weatherLocati
 			y_expand: true,
 		});
 		pageStack.add_child(pages[weatherCompactPage]);
-		if (showPageDots) {
-			pageStack.add_child(dotsWrap); // dots paint above the pages
-		}
+
+		// ── EXACTLY the calendar widget's indicator hierarchy ─────────────
+		// The dots wrap is added to the SAME BinLayout stack as the pages
+		// (dots paint above the pages) and pins itself to the very
+		// bottom-center of the shared rect through its internal
+		// y-expanding filler — the "vertical-align: end" of the main
+		// vertical box. The dots are added UNCONDITIONALLY: no pref, no
+		// content height and no overflow path can leave this indicator out
+		// of the layout child list. The card's bottom padding is 4px (the
+		// calendar's value), so the band rests 6px above the frame edge,
+		// identical spacing/size/active-state to the calendar's dots.
+		pageStack.add_child(indicator.wrap);
+
 		body.add_child(pageStack);
 
-		const refreshDots = () => {
-			if (!dotsWrap.get_parent()) {
-				return;
-			};
-
-			dots.forEach((dot, index) => {
-				dot.ease({
-					opacity: index === weatherCompactPage ? 255 : 90,
-					duration: 120,
-					mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-				});
-			});
-		};
+		// The dots delegate to the shared page-indicator component; the
+		// wrap guard lives inside refresh().
+		const refreshDots = () => indicator.refresh(weatherCompactPage);
 		refreshDots();
 
 		// Dispose safety: re-renders replace this whole page stack; the

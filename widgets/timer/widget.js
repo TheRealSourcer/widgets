@@ -218,16 +218,15 @@ function renderMediumTimer({body, theme, sizeForWidget, widget}) {
 		plusRow.add_child(plus10Btn);
 		plusRow.add_child(plus1Btn);
 
-		// Fixed slot == the rows' width, and the height is the digits' INK
-		// height: measured Ubuntu Bold 72px paints an 54px-tall ink inside a
-		// 73px font box (1px above, 18px below), so the box is forced to 54
-		// and the residual 1px offset is cancelled with a paint-only nudge.
-		// font-family is pinned (inherited theme fonts drift off center) and
-		// a symmetric 4px horizontal padding centers the 80px ink in the slot.
+		// Keep a fixed slot width so the two columns stay aligned, but don't
+		// squeeze the label to the glyph ink height: the round zero's black
+		// counterform needs extra vertical room or it gets clipped at the top
+		// and bottom edges. font-family is pinned to the Ubuntu digit set so the
+		// numbers stay visually centered and consistent across theme changes.
 		const label = new St.Label({
 			text: '00',
 			x_align: Clutter.ActorAlign.CENTER,
-			style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(72)}px; font-weight: 700; padding: 0 ${px(4)}px; width: ${px(88)}px; height: ${px(54)}px;`,
+			style: `color: ${textColor}; font-family: Ubuntu; font-size: ${px(72)}px; font-weight: 700; padding: 0 ${px(4)}px; width: ${px(88)}px; min-height: ${px(60)}px; line-height: 1;`,
 		});
 		label.translation_y = -px(1);
 

@@ -11,6 +11,7 @@ import { clamp } from '../../utils.js';
 import { isActorDestroyed } from '../../utils/ported.js';
 import { warn } from '../../logger.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
+import { createPageIndicator } from '../../lib/pageIndicator.js';
 
 const EXTENSION_PATH = GLib.path_get_dirname(GLib.path_get_dirname(GLib.path_get_dirname(import.meta.url.replace('file://', ''))));
 
@@ -990,42 +991,14 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	}));
 
 	// Page-indicator dots: a BinLayout stacks the pages and the dots in the
-	// same area. The dots wrap expands and uses a y-expanding filler above
-	// the row (BinLayout here ignores child y_align), so the row is pinned
-	// to the very bottom-center of the shared rect on both pages.
-	const dotsRow = new St.BoxLayout(boxLayoutProps({
-		x_expand: true,
-		x_align: Clutter.ActorAlign.CENTER,
-		style: `spacing: 6px; margin-bottom: 2px;`,
-	}));
-	// Keep the row fully inside the body: the clip area cuts children at
-	// its allocation, so flush (0px) is the lowest clean position.
-	// Page indicators: round dots (calendar's classic look) or dashes —
-	// per the global page-indicator-style setting (prefs → General); the
-	// color is the accent when the Calendar Widget switch is on, otherwise
-	// the neutral theme text (white on dark, black on light).
-	const dashStyle = (settings?.get_int('page-indicator-style') ?? 0) === 1;
+	// same area; the shared component pins the row to the very bottom-center
+	// of the shared rect on both pages. The color is the accent when the
+	// Calendar Widget switch is on, otherwise the neutral theme text
+	// (white on dark, black on light).
 	const indicatorColor = settings?.get_boolean('calendar-page-indicator-accent') ?? true
 		? (theme?.accent ?? text)
 		: text;
-	const dots = [VIEW_CALENDAR, VIEW_EVENTS].map(() => new St.Widget({
-		width: dashStyle ? 10 : 5,
-		height: dashStyle ? 3 : 5,
-		opacity: 90,
-		style: `border-radius: 999px; background-color: ${indicatorColor};`,
-	}));
-	dots.forEach(dot => dotsRow.add_child(dot));
-	// Flush with the very bottom of the widget body. Do NOT shift the row
-	// below the body allocation (translation/negative margin): body is
-	// clipped to allocation, the extra pixel got sheared off the circles.
-
-	const dotsWrap = new St.BoxLayout(boxLayoutProps({
-		vertical: true,
-		x_expand: true,
-		y_expand: true,
-	}));
-	dotsWrap.add_child(new St.Widget({y_expand: true}));
-	dotsWrap.add_child(dotsRow);
+	const indicator = createPageIndicator({settings, count: 2, color: indicatorColor});
 
 	const pageStack = new St.Widget({
 		layout_manager: new Clutter.BinLayout(),
@@ -1036,22 +1009,12 @@ export function render({body, createLabel, events, sizeForWidget, widget, theme,
 	container.y_align = Clutter.ActorAlign.FILL;
 	pageStack.add_child(container);
 	if (showPageDots) {
-		pageStack.add_child(dotsWrap); // dots paint above the pages
+		pageStack.add_child(indicator.wrap); // dots paint above the pages
 	};
 
-	const refreshDots = () => {
-		if (!dotsWrap.get_parent()) {
-			return;
-		};
-
-		dots.forEach((dot, index) => {
-			dot.ease({
-				opacity: index === currentView ? 255 : 90,
-				duration: 120,
-				mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-			});
-		});
-	};
+	// The dots delegate to the shared page-indicator component; the wrap
+	// guard lives inside refresh().
+	const refreshDots = () => indicator.refresh(currentView);
 
 	// The events view registers one eventsClient listener per build; each
 	// swipe rebuilds the view, so the CURRENT swap's dispose is kept here
