@@ -2381,6 +2381,7 @@ class WidgetController {
       reactive: true,
       can_focus: true,
       track_hover: true,
+      clip_to_allocation: true,
     });
 
     const actor = new St.BoxLayout(actorParams);
@@ -2388,6 +2389,13 @@ class WidgetController {
 
     const opacity = this._layoutSettings.get_double('style-widget-opacity');
     wrapper.opacity = Math.round(clamp(opacity, 0, 1) * 255);
+
+    // Apply border-radius and overflow:hidden to wrapper for glass corner clipping
+    const theme = this._gnomeTheme();
+    const radius = theme.radius;
+    if (radius > 0) {
+      wrapper.set_style(`border-radius: ${radius}px; overflow: hidden;`);
+    }
 
     // Add glass as first child (backdrop) if widget uses glass effect
     const isGlass = this._layoutSettings.get_int('style-mode') === 0;
