@@ -61,3 +61,23 @@
 .widget-weather-forecast-temp {
 	text-align: center;
 }
+
+.widget-weather-refresh-button {
+	background-color: transparent;
+	border-radius: 999px;
+	padding: 6px;
+	margin-left: 4px;
+	min-width: 24px;
+	min-height: 24px;
+}
+
+.widget-weather-refresh-button:hover,
+.widget-weather-refresh-button:focus {
+	background-color: rgba(0, 0, 0, 0.1);
+}
+
+.widget-weather-forecast-panel {
+	background-color: rgba(128, 128, 128, 0.14);
+	border-radius: 18px;
+	padding: 8px 6px;
+}

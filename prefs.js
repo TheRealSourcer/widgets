@@ -8,6 +8,7 @@ const HOUR_FORMATS = ['12', '24'];
 const PROJECT_URL = 'https://extensions.gnome.org/extension/10607/widgets/';
 const SOURCE_URL = 'https://github.com/TheRealSourcer/widgets';
 const ISSUES_URL = `${SOURCE_URL}/issues`;
+const OPEN_METEO_URL = 'https://open-meteo.com/';
 
 export default class WidgetsPreferences extends ExtensionPreferences {
 	fillPreferencesWindow(window) {
@@ -163,6 +164,17 @@ export default class WidgetsPreferences extends ExtensionPreferences {
 		});
 		group.add(stocksRow);
 
+		const weatherRow = new Adw.EntryRow({
+			title: _('Weather location'),
+			text: settings.get_string('weather-location'),
+			show_apply_button: true,
+		});
+		weatherRow.set_tooltip_text(_('City for Open-Meteo, for example New York. When empty, the city saved in the GNOME Weather app is used if it is installed'));
+		weatherRow.connect('apply', () => {
+			settings.set_string('weather-location', weatherRow.get_text().trim());
+		});
+		group.add(weatherRow);
+
 		group.add(this._spinRow(
 			settings,
 			'screentime-retention-days',
@@ -221,6 +233,13 @@ export default class WidgetsPreferences extends ExtensionPreferences {
 			_('Open the GitHub issue tracker'),
 			'dialog-warning-symbolic',
 			ISSUES_URL
+		));
+		group.add(this._linkRow(
+			window,
+			_('Weather data'),
+			_('Powered by Open-Meteo.com'),
+			'weather-clear-symbolic',
+			OPEN_METEO_URL
 		));
 
 		return group;

@@ -1,22 +1,21 @@
 import Clutter from 'gi://Clutter';
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
-import GWeather from 'gi://GWeather';
 import St from 'gi://St';
 import {surfaceStyle} from '../../utils/widget.js';
 import {ease} from '../../utils/animation.js';
 import {VERTICAL, boxOrientation} from '../../compatibility.js';
 
-import { warn } from '../../logger.js';
+import {OpenMeteoService, cacheTtlMs} from './openMeteo.js';
+import {GWeatherService} from './gweather.js';
+import {fullColorWeatherIcon} from './weatherIcons.js';
 
 export const type = 'weather';
 export const label = 'Weather';
 export const stylesheet = 'widgets/weather/stylesheet.css';
-export const appIds = ['org.gnome.Weather.desktop'];
-export const settingsSchema = 'org.gnome.Weather';
-export const cacheTtlMs = 10 * 60 * 1000;
+export {cacheTtlMs};
 export const defaultSize = 'small';
 export const supportedSizes = ['small', 'medium', 'large'];
+
+const WEATHER_LOCATION_KEY = 'weather-location';
 
 const temperatureState = new Map();
 const temperatureBodies = new WeakSet();
@@ -25,18 +24,15 @@ const TEMPERATURE_ANIMATION_MS = 280;
 
 export const weatherService = {
 	listeners: new Set(),
-	settings: null,
-	info: null,
-	timerId: 0,
-	updating: false,
-	updatedAt: 0,
-	locationKey: null,
+	extensionSettings: null,
+	openMeteo: null,
+	gweather: null,
 	locationName: null,
 	weather: null,
 
-	subscribe(callback) {
+	subscribe(callback, extensionSettings = null) {
 		if (this.listeners.size === 0) {
-			this.start();
+			this.start(extensionSettings);
 		};
 		this.listeners.add(callback);
 		callback(this.weather, this.locationName);
@@ -48,62 +44,64 @@ export const weatherService = {
 		};
 	},
 
-	start() {
-		const schema = Gio.SettingsSchemaSource.get_default()?.lookup(settingsSchema, true);
-		this.settings = schema ? new Gio.Settings({settings_schema: schema}) : null;
-		this.settings?.connectObject('changed::locations', () => this.refresh(true), this);
-    this.refresh();
-
-    if (this.timerId) {
-      GLib.Source.remove(this.timerId);
-      this.timerId = 0
-    };
-
-		this.timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => {
-			this.refresh();
-			return GLib.SOURCE_CONTINUE;
-		});
+	locationQuery() {
+		return this.extensionSettings?.get_string(WEATHER_LOCATION_KEY).trim() ?? '';
 	},
 
-	clearInfo() {
-		if (this.info) {
-			this.info.disconnectObject(this);
-			this.info.abort();
+	start(extensionSettings = null) {
+		this.stop();
+		this.extensionSettings = extensionSettings;
+		this.extensionSettings?.connectObject(
+			`changed::${WEATHER_LOCATION_KEY}`, () => this.onLocationChanged(), this);
+
+		this.openMeteo = new OpenMeteoService(() => this.onSourceUpdate(this.openMeteo));
+		this.gweather = new GWeatherService(() => this.onSourceUpdate(this.gweather));
+		this.openMeteo.start();
+		this.gweather.start();
+		this.refresh();
+	},
+
+	hasSource() {
+		return this.openMeteo.hasLocation() || this.gweather.hasLocation();
+	},
+
+	onLocationChanged() {
+		this.locationName = null;
+		this.weather = null;
+		this.refresh(true);
+		this.notify();
+	},
+
+	onSourceUpdate(service) {
+		if (!service.hasLocation()) {
+			return;
 		};
-		this.info = null;
-		this.updating = false;
+		const next = service.weather;
+		const unchanged = next && this.weather && JSON.stringify(next) === JSON.stringify(this.weather);
+		this.weather = next;
+		this.locationName = service.locationName;
+		if (!unchanged) {
+			this.notify();
+		};
 	},
 
 	refresh(force = false) {
-		const key = this.settings?.get_value('locations').print(true) ?? '';
-		if (key !== this.locationKey) {
-			this.clearInfo();
-			this.locationKey = key;
-			this.locationName = locationNameFromSettings(this.settings);
-			this.weather = null;
-			this.updatedAt = 0;
-			this.notify();
-		};
-		if (!force && (this.updating || Date.now() - this.updatedAt < cacheTtlMs)) return;
-		this.clearInfo();
-		const location = locationFromSettings(this.settings);
-		if (!location) {
-			this.weather = null;
-			this.updatedAt = Date.now();
-			this.notify();
+		const query = this.locationQuery();
+		if (query) {
+			this.gweather.setActive(false);
+			if (this.openMeteo.setLocation(query)) {
+				this.weather = null;
+			};
+			this.locationName = this.openMeteo.locationName;
+			this.openMeteo.refresh(force);
 			return;
 		};
-		const info = infoForLocation(location);
-		this.info = info;
-		this.updating = true;
-		info.connectObject('updated', () => {
-			if (info !== this.info) return;
-			this.updating = false;
-			this.updatedAt = Date.now();
-			this.weather = info.is_valid() ? weatherFromInfo(info, location, this.locationName) : null;
-			this.notify();
-		}, this);
-		info.update();
+		this.openMeteo.setLocation('');
+		if (this.gweather.setActive(true)) {
+			this.weather = null;
+		};
+		this.locationName = this.gweather.locationName;
+		this.gweather.refresh(force);
 	},
 
 	notify() {
@@ -115,13 +113,12 @@ export const weatherService = {
 	},
 
 	stop() {
-		if (this.timerId) {
-			GLib.Source.remove(this.timerId);
-		};
-		this.timerId = 0;
-		this.settings?.disconnectObject(this);
-		this.settings = null;
-		this.clearInfo();
+		this.extensionSettings?.disconnectObject(this);
+		this.extensionSettings = null;
+		this.openMeteo?.destroy();
+		this.openMeteo = null;
+		this.gweather?.destroy();
+		this.gweather = null;
 	},
 };
 
@@ -130,215 +127,11 @@ export function cleanup() {
 	weatherService.listeners.clear();
 	weatherService.weather = null;
 	weatherService.locationName = null;
-	weatherService.locationKey = null;
-	weatherService.updatedAt = 0;
 	temperatureState.clear();
 };
 
 export function style(theme) {
 	return surfaceStyle(theme);
-};
-
-export function locationNameFromSettings(settings) {
-	const strings = locationStringsFromSettings(settings);
-
-	return strings[0] || null;
-};
-
-function locationStringsFromSettings(settings) {
-	if (!settings) {
-		return [];
-	};
-
-	const locations = settings.get_value('locations');
-
-	if (locations.n_children() === 0) {
-		return [];
-	};
-
-	const serialized = locations.get_child_value(0).print(true);
-
-	return [...serialized.matchAll(/'([^']*)'/g)].map(match => match[1]);
-};
-
-export function locationFromSettings(settings) {
-	if (!settings) {
-		return null;
-	};
-
-	try {
-		const locations = settings.get_value('locations');
-
-		return locations.n_children() > 0
-			? GWeather.Location.get_world()?.deserialize(locations.get_child_value(0).deep_unpack()) ?? null
-			: null;
-	} catch (error) {
-		warn('weather-location-deserialize', `Could not deserialize Weather app location: ${error.message}`);
-		return null;
-	};
-};
-
-export function infoForLocation(location) {
-	const info = GWeather.Info.new(location);
-
-	info.set_application_id('com.github.TheRealSourcer.Widgets');
-	info.set_contact_info('https://github.com/TheRealSourcer/widgets');
-	info.set_enabled_providers(
-		GWeather.Provider.METAR |
-		GWeather.Provider.MET_NO |
-		GWeather.Provider.OWM);
-	return info;
-};
-
-export function weatherFromInfo(info, location, displayName = null) {
-	const currentInfo = currentConditionsInfo(info);
-	const locationName = currentInfo.get_location_name();
-	const apparent = formatTemperature(currentInfo.get_apparent());
-
-	return {
-		temp: formatTemperature(currentInfo.get_temp()),
-		summary: cleanSummary(currentInfo.get_weather_summary(), locationName),
-		location: displayName || location.get_city_name() || locationName,
-		icon: currentInfo.get_icon_name() || 'weather-clear',
-		feelsLike: apparent && apparent !== '--' ? `It feels like ${apparent}` : null,
-		forecast: forecastDays(info),
-	};
-};
-
-export function forecastDays(info) {
-	const today = new Date();
-	const dayKey = date => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-	const byDay = new Map();
-	const now = Date.now() / 1000;
-
-	for (const forecast of info.get_forecast_list() ?? []) {
-		const time = forecastUpdateTime(forecast);
-		if (!time || time <= now) {
-			continue;
-		};
-		const date = new Date(time * 1000);
-		const key = dayKey(date);
-		if (key === dayKey(today)) {
-			continue;
-		};
-		const temp = formatTemperature(forecast.get_temp());
-		if (temp === '--') {
-			continue;
-		};
-		const distance = Math.abs(date.getHours() - 12);
-		if (byDay.has(key) && byDay.get(key).distance <= distance) {
-			continue;
-		};
-		byDay.set(key, {time, distance,
-			day: date.toLocaleDateString(undefined, {weekday: 'short'}),
-			temp, icon: forecast.get_icon_name() || 'weather-clear'});
-	};
-	return [...byDay.values()].sort((a, b) => a.time - b.time).slice(0, 5);
-};
-
-function currentConditionsInfo(info) {
-	return formatTemperature(info.get_temp()) !== '--' ? info : currentForecastInfo(info);
-};
-
-function forecastUpdateTime(info) {
-	const [ok, updateTime] = info.get_value_update();
-
-	return ok ? updateTime : null;
-};
-
-function currentForecastInfo(info) {
-	const forecasts = info.get_forecast_list() ?? [];
-	const now = Math.floor(Date.now() / 1000);
-	let bestPast = null;
-	let bestFuture = null;
-
-	for (const forecast of forecasts) {
-		const updateTime = forecastUpdateTime(forecast);
-		const temp = formatTemperature(forecast.get_temp());
-
-		if (updateTime === null || temp === '--') {
-			continue;
-		};
-
-		if (updateTime <= now && (!bestPast || updateTime > bestPast.updateTime)) {
-			bestPast = {forecast, updateTime};
-		} else if (updateTime > now && (!bestFuture || updateTime < bestFuture.updateTime)) {
-			bestFuture = {forecast, updateTime};
-		};
-	};
-
-	return bestPast?.forecast ?? bestFuture?.forecast ?? info;
-};
-
-function formatTemperature(temperature) {
-	const text = String(temperature ?? '--').trim();
-	const match = text.match(/-?\d+(?:[.,]\d+)?/);
-
-	if (!match) {
-		return '--';
-	};
-
-	const value = Number(match[0].replace(',', '.'));
-
-	return Number.isFinite(value) ? `${Math.round(value)}°` : '--';
-};
-
-function cleanSummary(summary, locationName) {
-	if (!summary) {
-		return 'Weather unavailable';
-	};
-
-	if (locationName && summary.startsWith(`${locationName}: `)) {
-		return summary.slice(locationName.length + 2);
-	};
-
-	const separator = summary.indexOf(': ');
-
-	return separator >= 0 ? summary.slice(separator + 2) : summary;
-};
-
-function fallbackIcon(text) {
-	const lower = String(text || '').toLowerCase();
-
-	if (lower.includes('thunder') || lower.includes('storm')) {
-		return 'weather-storm';
-	};
-	if (lower.includes('snow') || lower.includes('ice')) {
-		return 'weather-snow';
-	};
-	if (lower.includes('rain') || lower.includes('shower') || lower.includes('drizzle')) {
-		return 'weather-showers';
-	};
-	if (lower.includes('fog') || lower.includes('mist') || lower.includes('haze')) {
-		return 'weather-fog';
-	};
-	if (lower.includes('cloud') || lower.includes('overcast')) {
-		return 'weather-few-clouds';
-	};
-
-	return 'weather-clear';
-};
-
-function fullColorWeatherIcon(iconName) {
-	const baseName = String(iconName || 'weather-clear')
-		.replace(/-symbolic$/, '')
-		.replace(/-(small|large)$/, '');
-	const candidates = [
-		`${baseName}-large.svg`,
-		`${baseName}-small.svg`,
-		`${baseName}.svg`,
-	];
-
-	for (const candidate of candidates) {
-		const path = GLib.build_filenamev(['/usr/share/icons/hicolor/scalable/status', candidate]);
-		const file = Gio.File.new_for_path(path);
-
-		if (file.query_exists(null)) {
-			return Gio.FileIcon.new(file);
-		};
-	};
-
-	return null;
 };
 
 function clamp(value, minimum, maximum) {
@@ -482,31 +275,48 @@ export function render(context) {
 	const unsubscribe = weatherService.subscribe((weather, weatherLocation) => {
 		body.destroy_all_children();
 		renderWeather({...context, weather, weatherLocation});
-	});
+	}, context.settings);
 	body.connectObject('destroy', unsubscribe, body);
 };
 
 function renderWeather({body, widget, createLabel, theme, weather, weatherLocation, sizeForWidget}) {
-	const detail = widget.data.detail || 'Weather unavailable';
+	const sourceActive = weatherService.hasSource();
+	const openMeteoActive = weatherService.openMeteo.hasLocation();
 	const renderedWeather = weather ?? {
-		temp: formatTemperature(String(detail).split(/\s+/)[0] || '--'),
-		summary: String(detail).replace(/^\S+\s*/, '') || 'Open Weather to set a location',
-		location: weatherLocation || widget.data.location || 'GNOME Weather',
-		icon: fallbackIcon(detail),
+		temp: '--',
+		summary: sourceActive ? 'Loading weather…' : 'No city set',
+		location: weatherLocation || 'Weather',
+		icon: 'weather-severe-alert',
 		feelsLike: null,
+		hint: sourceActive ? null : 'Set a city in Widgets preferences to use Open-Meteo',
 	};
 	const [widgetWidth, widgetHeight] = sizeForWidget ? sizeForWidget(widget) : [220, 220];
 	const layout = weatherLayout(widgetWidth, widgetHeight);
 	const forecast = renderedWeather.forecast ?? [];
 	const showForecast = forecast.length > 0 &&
 		['medium', 'large', 'tall', 'wide', 'huge'].includes(widget.size);
+	const sideBySide = showForecast && widgetWidth / widgetHeight > 1.55;
 	if (showForecast && widgetHeight < 260) {
-		layout.tempFont = Math.min(layout.tempFont, 52);
+		layout.tempFont = Math.min(layout.tempFont, sideBySide ? 60 : 52);
 		layout.tempHeight = Math.round(layout.tempFont * 1.22);
 	};
 	const locationRow = new St.BoxLayout({
 		style_class: 'widget-weather-location-row',
-		x_align: Clutter.ActorAlign.START,
+		x_expand: true,
+		x_align: Clutter.ActorAlign.FILL,
+	});
+	const refreshIconSize = Math.max(12, Math.round(layout.locationFont * 0.85));
+	const refreshButton = new St.Button({
+		style_class: 'widget-weather-refresh-button',
+		reactive: true,
+		can_focus: true,
+		track_hover: true,
+		x_align: Clutter.ActorAlign.END,
+		y_align: Clutter.ActorAlign.CENTER,
+		child: new St.Icon({
+			icon_name: 'view-refresh-symbolic',
+			style: `color: ${theme.muted}; icon-size: ${refreshIconSize}px;`,
+		}),
 	});
 	const locationIcon = new St.Icon({
 		icon_name: 'find-location-symbolic',
@@ -553,9 +363,34 @@ function renderWeather({body, widget, createLabel, theme, weather, weatherLocati
 	locationLabel.x_expand = true;
 	locationRow.add_child(locationLabel);
 	locationRow.add_child(locationIcon);
+	locationRow.add_child(refreshButton);
+	const refreshIcon = refreshButton.get_child();
+	refreshIcon.set_pivot_point(0.5, 0.5);
+	refreshIcon.connectObject('destroy', () => refreshIcon.remove_all_transitions(), refreshIcon);
+	refreshButton.connectObject('clicked', () => {
+		refreshIcon.remove_all_transitions();
+		refreshIcon.rotation_angle_z = 0;
+		ease(refreshIcon, {
+			rotation_angle_z: 360,
+			duration: 700,
+			mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+		});
+		if (weatherService.openMeteo.hasLocation()) {
+			weatherService.openMeteo.refresh(true);
+		} else {
+			weatherService.refresh(true);
+		};
+	}, refreshButton);
+	const main = sideBySide ? new St.BoxLayout({x_expand: true, y_expand: true}) : body;
+	const left = sideBySide
+		? new St.BoxLayout({...VERTICAL, x_expand: false, y_expand: true})
+		: body;
+	if (sideBySide) {
+		left.set_width(Math.round((widgetWidth - 30) * 0.5));
+	};
 	body.add_child(locationRow);
-	body.add_child(temperatureActor(body, widget, renderedWeather.temp, createLabel, theme.text, layout));
-	body.add_child(new St.Widget({y_expand: true}));
+	left.add_child(temperatureActor(body, widget, renderedWeather.temp, createLabel, theme.text, layout));
+	left.add_child(new St.Widget({y_expand: true}));
 
 	details.add_child(createLabel(
 		renderedWeather.summary,
@@ -570,37 +405,64 @@ function renderWeather({body, widget, createLabel, theme, weather, weatherLocati
 
 	bottomRow.add_child(icon);
 	bottomRow.add_child(details);
-	body.add_child(bottomRow);
+	left.add_child(bottomRow);
+	if (renderedWeather.hint) {
+		const hint = createLabel(
+			renderedWeather.hint,
+			'widget-weather-hint',
+			`color: ${theme.muted}; font-size: ${Math.max(11, layout.feelsFont - 2)}px;`);
+		hint.set_width(Math.max(100, widgetWidth - 40));
+		hint.clutter_text.line_wrap = true;
+		body.add_child(hint);
+	};
 	if (showForecast) {
-		const days = ['large', 'huge', 'wide'].includes(widget.size) ? 5 : 3;
+		const days = sideBySide ? 3 : ['large', 'huge', 'wide'].includes(widget.size) ? 5 : 3;
 		const forecastRow = new St.BoxLayout({
-			style_class: 'widget-weather-forecast',
-			style: `spacing: ${layout.sectionGap}px; margin-top: ${widgetHeight < 260 ? 4 : 12}px;`,
+			style_class: sideBySide ? 'widget-weather-forecast widget-weather-forecast-panel' : 'widget-weather-forecast',
+			style: sideBySide
+				? 'spacing: 4px; margin-left: 12px; margin-top: 4px;'
+				: `spacing: ${layout.sectionGap}px; margin-top: ${widgetHeight < 260 ? 4 : 12}px;`,
 			x_expand: true,
+			y_expand: sideBySide,
 		});
 		for (const day of forecast.slice(0, days)) {
 			const column = new St.BoxLayout({
 				...VERTICAL,
 				x_expand: true,
+				y_expand: sideBySide,
 				x_align: Clutter.ActorAlign.FILL,
+				y_align: Clutter.ActorAlign.CENTER,
+				style: sideBySide ? 'spacing: 3px;' : '',
 			});
 			const title = createLabel(day.day, 'widget-weather-forecast-day',
-				`color: ${theme.muted}; font-size: ${widgetHeight < 260 ? 12 : 14}px;`);
+				`color: ${theme.muted}; font-size: ${sideBySide ? 13 : widgetHeight < 260 ? 12 : 14}px;`);
 			title.x_align = Clutter.ActorAlign.CENTER;
 			column.add_child(title);
 			const gicon = fullColorWeatherIcon(day.icon);
 			const dayIcon = new St.Icon({
 				...(gicon ? {gicon} : {icon_name: day.icon}),
-				icon_size: widgetHeight < 260 ? 20 : 28,
+				icon_size: sideBySide ? 30 : widgetHeight < 260 ? 20 : 28,
 				x_align: Clutter.ActorAlign.CENTER,
 			});
 			column.add_child(dayIcon);
 			const temperature = createLabel(day.temp, 'widget-weather-forecast-temp',
-				`color: ${theme.text}; font-size: ${widgetHeight < 260 ? 14 : 17}px;`);
+				`color: ${theme.text}; font-size: ${sideBySide ? 18 : widgetHeight < 260 ? 14 : 17}px;`);
 			temperature.x_align = Clutter.ActorAlign.CENTER;
 			column.add_child(temperature);
 			forecastRow.add_child(column);
 		};
-		body.add_child(forecastRow);
+		if (sideBySide) {
+			main.add_child(left);
+			main.add_child(forecastRow);
+			body.add_child(main);
+		} else {
+			body.add_child(forecastRow);
+		};
+	};
+	if (openMeteoActive) {
+		body.add_child(createLabel(
+			'Weather data by Open-Meteo.com',
+			'widget-weather-attribution',
+			`color: ${theme.muted}; font-size: 10px;`));
 	};
 };
