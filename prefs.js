@@ -175,6 +175,17 @@ export default class WidgetsPreferences extends ExtensionPreferences {
 		});
 		group.add(weatherRow);
 
+		const gweatherRow = new Adw.EntryRow({
+			title: _('GNOME Weather fallback city'),
+			text: settings.get_string('weather-gweather-city'),
+			show_apply_button: true,
+		});
+		gweatherRow.set_tooltip_text(_('Used only when the Weather location above is empty'));
+		gweatherRow.connect('apply', () => {
+			settings.set_string('weather-gweather-city', gweatherRow.get_text().trim());
+		});
+		group.add(gweatherRow);
+
 		group.add(this._spinRow(
 			settings,
 			'screentime-retention-days',
