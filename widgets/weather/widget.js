@@ -16,7 +16,6 @@ export const defaultSize = 'small';
 export const supportedSizes = ['small', 'medium', 'large'];
 
 const WEATHER_LOCATION_KEY = 'weather-location';
-const GWEATHER_CITY_KEY = 'weather-gweather-city';
 
 const temperatureState = new Map();
 const temperatureBodies = new WeakSet();
@@ -49,17 +48,11 @@ export const weatherService = {
 		return this.extensionSettings?.get_string(WEATHER_LOCATION_KEY).trim() ?? '';
 	},
 
-	gweatherCity() {
-		return this.extensionSettings?.get_string(GWEATHER_CITY_KEY).trim() ?? '';
-	},
-
 	start(extensionSettings = null) {
 		this.stop();
 		this.extensionSettings = extensionSettings;
 		this.extensionSettings?.connectObject(
-			`changed::${WEATHER_LOCATION_KEY}`, () => this.onLocationChanged(),
-			`changed::${GWEATHER_CITY_KEY}`, () => this.onLocationChanged(),
-			this);
+			`changed::${WEATHER_LOCATION_KEY}`, () => this.onLocationChanged(), this);
 
 		this.openMeteo = new OpenMeteoService(() => this.onSourceUpdate(this.openMeteo));
 		this.gweather = new GWeatherService(() => this.onSourceUpdate(this.gweather));
@@ -95,7 +88,7 @@ export const weatherService = {
 	refresh(force = false) {
 		const query = this.locationQuery();
 		if (query) {
-			this.gweather.setLocation('');
+			this.gweather.setActive(false);
 			if (this.openMeteo.setLocation(query)) {
 				this.weather = null;
 			};
@@ -104,11 +97,7 @@ export const weatherService = {
 			return;
 		};
 		this.openMeteo.setLocation('');
-		const city = this.gweatherCity();
-		if (!city) {
-			return;
-		};
-		if (this.gweather.setLocation(city)) {
+		if (this.gweather.setActive(true)) {
 			this.weather = null;
 		};
 		this.locationName = this.gweather.locationName;
@@ -299,7 +288,7 @@ function renderWeather({body, widget, createLabel, theme, weather, weatherLocati
 		location: weatherLocation || 'Weather',
 		icon: 'weather-severe-alert',
 		feelsLike: null,
-		hint: sourceActive ? null : 'Set a city in Widgets preferences to show weather',
+		hint: sourceActive ? null : 'Set a city in Widgets preferences to use Open-Meteo',
 	};
 	const [widgetWidth, widgetHeight] = sizeForWidget ? sizeForWidget(widget) : [220, 220];
 	const layout = weatherLayout(widgetWidth, widgetHeight);

@@ -169,22 +169,11 @@ export default class WidgetsPreferences extends ExtensionPreferences {
 			text: settings.get_string('weather-location'),
 			show_apply_button: true,
 		});
-		weatherRow.set_tooltip_text(_('City name used by the Weather widget, for example Cebu City'));
+		weatherRow.set_tooltip_text(_('City for Open-Meteo, for example New York. When empty, the city saved in the GNOME Weather app is used if it is installed'));
 		weatherRow.connect('apply', () => {
 			settings.set_string('weather-location', weatherRow.get_text().trim());
 		});
 		group.add(weatherRow);
-
-		const gweatherRow = new Adw.EntryRow({
-			title: _('GNOME Weather fallback city'),
-			text: settings.get_string('weather-gweather-city'),
-			show_apply_button: true,
-		});
-		gweatherRow.set_tooltip_text(_('Used only when the Weather location above is empty'));
-		gweatherRow.connect('apply', () => {
-			settings.set_string('weather-gweather-city', gweatherRow.get_text().trim());
-		});
-		group.add(gweatherRow);
 
 		group.add(this._spinRow(
 			settings,
