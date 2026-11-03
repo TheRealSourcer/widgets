@@ -44,3 +44,18 @@ test('formatBytes formats bytes to readable human strings', () => {
 	assert.strictEqual(formatBytes(1024 * 1024 * 500), '500.0 MB');
 	assert.strictEqual(formatBytes(1024 * 1024 * 1024 * 8.5), '8.5 GB');
 });
+
+test('system widget exports required interface', async () => {
+	const fs = await import('node:fs');
+	const content = fs.readFileSync('widgets/system/widget.js', 'utf8');
+	assert.match(content, /export const type = 'system';/);
+	assert.match(content, /export const label = 'System Monitor';/);
+	assert.match(content, /export const stylesheet = 'widgets\/system\/stylesheet\.css';/);
+	assert.match(content, /export const defaultSize = 'small';/);
+	assert.match(content, /export const supportedSizes = \['small', 'medium'\];/);
+	assert.match(content, /export function style\(/);
+	assert.match(content, /export function render\(/);
+	assert.match(content, /export function cleanup\(/);
+});
+
+
