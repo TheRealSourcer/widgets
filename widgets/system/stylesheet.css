@@ -1,0 +1,73 @@
+.widget-system .widget-body {
+	spacing: 0;
+}
+
+.widget-system-tray {
+	spacing: 16px;
+	padding: 8px;
+}
+
+.widget-system-rings {
+	spacing: 18px;
+}
+
+.widget-system-gauge-container {
+	width: 86px;
+	height: 86px;
+}
+
+.widget-system-ring {
+	width: 86px;
+	height: 86px;
+}
+
+.widget-system-percent {
+	font-size: 20px;
+	font-weight: 800;
+}
+
+.widget-system-title {
+	font-size: 13px;
+	font-weight: 700;
+	margin-top: 6px;
+}
+
+.widget-system-subtext {
+	font-size: 11px;
+	font-weight: 500;
+	opacity: 0.65;
+}
+
+.widget-system-details {
+	spacing: 12px;
+	padding: 8px 12px;
+}
+
+.widget-system-bar-group {
+	spacing: 4px;
+}
+
+.widget-system-bar-header {
+	spacing: 8px;
+}
+
+.widget-system-bar-name {
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.widget-system-bar-value {
+	font-size: 11px;
+	font-weight: 500;
+	opacity: 0.7;
+}
+
+.widget-system-bar-track {
+	height: 8px;
+	border-radius: 4px;
+}
+
+.widget-system-bar-fill {
+	height: 8px;
+	border-radius: 4px;
+}
