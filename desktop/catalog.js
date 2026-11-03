@@ -10,6 +10,7 @@ import * as MusicWidget from '../widgets/music/widget.js';
 import * as PhotosWidget from '../widgets/photos/widget.js';
 import * as ScreenTimeWidget from '../widgets/screentime/widget.js';
 import * as StocksWidget from '../widgets/stocks/widget.js';
+import * as SystemWidget from '../widgets/system/widget.js';
 import * as TodoWidget from '../widgets/todo/widget.js';
 import * as WeatherWidget from '../widgets/weather/widget.js';
 
@@ -35,6 +36,7 @@ export const WIDGET_MODULES = [
 	AppLauncherWidget,
 	ScreenTimeWidget,
 	StocksWidget,
+	SystemWidget,
 ];
 const DEFAULT_WIDGET_TYPES = new Set(['clock', 'calendar', 'weather', 'photos', 'battery']);
 export const WIDGETS = new Map(WIDGET_MODULES.map(widgetModule => [widgetModule.type, widgetModule]));
@@ -91,6 +93,8 @@ export function widgetCatalog() {
 			keywords: ['usage', 'activity'], iconName: 'preferences-system-time-symbolic'},
 		{type: 'stocks', label: _('Stocks'), category: _('Finance'), description: _('Market quotes and recent trends'),
 			keywords: ['shares', 'market', 'finance'], iconName: 'office-chart-line-symbolic'},
+		{type: 'system', label: _('System Monitor'), category: _('Information'), description: _('CPU, RAM, and Disk usage (updates every 5s)'),
+			keywords: ['system', 'cpu', 'ram', 'memory', 'disk'], iconName: 'utilities-system-monitor-symbolic'},
 	].map(record => ({
 		...record,
 		sizes: WIDGETS.get(record.type).supportedSizes,
