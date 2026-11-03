@@ -62,7 +62,35 @@ export class DesktopRenderer {
 		if (enabled === this._editMode) return;
 
 		this._editMode = enabled;
+		this._syncLayerParent();
 		this.rebuild();
+	};
+
+	_raiseLayer() {
+		if (!this._layer) return;
+
+		const parent = this._layer.get_parent();
+		if (!parent) return;
+
+		if (this._editMode && global.window_group?.get_parent() === parent) {
+			parent.set_child_above_sibling(this._layer, global.window_group);
+		} else {
+			raiseActor(this._layer);
+		};
+	};
+
+	_syncLayerParent() {
+		if (!this._layer) return;
+
+		const targetParent = this._editMode
+			? Main.uiGroup
+			: Main.layoutManager._backgroundGroup;
+
+		if (!targetParent || this._layer.get_parent() === targetParent) return;
+
+		this._layer.get_parent()?.remove_child(this._layer);
+		targetParent.add_child(this._layer);
+		this._raiseLayer();
 	};
 
 	resolveLayout(anchor = null, animate = false, save = false) {
@@ -100,7 +128,8 @@ export class DesktopRenderer {
 		});
 
 		backgroundGroup.add_child(this._layer);
-		raiseActor(this._layer);
+		this._syncLayerParent();
+		this._raiseLayer();
 		this._syncLayerGeometry();
 		this._workspaceIntegration.setSource(this._layer);
 	};
@@ -112,7 +141,7 @@ export class DesktopRenderer {
 
 		this._layer.set_position(monitor.x, monitor.y);
 		this._layer.set_size(monitor.width, monitor.height);
-		raiseActor(this._layer);
+		this._raiseLayer();
 		this.resolveLayout(null, false, true);
 
 		this._workspaceIntegration.queueSync();

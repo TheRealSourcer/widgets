@@ -73,7 +73,8 @@ export class DesktopGallery {
 			for (let current = picked; current; current = current.get_parent()) {
 				const window = current.meta_window ??
 					(current instanceof Meta.WindowActor ? current.get_meta_window() : null);
-				if (window) return;
+				const windowType = window?.get_window_type ? window.get_window_type() : window?.window_type;
+				if (window && windowType !== Meta.WindowType.DESKTOP) return;
 			};
 		};
 		this._controller.setEditMode(true);
