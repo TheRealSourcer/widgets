@@ -6,6 +6,8 @@ import {CHILD_ADDED} from './compatibility.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { MonitorGroup as WorkspaceAnimationMonitorGroup } from 'resource:///org/gnome/shell/ui/workspaceAnimation.js';
 
+const OVERVIEW_CLONE_OPACITY = 120;
+
 function destroyActor(actor) {
   if (!actor) return;
 
@@ -248,6 +250,8 @@ export class WorkspaceIntegration {
       y_align: Clutter.ActorAlign.FILL,
     });
 
+    clone.opacity = Math.round((this._source.opacity / 255) * OVERVIEW_CLONE_OPACITY);
+
     const record = { clone, aboveSiblings: target.aboveSiblings };
 
     if (target.fillContainer) {
@@ -293,6 +297,7 @@ export class WorkspaceIntegration {
       };
 
       record.aboveSiblings = target.aboveSiblings;
+      record.clone.opacity = Math.round((this._source.opacity / 255) * OVERVIEW_CLONE_OPACITY);
 
       if (target.fillContainer) {
         record.clone.set_size(0, 0);
