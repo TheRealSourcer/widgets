@@ -3,6 +3,7 @@ import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Pango from 'gi://Pango';
+import PangoCairo from 'gi://PangoCairo';
 import St from 'gi://St';
 
 import { warn } from '../../logger.js';
@@ -10,6 +11,7 @@ import { widgetResourcePath } from '../../paths.js';
 import { gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import { boxLayoutProps } from '../../utils/gnomeCompat.js';
 import { SeekBar } from '../../lib/seekBar.js';
+import { createMarquee } from '../../lib/marquee.js';
 import { bounceButton, bindHoverShrink } from '../../lib/buttonBounce.js';
 import { getDataDir, parseCssColor } from '../../utils/ported.js';
 import { isActorDestroyed } from '../../utils/actorLifecycle.js';
@@ -21,6 +23,22 @@ export const defaultSize = 'medium';
 export const supportedSizes = ['mini', 'medium'];
 export const appIds = ['org.gnome.Music', 'io.bassi.Amberol', 'org.videolan.VLC'];
 export const customAppKey = 'music-custom-app';
+
+
+// Is a color emoji font (Noto Color Emoji, Twemoji, JoyPixels…) installed?
+// Checked once: without one, emoji render as white boxes in the shell.
+let colorEmojiFont = null;
+function hasColorEmojiFont() {
+	if (colorEmojiFont !== null)
+		return colorEmojiFont;
+	try {
+		colorEmojiFont = PangoCairo.FontMap.get_default().list_families()
+			.some(family => /emoji/i.test(family.get_name()));
+	} catch (_e) {
+		colorEmojiFont = false;
+	}
+	return colorEmojiFont;
+};
 
 const PLAYER_IFACE = 'org.mpris.MediaPlayer2.Player';
 const PLAYER_PATH = '/org/mpris/MediaPlayer2';
@@ -620,13 +638,13 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	// Isle's dynamic scheduling: +30ms buffer after the exact line timestamp
 	// to ensure the position has definitely crossed the threshold.
 	const LYR_SCHEDULE_BUFFER_MS = 30;
-	// Sync offset: Negative value to trigger line switches EARLY, compensating for:
-	// - D-Bus PropertiesChanged signal propagation delay (~50-100ms)
-	// - MPRIS position update intervals (~2000ms, causes drift between updates)
-	// - Audio output buffer latency (PipeWire/PulseAudio ~150-250ms)
-	// - UI rendering and scroll animation lag (~50-100ms)
-	// Total empirically measured lag: ~350-400ms behind Isle's daemon-based approach.
-	const LYR_SYNC_OFFSET_MS = -350;
+	// How far AHEAD of the player position lines switch (ms). Isle uses none:
+	// a line lights up exactly at its timestamp. The old constant was -350
+	// and was ADDED to the position, so every line switched 350 ms LATE
+	// (its comment meant "early" — the sign was inverted). The lag it tried
+	// to cover came from position bugs fixed below (re-anchored Playing
+	// status, stale positions passed to instant re-syncs).
+	const LYR_LEAD_MS = 0;
 
 	const lyrFont = Math.max(11, Math.round(widgetHeight * 0.09));
 	const lyricStyleInactive = `font-size: ${lyrFont}px; color: ${theme.muted};`;
@@ -1166,7 +1184,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 
 		// Convert microseconds to milliseconds and apply fine-tuned offset
 		// to compensate for audio output buffer latency + UI rendering lag.
-		const positionMs = (positionUs / 1000) + LYR_SYNC_OFFSET_MS;
+		const positionMs = (positionUs / 1000) + LYR_LEAD_MS;
 		
 		// Binary search: find LAST index where line.time_ms <= positionMs
 		// This matches Isle's exact logic - finds the currently ACTIVE line.
@@ -1332,8 +1350,8 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 			const nextLine = card._lyricsLines[index + 1];
 			if (nextLine) {
 				// Calculate milliseconds until next line with sync offset applied
-				const nextTimeMs = nextLine.time_ms + LYR_SYNC_OFFSET_MS;
-				const currentPosMs = positionMs;
+				const nextTimeMs = nextLine.time_ms - LYR_LEAD_MS;
+				const currentPosMs = positionMs - LYR_LEAD_MS;
 				const msUntilNext = Math.max(0, nextTimeMs - currentPosMs);
 				
 				// Cancel any existing scheduled update
@@ -1350,12 +1368,10 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 						() => {
 							card._lyricsScheduledUpdate = null;
 							// Recalculate position at the scheduled moment
-							const now = Math.floor(GLib.get_real_time() / 1000);
 							const controller = card._controller;
-							if (controller && controller._playing && now >= controller._seekLockUntil) {
-								const position = controller._position + 
-									(Math.max(0, controller._rate) || 1) * (now - controller._posAt) * 1000;
-								card._tickLyrics(position);
+							if (controller && controller._playing
+								&& Math.floor(GLib.get_real_time() / 1000) >= controller._seekLockUntil) {
+								card._tickLyrics(controller._currentPositionUs());
 							};
 							return GLib.SOURCE_REMOVE;
 						}
@@ -1377,6 +1393,28 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	// which pushed the column past the body clip and shaved the top-right
 	// status icon. Ellipsis keeps the column inside its allocation.
 	card.title.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+
+	// The idle title used a 🐾 emoji: without a color emoji font the shell
+	// draws it as a white box ("tofu"). A bundled full-color paw-prints
+	// glyph stands in for the emoji, right after the text like an emoji.
+	const pawPath = widgetResourcePath('music', 'paw-prints-emoji.svg');
+	card.titlePaw = new St.Icon({
+		gicon: pawPath ? Gio.FileIcon.new(Gio.File.new_for_path(pawPath)) : null,
+		icon_size: Math.round(titleFont * 1.05),
+		y_align: Clutter.ActorAlign.CENTER,
+		style: 'margin-left: 5px;',
+		visible: false,
+	});
+	// Natural width only, so the glyph sits right after the text instead of
+	// being pushed to the far edge (the label still ellipsizes if needed).
+	card.title.x_expand = false;
+	card.titleRow = new St.BoxLayout(boxLayoutProps({
+		x_expand: true,
+	}));
+	// Long titles/artists scroll like Apple Music instead of ending in "…".
+	card.titleMarquee = createMarquee(card.title, {expand: false});
+	card.titleRow.add_child(card.titleMarquee.actor);
+	card.titleRow.add_child(card.titlePaw);
 
 	card.artist = createLabel('', 'widget-music-artist', `font-size: ${artistFont}px; color: ${theme.muted};`);
 	card.artist.clutter_text.single_line_mode = true;
@@ -1480,8 +1518,9 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 	} else {
 		card.column.add_child(card.statusIcon);
 	};
-	card.column.add_child(card.title);
-	card.column.add_child(card.artist);
+	card.column.add_child(card.titleRow);
+	card.artistMarquee = createMarquee(card.artist);
+	card.column.add_child(card.artistMarquee.actor);
 	card.column.add_child(card.slider);
 	card.column.add_child(card.controls);
 	card.container.add_child(card.coverBox);
@@ -1509,6 +1548,7 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 
 		if (hasTrack) {
 			card.title.text = title;
+			card.titlePaw.visible = false;
 			card.artist.text = artist || _('Unknown artist');
 
 			stopEmptyGif(card);
@@ -1516,8 +1556,14 @@ function createCard(theme, createLabel, widgetWidth, widgetHeight) {
 
 			card.showArt(artUrl);
 		} else {
-card.title.text = _("I'm waiting 🐾");
-card.artist.text = _('Play something to get going');
+			// The real 🐾 emoji when a color emoji font is installed; without
+			// one the shell draws a white box ("tofu"), so the emoji is then
+			// stripped and the bundled paw picture stands in for it.
+			const waiting = _("I'm waiting 🐾");
+			const emoji = hasColorEmojiFont();
+			card.title.text = emoji ? waiting : waiting.replace(/\s*\u{1F43E}\s*/gu, '');
+			card.titlePaw.visible = !emoji;
+			card.artist.text = _('Play something to get going');
 
 			if (gifPath) {
 				if (card._gifPath !== gifPath) {
@@ -1902,8 +1948,9 @@ let Controller = class Controller {
 
 					// Instant lyrics sync on play/pause: breathing animation
 					// state changes immediately, not waiting for the ticker.
+					// The CURRENT position: _position is only the last sample.
 					if (this._card?._lyricsOn && this._card?._lyricsSynced) {
-						this._card._tickLyrics(this._position);
+						this._card._tickLyrics(this._currentPositionUs());
 					};
 				};
 
@@ -2036,10 +2083,18 @@ let Controller = class Controller {
 		this._playing = status === 'Playing';
 
 		if (status === 'Playing') {
-			this._acceptUntil = Math.floor(GLib.get_real_time() / 1000) + 1500;
-			// Re-anchor posAt so the timer's first accumulation step starts
-			// from now, not from whenever the last update arrived.
-			this._posAt = Math.floor(GLib.get_real_time() / 1000);
+			const now = Math.floor(GLib.get_real_time() / 1000);
+			this._acceptUntil = now + 1500;
+			if (wasPlaying) {
+				// Players re-send PlaybackStatus=Playing with other changes
+				// (metadata, volume…). Re-anchoring without folding in the
+				// elapsed time rewound the position by up to the poll
+				// interval — the lyrics fell behind until the next sync.
+				this._position = this._currentPositionUs(now);
+			};
+			// Paused → Playing: the position was frozen at the pause, so
+			// counting starts from now.
+			this._posAt = now;
 
 			if (this._chromium) {
 				this._refreshMeta();
@@ -2300,6 +2355,17 @@ let Controller = class Controller {
 		this._name = best.name;
 		this._wire(best.name);
 		this._applyProps(best.props);
+	};
+
+	// The playback position NOW (µs), advanced in real time from the last
+	// sample while playing — Isle's positionMs(), in microseconds.
+	_currentPositionUs(nowMs = Math.floor(GLib.get_real_time() / 1000)) {
+		let position = this._position;
+		if (this._playing && !this._seekActive && nowMs >= this._seekLockUntil)
+			position += (Math.max(0, this._rate) || 1) * (nowMs - this._posAt) * 1000;
+		if (this._length > 0)
+			position = Math.min(position, this._length);
+		return Math.max(0, position);
 	};
 
 	_render() {

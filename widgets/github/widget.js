@@ -37,7 +37,10 @@ const REFRESH_INTERVAL = 600;
 const HTTP_OK = 200;
 const WIDGET_PADDING = 16;
 const GITHUB_GREEN_COLORS = ['#39d353', '#26a641', '#006d32', '#0e4429'];
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const AVATAR_MAX_AGE_SECONDS = 24 * 60 * 60;
+// GitHub logins: letters, digits and single hyphens. Anything else is not a
+// valid account and must never end up in a file name (avatar cache path).
+const safeFileToken = name => String(name).replace(/[^A-Za-z0-9_-]/g, '_');
 
 const monthNames = () =>
     [_('Jan'), _('Feb'), _('Mar'), _('Apr'), _('May'), _('Jun'),
@@ -129,22 +132,41 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
             }
         : isLarge
             ? {
-                // 2×2: cells tightened to 15px so that besides 5 months
-                // the 5th stats row still fits — pitch 15+1=16,
-                // weeks = floor((361-30+1)/16) = 20 weeks (Jun..Oct),
-                // the grid gets 14px shorter, exactly above the new chip.
-                // monthLabels: 2×2 shows exactly 5 month labels.
+                // 2×2: same look as the 2×1 — 2px gaps between squares,
+                // full-width grid, month names spread evenly and lifted.
+                // Cells 14px with the 2px gap keep the grid height of the old
+                // 15+1 pitch (7×16−2 = 110px), so the 5 stats chips still fit;
+                // weeks = floor((361−30−7+2)/16) = 20.
                 avatar: 34, username: 16, badge: 16, label: 13, entryWidth: 170,
-                footer: 14, month: 15, spacing: 6, gap: 1, daysW: 30,
-                footerFont: 16, dayRows: translateDayRows(DAY_LABEL_ROWS), maxWeeks: 48, cellMax: 15, monthLabels: 5,
+                footer: 14, month: 15, spacing: 6, gap: 2, daysW: 30,
+                footerFont: 16, dayRows: translateDayRows(DAY_LABEL_ROWS), maxWeeks: 48, cellMax: 14, monthLabels: 5,
+                wholeMonths: false,
+                monthLabelSpread: true,
+                monthLabelInset: 15,
+                monthLift: 2,
+                // "Synced …" / Less–More lowered this many px (paint-only).
+                footerDrop: 4,
             }
             : {
-                // 2×1: cells tightened to 10px to fit
-                // 26 weeks (6 months) instead of 5 months — pitch 10+2=12,
-                // weeks = floor((361-28+2)/12) = 27. monthLabels: 6 labels.
+                // 2×1: exactly 6 whole months (see fitWholeMonths); the cell
+                // size follows from the week count (≈10–11px), the height
+                // allows up to 11px.
                 avatar: 28, username: 14, badge: 12, label: 12, entryWidth: 150,
                 footer: 12, month: 14, spacing: 3, gap: 2, daysW: 28,
                 footerFont: 11, dayRows: translateDayRows(DAY_LABEL_ROWS), maxWeeks: 60, cellMax: 10, monthLabels: 6,
+                // Full-width grid (as many weeks as fit), not cut to whole months.
+                wholeMonths: false,
+                // Month names raised this many px above the grid (paint-only,
+                // the grid does not move).
+                monthLift: 2,
+                // Month names spread evenly over the whole grid width: equal
+                // distance between their CENTERS, first near the left edge,
+                // last near the right one. Unset = each name sits over the
+                // middle of its own month (2×2).
+                monthLabelSpread: true,
+                // Inset (px) of the spread row from both grid edges: bigger =
+                // names closer together. 0 → ~25px between names; 15 → ~20px.
+                monthLabelInset: 15,
             };
 
     const avatarSize = layout.avatar;
@@ -160,8 +182,51 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
     const mainGaps = isMini ? layout.spacing : layout.spacing * 2;
     const matrixBudget = contentH - layout.avatar - layout.month - layout.footer - mainGaps - 1;
     const cellMax = layout.cellMax ?? (isLarge ? 20 : 16);
-    const cellSize = Math.max(4, Math.min(cellMax, Math.floor((matrixBudget - 6 * cellGap) / 7)));
-    const weeks = Math.max(6, Math.min(layout.maxWeeks, Math.floor((contentW - dayLabelsWidth - (isMini ? 0 : dayLabelGap) + cellGap) / (cellSize + cellGap))));
+    const heightCellCap = Math.max(4, Math.min(cellMax, Math.floor((matrixBudget - 6 * cellGap) / 7)));
+    const availGridW = contentW - dayLabelsWidth - (isMini ? 0 : dayLabelGap);
+    // Default geometry (mini): as many weeks as fit at the largest cell.
+    let cellSize = heightCellCap;
+    let weeks = Math.max(6, Math.min(layout.maxWeeks, Math.floor((availGridW + cellGap) / (cellSize + cellGap))));
+    // First day drawn (sizes with month labels start on the 1st of a month).
+    let gridFirstDay = null;
+    // Horizontal centering of the grid + month labels in their slot.
+    let gridOffsetX = 0;
+
+    const DAY_US = 86400 * 1e6;
+    const dateOnly = dt => GLib.DateTime.new_local(dt.get_year(), dt.get_month(), dt.get_day_of_month(), 0, 0, 0);
+    const sundayOf = dt => dt.add_days(-(dt.get_day_of_week() % 7));
+    const daysBetween = (later, earlier) => Math.round(later.difference(earlier) / DAY_US);
+
+    // Sizes with month labels show WHOLE months: the grid starts on the 1st
+    // of the oldest month instead of mid-month. The old fixed 27 weeks began
+    // with 2–3 unlabeled columns of a partial month, so the label row looked
+    // shifted right. The cell size is then fitted to the week count.
+    function fitWholeMonths(today) {
+        if (!Number.isFinite(layout.monthLabels) || layout.wholeMonths === false)
+            return;
+        const months = layout.monthLabels;
+        const endDate = dateOnly(today).add_days(6 - (today.get_day_of_week() % 7));
+        const currentFirst = GLib.DateTime.new_local(today.get_year(), today.get_month(), 1, 0, 0, 0);
+        const plan = back => {
+            const first = currentFirst.add_months(-back);
+            const neededWeeks = (daysBetween(endDate, sundayOf(first)) + 1) / 7;
+            const fitted = Math.min(heightCellCap, Math.floor((availGridW + cellGap) / neededWeeks) - cellGap);
+            return {first, neededWeeks, fitted};
+        };
+        // A just-started month is too narrow to host its label; then show
+        // one more month so N months stay labeled. Label width estimate:
+        // three bold glyphs ≈ 2.2em.
+        const currentCols = (daysBetween(endDate, sundayOf(currentFirst)) + 1) / 7;
+        let {first, neededWeeks, fitted} = plan(months - 1);
+        if (currentCols * (fitted + cellGap) - cellGap < layout.month * 2.2)
+            ({first, neededWeeks, fitted} = plan(months));
+        if (fitted < 4)
+            return; // cannot fit: keep the default geometry
+        cellSize = fitted;
+        weeks = neededWeeks;
+        gridFirstDay = first;
+        gridOffsetX = Math.max(0, Math.floor((availGridW - (weeks * (cellSize + cellGap) - cellGap)) / 2));
+    }
 
     const dataFilePath = GLib.build_filenamev([getDataDir('github'), `github-${widget?.id}.json`]);
 
@@ -191,7 +256,9 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
 
     profileUrls.delete(widget.id);
 
-    body.set_clip_to_allocation(true);
+    // A lowered footer reaches into the card's bottom padding, outside the
+    // body: no body clip then (the widget wrapper still clips to the card).
+    body.set_clip_to_allocation(!layout.footerDrop);
 
     const setStatus = (text) => {
         statusLabel.text = text;
@@ -400,6 +467,10 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
 
         footerBox.add_child(legendBox);
         mainBox.add_child(footerBox);
+        // Lowered into the card's bottom padding (paint-only).
+        if (layout.footerDrop)
+            footerBox.translation_y = layout.footerDrop;
+
     }
 
     // --- MATRIX DRAWING ---
@@ -422,20 +493,21 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         const radius = isMini ? 1.2 : 2.5;
         for (const cell of cells) {
             if (cell.x + size > cw || cell.y + size > ch) continue;
-            const c = parseCssColor(cell.color);
-            ctx.setSourceRGBA(c.r, c.g, c.b, c.a !== undefined ? c.a : 1);
+            const c = cell.rgba;
+            ctx.setSourceRGBA(c.r, c.g, c.b, c.a);
             traceRoundedRect(ctx, cell.x, cell.y, size, size, radius);
             ctx.fill();
         }
         ctx.$dispose();
     });
 
-    function renderMonthLabels(startUnix) {
+    function renderMonthLabels(startDate) {
         if (isMini) return;
         const pitch = cellSize + cellGap;
         monthLabelsRow.destroy_all_children();
         const monthBottomMargin = isMini ? 0 : 4;
-        monthLabelsRow.style = `height: ${layout.month}px; margin-bottom: ${monthBottomMargin}px;`;
+        monthLabelsRow.style = `height: ${layout.month}px; margin-bottom: ${monthBottomMargin}px; margin-left: ${gridOffsetX}px;`;
+        monthLabelsRow.translation_y = -(layout.monthLift ?? 0);
 
         // One coordinate space with the canvas: the drawn grid spans exactly
         // weeks * pitch - gap starting at row x = 0 (see gridCanvas above).
@@ -443,47 +515,99 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
 
         // First and last grid column each month is visible in, so a label can
         // be centered over the month's own column block.
+        // Walked by calendar day (add_days) rather than unix + n*86400, so a
+        // DST switch inside the grid cannot shift a day into the wrong month.
         const spans = [];
-        for (let day = 0; day < weeks * 7; day++) {
-            const dt = GLib.DateTime.new_from_unix_local(startUnix + day * 86400);
+        const daysInGrid = weeks * 7;
+        let dt = startDate;
+        for (let day = 0; day < daysInGrid; day++, dt = dt.add_days(1)) {
+            if (gridFirstDay && dt.compare(gridFirstDay) < 0)
+                continue; // not drawn (before the oldest whole month)
             const month = dt.get_month() - 1;
             const col = Math.floor(day / 7);
 
             const span = spans[spans.length - 1];
-            if (span && span.month === month)
+            if (span && span.month === month) {
                 span.lastCol = col;
-            else
-                spans.push({month, firstCol: col, lastCol: col});
+                span.colSum += col;
+                span.days++;
+            } else {
+                spans.push({month, firstCol: col, lastCol: col, colSum: col, days: 1});
+            }
         }
 
-        // The size defines a label count: when more months are visible,
-        // trim the OLDEST ones (partial months on the left edge of the grid).
-        if (Number.isFinite(layout.monthLabels) && spans.length > layout.monthLabels)
-            spans.splice(0, spans.length - layout.monthLabels);
+        const names = monthNames();
+        const labelStyle = `font-size: ${layout.month}px; font-weight: 700; color: ${textColor}; opacity: ${SECONDARY_OPACITY};`;
 
+        // First drop months that only sliver into the grid (their label
+        // cannot sit over them), THEN keep the newest N. The old order
+        // (trim to N first, skip slivers after) regularly lost a label when
+        // the current month had just started: 2×1 showed 5 months instead
+        // of 6 on roughly half of the days of a year.
+        const placed = [];
         for (const span of spans) {
             const startX = span.firstCol * pitch;
             const endX = (span.lastCol + 1) * pitch - cellGap;
 
             const lbl = new St.Label({
-                text: monthNames()[span.month],
+                text: names[span.month],
                 y_align: Clutter.ActorAlign.CENTER,
-                style: `font-size: ${layout.month}px; font-weight: 700; color: ${textColor}; opacity: ${SECONDARY_OPACITY};`,
+                style: labelStyle,
             });
             const [, labelWidth] = lbl.get_preferred_width(-1);
 
-            // A month that only slivers into the grid cannot host its label
-            // under itself — skip it instead of pinning it to an edge.
-            if (endX - startX < labelWidth)
+            if (endX - startX < labelWidth) {
+                lbl.destroy();
                 continue;
+            }
+            // Day-weighted center: the mean column of the month's own cells.
+            // A month's edge columns are often partial (Aug 1 alone in a
+            // Saturday cell), so the plain column-block center sat 3–6px off
+            // the visual middle of the month's squares.
+            const centerX = (span.colSum / span.days) * pitch + cellSize / 2;
+            placed.push({lbl, startX, endX, labelWidth, centerX});
+        }
 
-            // Centered over the month's visible column block — no first-label
-            // pins, no cumulative min-spacing shifts, no even-spacing
-            // interpolation that drifted middle labels off their months.
-            lbl.translation_x = Math.max(0, Math.min(
-                gridEndX - labelWidth,
-                Math.round((startX + endX - labelWidth) / 2)));
+        const limit = Number.isFinite(layout.monthLabels) ? layout.monthLabels : placed.length;
+        for (const {lbl} of placed.splice(0, Math.max(0, placed.length - limit)))
+            lbl.destroy();
+
+        if (layout.monthLabelSpread) {
+            // N names over the grid width: name i is centered at
+            // (i + 0.5) / N of the grid. Real widths only exist once the
+            // labels are laid out, so the row is re-placed whenever any of
+            // them changes width.
+            const n = placed.length;
+            const placeRow = () => {
+                placed.forEach(({lbl}, i) => {
+                    const w = lbl.width;
+                    const inset = Math.max(0, layout.monthLabelInset ?? 0);
+                    const span = Math.max(1, gridEndX - inset * 2);
+                    const center = inset + span * (i + 0.5) / n;
+                    lbl.translation_x = Math.max(0, Math.min(gridEndX - w, Math.round(center - w / 2)));
+                });
+            };
+            for (const {lbl} of placed) {
+                monthLabelsRow.add_child(lbl);
+                lbl.connect('notify::width', placeRow);
+            }
+            placeRow();
+            return;
+        }
+
+        for (const {lbl, centerX} of placed) {
+            // Centered over the month's visible column block, using the
+            // label's REAL width: measured before it is on stage, the inline
+            // font-size is not applied yet and the estimate is off.
+            const place = () => {
+                const w = lbl.width;
+                lbl.translation_x = Math.max(0, Math.min(
+                    gridEndX - w,
+                    Math.round(centerX - w / 2)));
+            };
             monthLabelsRow.add_child(lbl);
+            place();
+            lbl.connect('notify::width', place);
         }
     }
 
@@ -517,10 +641,12 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         }
     }
 
-    function cellColorFor(level) {
-        if (level === 0) return emptyCellColor;
-        return levelColors[4 - level];
-    }
+    // Parsed once per render: the repaint handler used to run
+    // parseCssColor() for every cell (~190-340) on every repaint.
+    const levelRgba = [emptyCellColor, ...levelColors.slice().reverse()].map(color => {
+        const c = parseCssColor(color);
+        return {r: c.r, g: c.g, b: c.b, a: c.a !== undefined ? c.a : 1};
+    });
 
     // Cheap fingerprint of the contribution data. GitHub counts only ever
     // change by growing, so (active days, total) changes whenever the fetched
@@ -539,23 +665,25 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         const byDate = contributionsByDate || latestByDate;
         // The grid is anchored to today, so it must be rebuilt when the date
         // rolls over even if the contribution counts are unchanged.
-        const todayKey = GLib.DateTime.new_now_local().format('%Y-%m-%d');
+        const today = GLib.DateTime.new_now_local();
+        const todayKey = today.format('%Y-%m-%d');
+        fitWholeMonths(today);
         const dataKey = `${cellSize}|${cellGap}|${weeks}|${useGreen}|${contentW}|${todayKey}|${contributionsSignature(byDate)}`;
         if (dataKey === matrixGeometry.dataKey) return;
 
         renderDayLabels();
 
-        const today = GLib.DateTime.new_now_local();
         const daysInGrid = weeks * 7;
         const gridEnd = today.add_days(6 - (today.get_day_of_week() % 7));
         const alignedStart = gridEnd.add_days(-(daysInGrid - 1));
 
-        renderMonthLabels(alignedStart.to_unix());
+        renderMonthLabels(alignedStart);
 
         const cells = [];
         for (let i = 0; i < daysInGrid; i++) {
             const date = alignedStart.add_days(i);
             if (date.compare(today) > 0) break;
+            if (gridFirstDay && date.compare(gridFirstDay) < 0) continue;
             const dateKey = date.format('%Y-%m-%d');
             const col = Math.floor(i / 7);
             const row = date.get_day_of_week() % 7;
@@ -563,7 +691,7 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
             cells.push({
                 x: col * (cellSize + cellGap),
                 y: row * (cellSize + cellGap),
-                color: cellColorFor(level),
+                rgba: levelRgba[level],
             });
         }
 
@@ -572,6 +700,7 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         matrixGeometry.dataKey = dataKey;
         matrixGeometry.cells = cells;
 
+        gridCanvas.style = `background-color: ${theme.background}; margin-left: ${gridOffsetX}px;`;
         gridCanvas.set_width(Math.max(1, weeks * (cellSize + cellGap) - cellGap));
         gridCanvas.set_height(Math.max(1, 7 * (cellSize + cellGap) - cellGap));
         gridCanvas.queue_repaint();
@@ -583,7 +712,6 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
         const todayKey = today.format('%Y-%m-%d');
         todayCount = byDate.get(todayKey) ?? 0;
 
-        let streak = 0;
         let longest = 0;
         let tempStreak = 0;
         let active = 0;
@@ -598,10 +726,18 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
                 active++;
                 tempStreak++;
                 if (tempStreak > longest) longest = tempStreak;
-                if (i === 0 || streak === i) streak = tempStreak;
             } else {
                 tempStreak = 0;
             }
+        }
+
+        // Current streak, GitHub-style: a day without contributions YET
+        // (today) does not break it — count back from yesterday then.
+        let streak = 0;
+        for (let i = (byDate.get(todayKey) ?? 0) > 0 ? 0 : 1; i < 365; i++) {
+            if ((byDate.get(checkDate.add_days(-i).format('%Y-%m-%d')) ?? 0) <= 0)
+                break;
+            streak++;
         }
 
         // The most productive day among all days present in the GitHub data.
@@ -646,8 +782,8 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
             { icon: 'weather-clear-symbolic', label: _('Best day'), value: `${formatCount(bestDayCount)} · ${bestDayLabel}` },
         ];
 
-        // Each metric is a full-width chip: 4 chips × ~30px
-        // fit the 2×2 stats budget (~138px) without overflow.
+        // Each metric is a full-width chip; the 5 chips share the 2×2 stats
+        // budget left between the grid and the footer.
         for (const stat of statsData) {
             const chip = new St.BoxLayout({
                 x_expand: true,
@@ -757,8 +893,8 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
             } catch (err) {
                 const cancelled = err.matches && err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED);
                 if (!cancelled) {
-                    setProfileUrl(false);
                     const cached = latestByDate.size > 0;
+                    setProfileUrl(cached);
                     // Show the error only when there is no cache
                     if (cached && lastSyncTime) {
                         setStatus(isMini
@@ -782,7 +918,7 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
             return;
         }
 
-        const avatarPath = GLib.build_filenamev([getDataDir('github'), `avatar-${username}.png`]);
+        const avatarPath = GLib.build_filenamev([getDataDir('github'), `avatar-${safeFileToken(username)}.png`]);
         const avatarFile = Gio.File.new_for_path(avatarPath);
 
         const applyAvatar = () => {
@@ -791,13 +927,24 @@ export function render({ body, widget, theme, sizeForWidget, settings }) {
             avatarWidget.set_style(`background-image: url("${uri}"); background-size: cover; border-radius: 999px; width: ${avatarSize}px; height: ${avatarSize}px;`);
         };
 
+        let avatarFresh = false;
         if (avatarFile.query_exists(null)) {
             applyAvatar();
+            try {
+                const info = avatarFile.query_info('time::modified', Gio.FileQueryInfoFlags.NONE, null);
+                const mtime = info.get_attribute_uint64('time::modified');
+                avatarFresh = GLib.get_real_time() / 1e6 - mtime < AVATAR_MAX_AGE_SECONDS;
+            } catch (_e) {}
         } else {
             avatarInitialsLabel.text = username.slice(0, 2).toUpperCase();
             avatarInitialsLabel.show();
             avatarWidget.set_style(`background-image: none; background-color: ${textRgba(0.15)}; border-radius: 999px; width: ${avatarSize}px; height: ${avatarSize}px;`);
         }
+
+        // Every settings change / re-layout re-renders the widget; a cached
+        // avatar younger than a day is good enough — skip the network.
+        if (avatarFresh)
+            return;
 
         const url = `https://github.com/${encodeURIComponent(username)}.png`;
         const message = Soup.Message.new('GET', url);
